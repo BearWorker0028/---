@@ -1,0 +1,580 @@
+import time
+import logging
+import requests
+import os
+import json
+from datetime import datetime, timezone, timedelta
+from pymodbus.client import ModbusTcpClient
+from pymodbus.framer import FramerType
+
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
+from dotenv import load_dotenv
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '..', '.env'))
+CHANNEL_CONFIG_PATH = os.getenv(
+    'CHANNEL_CONFIG_PATH',
+    os.path.join(BASE_DIR, 'channel_config.json')
+)
+CHANNEL_CONFIG_EXAMPLE_PATH = os.path.join(BASE_DIR, 'channel_config.example.json')
+
+DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
+if not DATABASE_URL:
+    raise RuntimeError('DATABASE_URL is required (TimescaleDB/Postgres) — set it in .env')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+
+DEFAULT_CHANNEL_CONFIG = {
+    'ch01': {'reg': 0, 'slave': 1, 'name': '成品庫',      'enabled': True},
+    'ch02': {'reg': 1, 'slave': 1, 'name': '急速庫16HP',  'enabled': True},
+    'ch03': {'reg': 2, 'slave': 1, 'name': '冷藏庫(小)',  'enabled': True},
+    'ch04': {'reg': 3, 'slave': 1, 'name': '冷藏庫(大)',  'enabled': True},
+    'ch05': {'reg': 4, 'slave': 1, 'name': '原料庫',      'enabled': True},
+    'ch06': {'reg': 5, 'slave': 1, 'name': '急速庫10HP',  'enabled': True},
+    'ch07': {'reg': 0, 'slave': 2, 'name': '處理室',      'enabled': True},
+    'ch08': {'reg': 1, 'slave': 2, 'name': '儲冰桶',      'enabled': True},
+    'ch09': {'reg': 2, 'slave': 2, 'name': '儲熱桶',      'enabled': True},
+    'ch10': {'reg': 3, 'slave': 2, 'name': '機房',        'enabled': True},
+    'ch11': {'reg': 4, 'slave': 2, 'name': '電器室',      'enabled': True},
+    'ch12': {'reg': 5, 'slave': 2, 'name': '電腦室',      'enabled': True},
+}
+
+def _normalize_channel_config(raw_config):
+    channels = raw_config.get('channels', []) if isinstance(raw_config, dict) else []
+    normalized = {}
+    for item in channels:
+        if not isinstance(item, dict):
+            continue
+        ch = item.get('channel')
+        if not ch:
+            continue
+        normalized[ch] = {
+            'reg': int(item.get('reg', item.get('register', 0))),
+            'slave': int(item.get('slave', 1)),
+            'name': item.get('name') or ch,
+            'gateway': item.get('gateway', 'GW1'),
+            'enabled': bool(item.get('enabled', True)),
+            'scale': float(item.get('scale', 0.1)),
+            'offset': float(item.get('offset', 0.0)),
+            'data_type': item.get('data_type', 'int16'),
+            'device_type': item.get('device_type', 'iot627'),
+            'invalid_below': item.get('invalid_below', -199.0),
+        }
+    return normalized
+
+def _load_channel_config():
+    for path in (CHANNEL_CONFIG_PATH, CHANNEL_CONFIG_EXAMPLE_PATH):
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            channels = _normalize_channel_config(raw)
+            if channels:
+                logging.info(f"已載入通道設定：{path}")
+                return raw, channels
+        except Exception as e:
+            logging.error(f"載入通道設定失敗 {path}: {e}")
+    return {}, DEFAULT_CHANNEL_CONFIG
+
+SITE_CONFIG_RAW, CHANNEL_CONFIG = _load_channel_config()
+
+# ── 多 Gateway 設定解析（向下相容舊的單一 modbus 區塊）──────────────
+def _parse_gateway_config(raw):
+    """從 config 解析 gateway 連線資訊，支援新舊兩種格式"""
+    if not isinstance(raw, dict):
+        return {}
+    # 新格式：gateways 字典
+    gateways = raw.get('gateways')
+    if gateways and isinstance(gateways, dict):
+        result = {}
+        for gw_id, gw_cfg in gateways.items():
+            result[gw_id] = {
+                'host': str(gw_cfg.get('host', '192.168.x.x')),
+                'port': int(gw_cfg.get('port', 2000)),
+                'framer': str(gw_cfg.get('framer', 'RTU_OVER_TCP')),
+                'description': str(gw_cfg.get('description', '')),
+            }
+        logging.info(f"已載入 {len(result)} 組 Gateway 設定: {list(result.keys())}")
+        return result
+    # 舊格式：單一 modbus 區塊 → 轉為 GW1
+    modbus = raw.get('modbus', {})
+    if modbus:
+        logging.info("使用舊格式 modbus 設定，自動轉為 GW1")
+        return {
+            'GW1': {
+                'host': str(modbus.get('host', '192.168.x.x')),
+                'port': int(modbus.get('port', 2000)),
+                'framer': str(modbus.get('framer', 'RTU_OVER_TCP')),
+                'description': 'Legacy single gateway',
+            }
+        }
+    return {}
+
+GATEWAY_CONFIG = _parse_gateway_config(SITE_CONFIG_RAW)
+
+API_BASE      = os.getenv('API_BASE', 'http://127.0.0.1:88').rstrip('/')
+PUBLISH_TO_API = os.getenv('PUBLISH_TO_API', '0').lower() in ('1', 'true', 'yes', 'on')
+ALARM_COOLDOWN = 600  # 秒，同通道同類型間隔 10 分鐘才再次記錄
+
+# Pushover 設定
+PUSHOVER_TOKEN = os.getenv('PUSHOVER_TOKEN', '')
+PUSHOVER_USER  = os.getenv('PUSHOVER_USER', '')
+
+def send_pushover(title, message):
+    if not PUSHOVER_TOKEN or not PUSHOVER_USER:
+        logging.warning("Pushover Token/User 未設定，跳過推播")
+        return
+    try:
+        resp = requests.post("https://api.pushover.net/1/messages.json", data={
+            "token":   PUSHOVER_TOKEN,
+            "user":    PUSHOVER_USER,
+            "title":   title,
+            "message": message
+        }, timeout=5)
+        if resp.status_code == 200:
+            logging.info(f"Pushover 推播發送成功: {title}")
+        else:
+            logging.error(f"Pushover 回應異常 HTTP {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logging.error(f"Pushover 發送失敗: {e}")
+last_alarm_time = {}
+violation_start_time = {}
+
+TZ_TW = timezone(timedelta(hours=8))
+
+# ─────────────────────────────────────────────────────────────
+
+def signed_int16(raw):
+    return raw - 65536 if raw > 32767 else raw
+
+def to_unsigned_int16(value):
+    """有號整數轉為 Modbus 寫入用的 16-bit 補碼表示"""
+    return int(value) & 0xFFFF
+
+def tw_now():
+    """取得台灣時間字串"""
+    return datetime.now(TZ_TW).strftime('%Y-%m-%d %H:%M:%S')
+
+def raw_to_temp(raw, cfg=None):
+    cfg = cfg or {}
+    data_type = str(cfg.get('data_type', 'int16')).lower()
+    if data_type in ('int16', 'signed_int16') and raw > 32767:
+        raw = raw - 65536
+    scale = float(cfg.get('scale', 0.1))
+    offset = float(cfg.get('offset', 0.0))
+    temp = raw * scale + offset
+    invalid_below = cfg.get('invalid_below', -199.0)
+    if invalid_below is not None and temp <= float(invalid_below):
+        return None
+    return temp
+
+def get_alarm_settings():
+    try:
+        r = requests.get(f'{API_BASE}/api/alarm_settings', timeout=3)
+        return r.json()
+    except Exception as e:
+        logging.error(f"取得警報設定失敗: {e}")
+        return {}
+
+def check_and_log_alarm(ch, name, value, settings):
+    s = settings.get(ch)
+    if not s:
+        return 'NORMAL'
+
+    # 警報總開關：關閉時完全跳過，不發聲、不推播、不標紅
+    if not int(s.get('alarm_enabled', 1)):
+        if ch in violation_start_time:
+            del violation_start_time[ch]
+        return 'NORMAL'
+
+    hi = s.get('hi')
+    lo = s.get('lo')
+    delay_minutes = s.get('delay', 0)
+    alarm_type = None
+
+
+    if hi is not None and value > hi:
+        alarm_type = 'HIGH'
+    elif lo is not None and value < lo:
+        alarm_type = 'LOW'
+
+    if not alarm_type:
+        if ch in violation_start_time:
+            del violation_start_time[ch]
+            # 溫度回到正常，清除冷卻記錄，讓下次超標可以重新發報
+            for key in [f'{ch}_HIGH', f'{ch}_LOW']:
+                if key in last_alarm_time:
+                    del last_alarm_time[key]
+            logging.info(f"{ch} ({name}) 溫度恢復正常，警報狀態已重置")
+        return 'NORMAL'
+
+    now = time.time()
+    if ch not in violation_start_time:
+        violation_start_time[ch] = now
+
+    elapsed_minutes = (now - violation_start_time[ch]) / 60.0
+    if elapsed_minutes < delay_minutes:
+        return 'DELAYING'
+
+    key      = f'{ch}_{alarm_type}'
+    last_t   = last_alarm_time.get(key, 0)
+
+    if now - last_t < ALARM_COOLDOWN:
+        return 'TRIGGERED'
+
+    try:
+        requests.post(f'{API_BASE}/api/alarm_history', json={
+            'channel':    ch,
+            'name':       name,
+            'value':      value,
+            'alarm_type': alarm_type,
+            'hi':         hi,
+            'lo':         lo
+        }, timeout=3)
+        
+        # 發送 Pushover 推播
+        msg = f"通道: {name} ({ch.upper()})\n目前溫度: {value}°C\n警報類型: {'🔴 高溫超標' if alarm_type=='HIGH' else '🔵 低溫超標'}"
+        send_pushover("⚠️ 溫度預警通知", msg)
+
+        last_alarm_time[key] = now
+        logging.warning(
+            f"警報記錄! {ch} {name}: {value}C "
+            f"({'超過上限 hi='+str(hi) if alarm_type=='HIGH' else '低於下限 lo='+str(lo)})"
+        )
+    except Exception as e:
+        logging.error(f"寫入警報歷史失敗: {e}")
+
+    return 'TRIGGERED'
+
+def read_all_channels():
+    from collections import defaultdict
+
+    results = {}
+
+    # ── 按 gateway 分組 ─────────────────────────────────────────
+    gw_channels = defaultdict(lambda: defaultdict(dict))  # gw_id -> slave_id -> {ch: cfg}
+    for ch, cfg in CHANNEL_CONFIG.items():
+        if cfg.get('enabled', False):
+            gw_id = cfg.get('gateway', 'GW1')
+            slave_id = cfg.get('slave', 1)
+            gw_channels[gw_id][slave_id][ch] = cfg
+
+    # ── 逐 gateway 連線讀取 ─────────────────────────────────────
+    for gw_id, slaves in gw_channels.items():
+        gw_cfg = GATEWAY_CONFIG.get(gw_id)
+        if not gw_cfg:
+            logging.error(f"Gateway {gw_id} 未在設定中定義，跳過")
+            continue
+
+        host = gw_cfg['host']
+        port = gw_cfg['port']
+
+        # 嘗試以 ModbusTcpClient 或 USB Serial 通訊
+        client = None
+        is_serial = False
+
+        if host.startswith('COM') or host == '192.168.1.x':
+            # 優先使用 USB Serial 介面 (如插著 USB COM4 測試)
+            com_port = os.getenv('RS485_PORT', 'COM4')
+            try:
+                from pymodbus.client import ModbusSerialClient
+                client = ModbusSerialClient(
+                    port=com_port,
+                    framer=FramerType.RTU,
+                    baudrate=9600,
+                    parity='N',
+                    stopbits=1,
+                    bytesize=8,
+                    timeout=1
+                )
+                if client.connect():
+                    is_serial = True
+                    logging.info(f"[{gw_id}] 已透過 USB Serial {com_port} 開啟 RS485 通訊")
+                else:
+                    client = None
+            except Exception as se:
+                logging.warning(f"[{gw_id}] USB Serial 連線失敗: {se}")
+
+        if not client:
+            client = ModbusTcpClient(
+                host,
+                port=port,
+                framer=FramerType.RTU
+            )
+            if not client.connect():
+                logging.error(f"[{gw_id}] Gateway ({host}:{port}) 連線失敗")
+                continue
+
+        try:
+            for slave_id, channels in slaves.items():
+                if not channels:
+                    continue
+                try:
+                    # 分開處理 IOT-627 (Holding Regs) 與 SPM-3 (Input Regs Float32)
+                    for ch, cfg in channels.items():
+                        device_type = cfg.get('device_type', 'iot627')
+                        data_type = cfg.get('data_type', 'int16')
+
+                        if device_type == 'spm3' or data_type == 'float32':
+                            # SPM-3 使用 Function Code 04 讀取完整電力參數 (1032~1084 & 1182)
+                            resp_p = client.read_input_registers(address=1032, count=52, device_id=slave_id)
+                            resp_kwh = client.read_input_registers(address=1182, count=2, device_id=slave_id)
+                            
+                            kwh_val = 0.0
+                            power_dict = {}
+
+                            import struct
+                            def _unp_f(r_a, r_b):
+                                return round(struct.unpack('>f', struct.pack('>HH', r_b, r_a))[0], 2)
+
+                            if not resp_kwh.isError() and len(resp_kwh.registers) >= 2:
+                                r0, r1 = resp_kwh.registers[0], resp_kwh.registers[1]
+                                kwh_val = _unp_f(r0, r1)
+
+                            if not resp_p.isError() and len(resp_p.registers) >= 52:
+                                rp = resp_p.registers
+                                power_dict = {
+                                    'voltage_rs': _unp_f(rp[0], rp[1]),
+                                    'voltage_st': _unp_f(rp[2], rp[3]),
+                                    'voltage_tr': _unp_f(rp[4], rp[5]),
+                                    'voltage_ll_avg': _unp_f(rp[6], rp[7]),
+                                    'frequency': _unp_f(rp[18], rp[19]),
+                                    'current_r': _unp_f(rp[20], rp[21]),
+                                    'current_s': _unp_f(rp[22], rp[23]),
+                                    'current_t': _unp_f(rp[24], rp[25]),
+                                    'current_avg': _unp_f(rp[28], rp[29]),
+                                    'power_total': round(_unp_f(rp[42], rp[43]) * 1000.0, 1), # W
+                                    'kw': _unp_f(rp[42], rp[43]),                              # kW
+                                    'power_factor': _unp_f(rp[50], rp[51]),
+                                    'energy_total': round(kwh_val * 1000.0, 1),              # Wh
+                                    'kwh': kwh_val                                           # kWh
+                                }
+
+                            results[ch] = {
+                                'name': cfg['name'],
+                                'value': kwh_val,
+                                'unit': 'kWh',
+                                'power': power_dict
+                            }
+                            logging.info(f"[{gw_id}] Slave {slave_id} (SPM-3) - {ch} {cfg['name']}: {kwh_val} kWh | {power_dict.get('kw', 0)} kW")
+
+                        else:
+                            # IOT-627 依據範本抓取 10 大核心點位
+                            # 1. 讀取 Offset 6 (Modicon 40007): 設定溫度 control_temperature_set
+                            resp_set = client.read_holding_registers(address=6, count=1, device_id=slave_id)
+                            set_temp = 0.0
+                            if not resp_set.isError() and len(resp_set.registers) > 0:
+                                set_temp = round(signed_int16(resp_set.registers[0]) * 0.1, 1)
+
+                            # 2. 讀取 Offset 34~47 (Modicon 40035~40048)
+                            response = client.read_holding_registers(address=34, count=14, device_id=slave_id)
+                            if not response.isError() and len(response.registers) >= 14:
+                                r = response.registers
+                                status_raw = r[0]
+                                bits = [(status_raw >> i) & 1 for i in range(16)]
+
+                                ctrl_temp  = round(signed_int16(r[5]) * 0.1, 1)  # Offset 39 (40040) 控制溫度
+                                coil_temp  = round(signed_int16(r[6]) * 0.1, 1)  # Offset 40 (40041) 盤管溫度
+                                low_press  = round(signed_int16(r[8]) * 0.1, 1)  # Offset 42 (40043) 低壓壓力
+                                high_press = round(r[10] * 0.1, 1)              # Offset 44 (40045) 高壓壓力
+                                comp_curr  = round(signed_int16(r[12]) * 0.1, 1) # Offset 46 (40047) 運轉電流
+
+                                results[ch] = {
+                                    'name': cfg['name'],
+                                    'value': ctrl_temp,                 # 控制溫度 L301
+                                    'control_temperature': ctrl_temp,   # 控制溫度 L301 (40040)
+                                    'coil_temperature': coil_temp,      # 盤管溫度 L302 (40041)
+                                    'compressor_current': comp_curr,    # 運轉電流 L306 (40047)
+                                    'high_pressure': high_press,        # 高壓壓力 L305 (40045)
+                                    'low_pressure': low_press,          # 低壓壓力 L304 (40043)
+                                    'control_temperature_set': set_temp,# 設定溫度 L101 (40007)
+                                    'running_status': bool(bits[0]),    # 運轉 L201 (40035 bit 0)
+                                    'cooling_status': bool(bits[8]),    # 製冷 L209 (40035 bit 8)
+                                    'defrost_status': bool(bits[1]),    # 除霜 L202 (40035 bit 1)
+                                    'fan_status': bool(bits[7]),        # 風機 L208 (40035 bit 7)
+                                    'status': 'NORMAL',
+                                    'flags': {
+                                        'running': bool(bits[0]),
+                                        'cooling': bool(bits[8]),
+                                        'defrost': bool(bits[1]),
+                                        'fan': bool(bits[7]),
+                                        'eq_err': False,
+                                        'temp_err': False
+                                    }
+                                }
+                                logging.info(
+                                    f"[{gw_id}] Slave {slave_id} (IoT627) - {ch} {cfg['name']}: "
+                                    f"控溫={ctrl_temp}°C, 盤管={coil_temp}°C, 電流={comp_curr}A, 高壓={high_press}bar, 低壓={low_press}bar"
+                                )
+                            else:
+                                logging.error(f"[{gw_id}] Slave {slave_id} - {ch} 讀取錯誤: {response}")
+                except Exception as e:
+                    logging.error(f"[{gw_id}] 模組 {slave_id} 讀取發生未預期錯誤: {e}")
+        except Exception as e:
+            logging.error(f"[{gw_id}] 準備讀取參數時發生錯誤: {e}")
+        finally:
+            if client:
+                client.close()
+
+    return results if results else None
+
+# ── 設備控制命令：向後端取待執行命令、寫入 Modbus、回報結果 ─────────────
+# 依 IoT627_RS485通信點位表.xlsx：控制溫度設定 (L101) = offset 6, FC06, int16, scale 0.1, degC
+# 依 IoT627_完整掃描點位表_220點.csv（現場實測 100% 確認）：
+#   A801 停控模式 = offset 178（40179），uint16，0=全停 1=全開 2=只出Triac1 3=只出DO3
+#   本系統只用 0/1 兩種狀態，對應前端「設備起停」開關
+CONTROL_TEMPERATURE_SET_OFFSET = 6
+STOP_CONTROL_MODE_OFFSET = 178
+
+def _write_single_register(ch, register_offset, raw_value):
+    """寫入 IoT627 單一 holding register (FC=06)。回傳 (success, error_message)。"""
+    cfg = CHANNEL_CONFIG.get(ch)
+    if not cfg or not cfg.get('enabled', False):
+        return False, f'通道 {ch} 未設定或未啟用'
+
+    gw_id = cfg.get('gateway', 'GW1')
+    slave_id = cfg.get('slave', 1)
+    gw_cfg = GATEWAY_CONFIG.get(gw_id)
+    if not gw_cfg:
+        return False, f'Gateway {gw_id} 未在設定中定義'
+
+    host = gw_cfg['host']
+    port = gw_cfg['port']
+
+    client = ModbusTcpClient(host, port=port, framer=FramerType.RTU)
+    if not client.connect():
+        return False, f'[{gw_id}] Gateway ({host}:{port}) 連線失敗'
+
+    try:
+        resp = client.write_register(address=register_offset, value=to_unsigned_int16(raw_value), device_id=slave_id)
+        if resp.isError():
+            return False, f'寫入失敗: {resp}'
+        return True, None
+    except Exception as e:
+        return False, f'寫入發生例外: {e}'
+    finally:
+        client.close()
+
+def write_temperature_setpoint(ch, target_temp):
+    """寫入 IoT627 控制溫度設定。回傳 (success, error_message)。"""
+    raw_value = round(target_temp * 10)
+    success, error = _write_single_register(ch, CONTROL_TEMPERATURE_SET_OFFSET, raw_value)
+    if success:
+        logging.info(f"[{ch}] 控制溫度設定已寫入: {target_temp}°C (raw={raw_value})")
+    return success, error
+
+def write_power_state(ch, on):
+    """寫入 IoT627 停控模式 (A801)：on=True 全開(1)，on=False 全停(0)。回傳 (success, error_message)。"""
+    raw_value = 1 if on else 0
+    success, error = _write_single_register(ch, STOP_CONTROL_MODE_OFFSET, raw_value)
+    if success:
+        logging.info(f"[{ch}] 停控模式(A801)已寫入: {'開' if on else '停'}")
+    return success, error
+
+def poll_and_execute_commands():
+    """向後端取 pending 命令，逐一執行並回報結果"""
+    try:
+        resp = requests.get(f'{API_BASE}/api/device_commands', params={'status': 'pending', 'limit': 20}, timeout=5)
+        commands = resp.json()
+    except Exception as e:
+        logging.error(f"取得待執行命令失敗: {e}")
+        return
+
+    for cmd in commands:
+        cmd_id = cmd['id']
+        ch = cmd['channel']
+        cmd_type = cmd['command_type']
+
+        if cmd_type == 'set_temperature':
+            success, error = write_temperature_setpoint(ch, cmd['value'])
+        elif cmd_type == 'set_power_state':
+            success, error = write_power_state(ch, float(cmd['value']) == 1)
+        else:
+            success, error = False, f'不支援的命令類型: {cmd_type}'
+
+        if not success:
+            logging.error(f"命令執行失敗 (id={cmd_id}, ch={ch}, type={cmd_type}): {error}")
+
+        try:
+            requests.post(
+                f'{API_BASE}/api/device_commands/{cmd_id}/complete',
+                json={'success': success, 'error_message': error},
+                timeout=5
+            )
+        except Exception as e:
+            logging.error(f"回報命令結果失敗 (id={cmd_id}): {e}")
+
+def save_to_postgres(data, timestamp: str):
+    if not psycopg:
+        logging.error("psycopg 未安裝，無法寫入 PostgreSQL")
+        return
+    try:
+        with psycopg.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cursor:
+                for ch, info in data.items():
+                    cursor.execute(
+                        'INSERT INTO temperatures (timestamp, channel, name, value, status) '
+                        'VALUES (%s, %s, %s, %s, %s)',
+                        (timestamp, ch, info['name'], float(info['value']),
+                         info.get('status', 'NORMAL'))
+                    )
+        logging.info(f"已儲存 {len(data)} 筆資料至 Supabase ({timestamp})")
+    except Exception as e:
+        logging.error(f"Supabase 寫入失敗: {e}")
+
+def publish_to_backend(data):
+    if not PUBLISH_TO_API:
+        return
+    try:
+        payload = {
+            'timestamp': tw_now(),
+            'readings': data,
+            'realtime_only': True
+        }
+        resp = requests.post(f'{API_BASE}/api/temperatures', json=payload, timeout=5)
+        if resp.status_code == 200:
+            logging.info(f"Published {len(data)} readings to backend")
+        else:
+            logging.error(f"Publish failed HTTP {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logging.error(f"Publish failed: {e}")
+
+if __name__ == '__main__':
+    logging.info("溫度監控啟動 (Pt100 模式 / 台灣時間)")
+
+    last_saved_minute = None
+
+    while True:
+        alarm_settings = get_alarm_settings()
+        data = read_all_channels()
+        if data:
+            for ch, info in data.items():
+                offset = float(alarm_settings.get(ch, {}).get('temp_offset') or 0)
+                if offset != 0:
+                    info['value'] = round(info['value'] + offset, 1)
+                status = check_and_log_alarm(ch, info['name'], info['value'], alarm_settings)
+                info['status'] = status
+
+            publish_to_backend(data)
+
+            # 每分鐘只寫入 DB 一次
+            now = datetime.now(TZ_TW)
+            current_minute = now.strftime('%Y-%m-%d %H:%M')
+            if current_minute != last_saved_minute:
+                ts = now.strftime('%Y-%m-%d %H:%M:%S')
+                save_to_postgres(data, ts)
+                last_saved_minute = current_minute
+        else:
+            logging.error("本次讀取無有效資料")
+
+        poll_and_execute_commands()
+
+        time.sleep(2)

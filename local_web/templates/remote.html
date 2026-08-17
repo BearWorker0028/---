@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>遠端溫度監控系統</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .t-blink { animation: blink 1s step-start infinite; }
+    :root {
+      --bg-0: #ffffff; --bg-1: #fff6e8; --border: #ceb485;
+      --text-1: #727171; --text-2: #727171; --text-3: #727171;
+      --accent: rgb(114, 113, 113); --alarm: #c0392b; --ok: #1a7a4a;
+    }
+    body { background: var(--bg-0); font-family: Arial, sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+    
+    .topbar { background: #000000; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .logo-wrap { display: flex; align-items: center; gap: 12px; }
+    .co-name { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 1px; }
+    .co-sub { font-size: 10px; color: var(--border); letter-spacing: 1px; margin-top: 2px; }
+    .sys-title { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 3px; text-align: center; }
+    .clock-box { text-align: right; }
+    .clock { font-size: 20px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+    .dateline { font-size: 10px; color: var(--border); margin-top: 2px; }
+    
+    .statusbar { background: var(--bg-1); border-bottom: 1px solid var(--border); padding: 5px 16px; display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+    .si { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+    .sdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .slabel { color: var(--text-2); }
+    .sval { color: var(--text-1); font-weight: 700; }
+    .d-ok { background: var(--ok); }
+    .d-alarm { background: var(--alarm); }
+    .d-off { background: var(--text-3); }
+    
+    .main { flex: 1; padding: 16px; overflow: hidden; display: flex; flex-direction: column; }
+    .sgrid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 16px; flex: 1; height: 100%; }
+    
+    .sc {
+      background: var(--bg-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px; position: relative;
+      box-shadow: 0 4px 10px #00000015; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%;
+    }
+    
+    .sc.alarm { border-color: var(--alarm); background: var(--alarm); animation: flash-alarm 1.5s infinite; }
+    @keyframes flash-alarm { 0%, 100% { background: #c0392b; border-color: #c0392b; } 50% { background: #e74c3c; border-color: #e74c3c; } }
+    .sc.alarm .rname, .sc.alarm .tv, .sc.alarm .tu, .sc.alarm .cid { color: #fff !important; }
+
+    .sc.delay { border-color: #d4b567; background: #d4b567; animation: flash-delay 1.5s infinite; }
+    @keyframes flash-delay { 0%, 100% { background: #ba9b4d; border-color: #ba9b4d; } 50% { background: #d4b567; border-color: #d4b567; } }
+    .sc.delay .rname, .sc.delay .tv, .sc.delay .tu, .sc.delay .cid { color: #fff !important; }
+
+    .sc.offline { border-color: var(--text-3); background: #f7f7f7; opacity: .6; }
+    
+    .rname { font-size: 20px; color: var(--text-2); font-weight: 700; letter-spacing: .5px; position: absolute; top: 16px; left: 20px; margin: 0; }
+    .cid { display: none; position: absolute; top: 16px; right: 20px; font-size: 16px; color: var(--text-3); font-weight: 700; }
+    
+    .card-mid { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+    .tv { font-size: clamp(48px, 6vw, 120px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; text-align: center; }
+    .tu { font-size: 20px; font-weight: 400; position: absolute; bottom: 16px; right: 20px; color: var(--text-3); }
+    
+    .t-ok { color: var(--text-1); }
+    .t-alarm { color: var(--alarm); }
+    .t-delay { color: #e67e22; }
+    .t-off { color: var(--text-3); }
+    
+    .slt { width: 16px; height: 16px; border-radius: 50%; position: absolute; bottom: 18px; left: 20px; }
+    .lt-ok { background: var(--ok); }
+    .lt-alarm { background: var(--alarm); }
+    .lt-delay { background: #e67e22; }
+    .lt-off { background: var(--text-3); }
+
+  </style>
+</head>
+<body>
+  <audio id="alarm-sound" src="/static/alarm.mp3" loop preload="auto"></audio>
+  
+  <div class="topbar">
+    <div class="logo-wrap">
+      <div>
+        <div class="co-name">THOMAS MEAT 金煜實業</div>
+        <div class="co-sub">北深廠溫度警報監控系統 (遠端監控)</div>
+      </div>
+    </div>
+    <div class="sys-title">即時溫度監控</div>
+    <div class="clock-box">
+      <div class="clock" id="clock">00:00:00</div>
+      <div class="dateline" id="dateline">1970/01/01 (四)</div>
+    </div>
+  </div>
+  
+  <div class="statusbar">
+    <div class="si"><div class="sdot d-ok"></div><span class="slabel">正常:</span><span class="sval" id="st-ok">0</span></div>
+    <div class="si"><div class="sdot d-alarm"></div><span class="slabel">異常:</span><span class="sval" id="st-alarm">0</span></div>
+    <div class="si"><div class="sdot d-off"></div><span class="slabel">離線:</span><span class="sval" id="st-off">0</span></div>
+  </div>
+
+  <div class="main">
+    <div class="sgrid" id="sgrid"></div>
+  </div>
+
+  <script>
+    let alarmSettings = {};
+    let lastSseData = null;
+    let currentDelayingChannels = [];
+    
+    function updateClock() {
+      const n = new Date();
+      const p = v => String(v).padStart(2, '0');
+      document.getElementById('clock').textContent = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+      const d = ['日', '一', '二', '三', '四', '五', '六'][n.getDay()];
+      document.getElementById('dateline').textContent = `${n.getFullYear()}/${p(n.getMonth() + 1)}/${p(n.getDate())} (${d})`;
+    }
+    setInterval(updateClock, 1000); updateClock();
+
+    async function fetchAlarmSettings() {
+      try { alarmSettings = await (await fetch('/api/alarm_settings')).json(); } catch (e) { }
+    }
+
+    function card(ch, name, v, online, status) {
+      if (!online) return `<div class="sc offline">
+    <span class="cid">${ch.toUpperCase()}</span>
+    <div class="rname">${name}</div>
+    <div class="card-mid">
+      <div class="tv t-off">--<span class="tu">°C</span></div>
+      <div class="slt lt-off"></div>
+    </div></div>`;
+      const isTriggered = (status === 'TRIGGERED');
+      const isDelaying = (status === 'DELAYING');
+      let bgClass = '';
+      if (isTriggered) bgClass = ' alarm';
+      else if (isDelaying) bgClass = ' delay';
+      
+      return `<div class="sc${bgClass}">
+    <span class="cid">${ch.toUpperCase()}</span>
+    <div class="rname">${name}</div>
+    <div class="card-mid">
+      <div class="tv ${isTriggered ? 't-alarm' : isDelaying ? 't-delay' : 't-ok'} ${isDelaying ? 't-blink' : ''}">${v.toFixed(1)}<span class="tu">°C</span></div>
+      <div class="slt ${isTriggered ? 'lt-alarm' : isDelaying ? 'lt-delay' : 'lt-ok'}"></div>
+    </div></div>`;
+    }
+
+    async function update(data) {
+      if (!data) data = {};
+      let ok = 0, al = 0, off = 0, h = '';
+      let shouldSound = false;
+      let newDelayingChannels = [];
+
+      const order = [
+        'ch05', 'ch04', 'ch02', 'ch01', 'ch03', 'ch06',
+        'ch07', 'ch08', 'ch11', 'ch10', 'ch09', 'ch12'
+      ];
+      order.forEach((ch, idx) => {
+        const s = alarmSettings[ch] || { name: 'Channel ' + (idx + 1) };
+        const d = data[ch];
+        const online = !!d;
+        
+        let status = 'NORMAL';
+        if (online) {
+            status = d.status || 'NORMAL';
+            if (status === 'TRIGGERED') { al++; shouldSound = true; }
+            else { ok++; }
+            if (status === 'DELAYING') { newDelayingChannels.push(ch); }
+        } else {
+            off++;
+        }
+        
+        h += card(ch, s.name, online ? (d.value + (s.temp_offset || 0)) : 0, online, status);
+      });
+      
+      document.getElementById('sgrid').innerHTML = h;
+      document.getElementById('st-ok').textContent = ok;
+      document.getElementById('st-alarm').textContent = al;
+      document.getElementById('st-off').textContent = off;
+
+      const audio = document.getElementById('alarm-sound');
+      if (shouldSound) {
+        audio.play().catch(() => { /* require user interaction */ });
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+      
+      // Delaying beep sound (1s)
+      if (!shouldSound && newDelayingChannels.length > 0 && JSON.stringify(newDelayingChannels) !== JSON.stringify(currentDelayingChannels)) {
+        const a = new Audio('/static/alarm.mp3');
+        a.volume = 0.5;
+        a.play().catch(()=>{});
+        setTimeout(() => { a.pause(); }, 1000);
+      }
+      currentDelayingChannels = newDelayingChannels;
+    }
+
+    let sseSource = null;
+    function startSSE() {
+      if (sseSource) sseSource.close();
+      sseSource = new EventSource('/api/temperature_stream');
+      sseSource.addEventListener('temperatures', e => {
+        try { lastSseData = JSON.parse(e.data); } catch (_) {}
+        update(lastSseData);
+      });
+      sseSource.onerror = () => {
+        sseSource.close(); sseSource = null;
+        setTimeout(startSSE, 5000);
+      };
+    }
+
+    async function init() {
+      await fetchAlarmSettings();
+      try {
+        lastSseData = await (await fetch('/api/temperatures')).json();
+        update(lastSseData);
+      } catch(e) {}
+      startSSE();
+    }
+    
+    // Auto refresh settings every minute
+    setInterval(fetchAlarmSettings, 60000);
+
+    // Initial click listener for audio context requirement
+    document.addEventListener('click', () => {
+      const audio = document.getElementById('alarm-sound');
+      if (audio.paused && document.getElementById('st-alarm').textContent !== '0') {
+        audio.play().catch(()=>{});
+      }
+    }, { once: true });
+
+    init();
+  </script>
+</body>
+</html>

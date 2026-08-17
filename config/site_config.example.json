@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "site": {
+    "site_id": "NEW_SITE",
+    "site_name": "新案場名稱",
+    "customer_name": "客戶名稱",
+    "timezone": "Asia/Taipei",
+    "dashboard_title": "即時溫度監控",
+    "dashboard_subtitle": "REAL-TIME TEMPERATURE DASHBOARD",
+    "service_provider": "添利機械工業股份有限公司"
+  },
+  "runtime": {
+    "api_base": "http://127.0.0.1:88",
+    "data_root": "local_web",
+    "publish_to_api": false,
+    "mock_data_enabled": false,
+    "retention_seasons": 20
+  },
+  "modbus": {
+    "host": "192.168.1.100",
+    "port": 2000,
+    "framer": "RTU_OVER_TCP",
+    "read_interval_seconds": 2,
+    "save_interval_seconds": 60
+  },
+  "rooms": [
+    {
+      "channel": "ch01",
+      "room_id": "R_ROOM_01",
+      "name": "庫別一",
+      "type": "cold_room",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        { "type": "iot627", "count": 1 },
+        { "type": "S2-800MT", "count": 0 },
+        { "type": "YB-D616-16DI", "count": 0 }
+      ],
+      "floorplan": {
+        "x": 0.5,
+        "y": 0.5,
+        "side": "right"
+      }
+    }
+  ],
+  "channels": [
+    {
+      "channel": "ch01",
+      "name": "庫別一",
+      "slave": 1,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    }
+  ],
+  "alarm_rules": [
+    {
+      "channel": "ch01",
+      "name": "庫別一",
+      "hi": 8.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    }
+  ],
+  "reports": {
+    "default_enabled": true,
+    "fields": [
+      "avg_temp",
+      "temp_control",
+      "current",
+      "kw",
+      "kwh"
+    ]
+  },
+  "assets": {
+    "logo": "local_web/static/TL_logo.png",
+    "line_qr": "local_web/static/line_qr.png",
+    "floorplan": "local_web/static/floorplan.png"
+  },
+  "remote_dashboard": {
+    "enabled": false,
+    "provider": "supabase_vercel",
+    "notes": "遠端儀表板為選配；本地電視牆可不啟用。"
+  }
+}

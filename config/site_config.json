@@ -1,0 +1,489 @@
+{
+  "schema_version": "1.0",
+  "site": {
+    "site_id": "YJH001",
+    "site_name": "裕珍皇",
+    "customer_name": "裕珍皇",
+    "timezone": "Asia/Taipei",
+    "dashboard_title": "即時溫度監控",
+    "dashboard_subtitle": "REAL-TIME TEMPERATURE DASHBOARD",
+    "service_provider": "添利機械工業股份有限公司"
+  },
+  "runtime": {
+    "api_base": "http://127.0.0.1:88",
+    "data_root": "local_web",
+    "publish_to_api": false,
+    "mock_data_enabled": false,
+    "retention_seasons": 20
+  },
+  "gateways": {
+    "GW1": {
+      "host": "192.168.68.200",
+      "port": 2000,
+      "framer": "RTU_OVER_TCP",
+      "description": "1F 電盤 Gateway"
+    },
+    "GW2": {
+      "host": "192.168.1.x",
+      "port": 2000,
+      "framer": "RTU_OVER_TCP",
+      "description": "3F 電盤 Gateway"
+    }
+  },
+  "read_interval_seconds": 2,
+  "save_interval_seconds": 60,
+  "rooms": [
+    {
+      "channel": "ch01",
+      "anchor_id": "room_01",
+      "room_id": "R_1F_FREEZER",
+      "name": "1F 冷凍庫",
+      "type": "freezer",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 5
+        }
+      ],
+      "floorplan": {
+        "x": 0.25,
+        "y": 0.46,
+        "side": "right"
+      }
+    },
+    {
+      "channel": "ch06",
+      "anchor_id": "room_02",
+      "room_id": "R_1F_BUFFER",
+      "name": "1F 緩衝庫",
+      "type": "buffer",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 1
+        }
+      ],
+      "floorplan": {
+        "x": 0.13,
+        "y": 0.70,
+        "side": "right"
+      }
+    },
+    {
+      "channel": "ch07",
+      "anchor_id": "room_03",
+      "room_id": "R_1F_DOCK",
+      "name": "1F 碼頭區",
+      "type": "dock",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 1
+        }
+      ],
+      "floorplan": {
+        "x": 0.13,
+        "y": 0.81,
+        "side": "right"
+      }
+    },
+    {
+      "channel": "ch08",
+      "anchor_id": "room_04",
+      "room_id": "R_3F_BLAST",
+      "name": "3F 急速庫",
+      "type": "blast",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 2
+        }
+      ],
+      "floorplan": {
+        "x": 0.80,
+        "y": 0.66,
+        "side": "right"
+      }
+    },
+    {
+      "channel": "ch10",
+      "anchor_id": "room_05",
+      "room_id": "R_3F_SEMI",
+      "name": "3F 半成品庫",
+      "type": "semi",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 2
+        }
+      ],
+      "floorplan": {
+        "x": 0.80,
+        "y": 0.74,
+        "side": "right"
+      }
+    },
+    {
+      "channel": "ch12",
+      "anchor_id": "room_06",
+      "room_id": "R_3F_COLD_ROOM",
+      "name": "3F 冷藏庫",
+      "type": "cold_room",
+      "enabled": true,
+      "temp_only_iot": false,
+      "modules": [
+        {
+          "type": "iot627",
+          "count": 1
+        }
+      ],
+      "floorplan": {
+        "x": 0.92,
+        "y": 0.31,
+        "side": "left"
+      }
+    }
+  ],
+  "channels": [
+    {
+      "channel": "ch01",
+      "name": "1F 冷凍庫 A",
+      "gateway": "GW1",
+      "slave": 1,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch02",
+      "name": "1F 冷凍庫 B",
+      "gateway": "GW1",
+      "slave": 2,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch03",
+      "name": "1F 冷凍庫 C",
+      "gateway": "GW1",
+      "slave": 3,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch04",
+      "name": "1F 冷凍庫 D",
+      "gateway": "GW1",
+      "slave": 4,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch05",
+      "name": "1F 冷凍庫 E",
+      "gateway": "GW1",
+      "slave": 5,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch06",
+      "name": "1F 緩衝庫 A",
+      "gateway": "GW1",
+      "slave": 6,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch07",
+      "name": "1F 碼頭區 A",
+      "gateway": "GW1",
+      "slave": 7,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch08",
+      "name": "急速庫 20HP",
+      "gateway": "GW2",
+      "slave": 13,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch09",
+      "name": "急速庫 10HP",
+      "gateway": "GW2",
+      "slave": 14,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch10",
+      "name": "半成品冷凍A",
+      "gateway": "GW2",
+      "slave": 11,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch11",
+      "name": "半成品冷凍B",
+      "gateway": "GW2",
+      "slave": 12,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch12",
+      "name": "冷藏庫",
+      "gateway": "GW2",
+      "slave": 15,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "degC"
+    },
+    {
+      "channel": "ch13",
+      "name": "1F 集合式電表",
+      "gateway": "GW1",
+      "slave": 8,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "kWh"
+    },
+    {
+      "channel": "ch14",
+      "name": "3F 集合式電錶",
+      "gateway": "GW2",
+      "slave": 16,
+      "register": 0,
+      "enabled": true,
+      "data_type": "int16",
+      "scale": 0.1,
+      "offset": 0.0,
+      "invalid_below": -199.0,
+      "unit": "kWh"
+    }
+  ],
+  "alarm_rules": [
+    {
+      "channel": "ch01",
+      "name": "1F 冷凍庫 A",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch02",
+      "name": "1F 冷凍庫 B",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch03",
+      "name": "1F 冷凍庫 C",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch04",
+      "name": "1F 冷凍庫 D",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch05",
+      "name": "1F 冷凍庫 E",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch06",
+      "name": "1F 緩衝庫 A",
+      "hi": 10.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch07",
+      "name": "1F 碼頭區 A",
+      "hi": 15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch08",
+      "name": "急速庫 20HP",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch09",
+      "name": "急速庫 10HP",
+      "hi": -15.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch10",
+      "name": "半成品冷凍A",
+      "hi": 8.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch11",
+      "name": "半成品冷凍B",
+      "hi": 8.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch12",
+      "name": "冷藏庫",
+      "hi": 8.0,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": true,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch13",
+      "name": "1F 集合式電表",
+      "hi": null,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": false,
+      "temp_offset": 0.0
+    },
+    {
+      "channel": "ch14",
+      "name": "3F 集合式電錶",
+      "hi": null,
+      "lo": null,
+      "delay_minutes": 5,
+      "alarm_enabled": false,
+      "temp_offset": 0.0
+    }
+  ],
+  "reports": {
+    "default_enabled": true,
+    "fields": [
+      "avg_temp",
+      "temp_control",
+      "current",
+      "kw",
+      "kwh"
+    ]
+  },
+  "assets": {
+    "logo": "local_web/static/mackerel_logo.png",
+    "line_qr": "local_web/static/line_qr.png",
+    "floorplan": "local_web/static/floorplan.png"
+  },
+  "remote_dashboard": {
+    "enabled": false,
+    "provider": "supabase_vercel",
+    "notes": "遠端儀表板為選配；本地電視牆可不啟用。"
+  }
+}

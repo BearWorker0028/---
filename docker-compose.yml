@@ -1,0 +1,22 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: yjh_timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yjh_user
+      POSTGRES_PASSWORD: yjh_local_2026
+      POSTGRES_DB: yjh_timeseries
+    ports:
+      - "5432:5432"
+    volumes:
+      - yjh_tsdb_data:/var/lib/postgresql/data
+      - ./database/timescaledb_init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yjh_user -d yjh_timeseries"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  yjh_tsdb_data:

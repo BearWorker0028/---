@@ -1,0 +1,3442 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>裕珍皇 冷鏈溫度監控系統</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes pls {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.75); }
+    }
+    .spin-icon {
+      animation: spin 2s linear infinite;
+      transform-origin: center;
+    }
+    .t-blink {
+      animation: blink 1s step-start infinite;
+    }
+    :root {
+      --bg-body: #f4f6fa;
+      --bg-panel: #ffffff;
+      --bg-0: #f4f6fa;
+      --bg-1: #ffffff;
+      --text-1: #1e293b;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+      /* ── 邰利集團品牌三層藍色階 ── */
+      --accent:           #0c3b82;   /* 深海軍藍 – 主色 (topbar / sidebar) */
+      --accent-primary:   #0c3b82;   /* 深海軍藍 – topbar & sidebar */
+      --accent-secondary: #1260b0;   /* 中性藍   – modal / page-level headers */
+      --accent-tertiary:  #2d3748;   /* 深灰色 – 卡片抬頭 */
+      --ok: #27ae60;
+      --alarm: #e74c3c;
+      --delay: #f39c12;
+      --border: #cbd5e1;
+      --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: transparent;
+      font-family: Arial, sans-serif;
+    }
+    .dash {
+      background: var(--bg-0);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .topbar {
+      background: var(--accent);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-img {
+      height: 42px;
+      width: auto;
+      display: block;
+      background: white;
+      border-radius: 6px;
+      padding: 4px 8px;
+    }
+    .co-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+    .co-sub {
+      font-size: 10px;
+      color: var(--border);
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .sys-label {
+      text-align: center;
+    }
+    .sys-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 3px;
+    }
+    .sys-sub {
+      font-size: 10px;
+      color: var(--border);
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .clock-box {
+      text-align: right;
+    }
+    .clock {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .dateline {
+      font-size: 10px;
+      color: var(--border);
+      margin-top: 2px;
+    }
+    .statusbar {
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+      padding: 5px 16px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-shrink: 0;
+    }
+    .si {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+    }
+    .sdot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .slabel {
+      color: var(--text-2);
+    }
+    .sval {
+      color: var(--text-1);
+      font-weight: 700;
+    }
+    .d-ok {
+      background: var(--ok);
+    }
+    .d-alarm {
+      background: var(--alarm);
+    }
+    .d-off {
+      background: var(--text-3);
+    }
+    .sep {
+      color: var(--border);
+    }
+    .online-group {
+      margin-left: auto;
+      display: flex;
+      gap: 15px;
+    }
+    .online {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--ok);
+    }
+    .pdot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      animation: pls 2s infinite;
+    }
+    @keyframes pls {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: .3;
+      }
+    }
+    .body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 126px;
+      background: var(--accent);
+      display: flex;
+      flex-direction: column;
+      padding: 10px 8px;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .menu-btn {
+      background: #ffffff22;
+      border: 1px solid #ffffff33;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 9px 6px;
+      text-align: center;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background .15s;
+    }
+    .menu-btn:hover {
+      background: #ffffff33;
+    }
+    .menu-btn.active {
+      background: #ffffff44;
+      border-color: #ffffff66;
+      color: #fff;
+    }
+    .sidebar-bottom {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sidebar-logo-box {
+      padding: 4px 2px;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background .2s;
+      position: relative;
+    }
+    .sidebar-logo-box:hover {
+      background: #ffffff18;
+    }
+    .sidebar-logo-box img {
+      max-width: 110px;
+      max-height: 52px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .sidebar-logo-box .logo-hint {
+      font-size: 9px;
+      color: #ffffff66;
+      letter-spacing: 1px;
+      margin-top: 3px;
+    }
+    .sidebar-logo-fallback {
+      font-size: 10px;
+      color: #fff;
+      font-weight: 700;
+    }
+    /* ── 公司資訊 Popup ── */
+    #company-popup {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      bottom: 14px;
+      left: 134px;
+      width: 270px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px #00000040, 0 0 0 1px #ceb48530;
+      overflow: hidden;
+      animation: popSlideIn .2s ease;
+    }
+    @keyframes popSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    #company-popup .pop-header {
+      background: var(--accent);
+      padding: 12px 14px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #company-popup .pop-header .pop-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 1.5px;
+    }
+    #company-popup .pop-header .pop-close {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffffff22;
+      border: none;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: background .15s;
+    }
+    #company-popup .pop-header .pop-close:hover {
+      background: #ffffff44;
+    }
+    #company-popup .pop-body {
+      padding: 14px;
+    }
+    #company-popup .pop-logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f0e8d8;
+    }
+    #company-popup .pop-logo-row img {
+      height: 36px;
+      width: auto;
+      object-fit: contain;
+      border-radius: 5px;
+      background: #f9f5ef;
+      padding: 3px 6px;
+    }
+    #company-popup .pop-logo-row .pop-coname {
+      font-size: 12px;
+      font-weight: 700;
+      color: #333;
+      line-height: 1.4;
+    }
+    #company-popup .pop-logo-row .pop-coname-en {
+      font-size: 9px;
+      color: #888;
+      letter-spacing: .5px;
+    }
+    #company-popup .pop-info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 11px;
+      color: #555;
+    }
+    #company-popup .pop-info-row .pop-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 0px;
+    }
+    #company-popup .pop-divider {
+      height: 1px;
+      background: #f0e8d8;
+      margin: 10px 0;
+    }
+    #company-popup .pop-qr-section {
+      text-align: center;
+    }
+    #company-popup .pop-qr-label {
+      font-size: 10px;
+      color: #888;
+      letter-spacing: 1px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    #company-popup .pop-qr-section img {
+      width: 110px;
+      height: 110px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+    #company-popup .pop-footer {
+      padding: 8px 14px;
+      background: #faf6f0;
+      border-top: 1px solid #f0e8d8;
+      font-size: 9px;
+      color: #bbb;
+      text-align: center;
+      letter-spacing: .5px;
+    }
+    .main {
+      flex: 1;
+      padding: 12px 12px 10px;
+      background: var(--bg-0);
+      overflow-y: auto;
+    }
+    .zone {
+      margin-bottom: 12px;
+    }
+    .zone-hdr {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .zbar {
+      width: 3px;
+      height: 16px;
+      border-radius: 2px;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    .ztitle {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+    .zline {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .zcount {
+      font-size: 10px;
+      color: var(--text-3);
+    }
+    .sgrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .sc-lights span {
+      box-shadow: 0 0 4px rgba(0,0,0,0.15);
+    }
+        .sc {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: space-between;
+      height: 140px;
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .sc:hover {
+      transform: translateY(-2px);
+      border-color: #94a3b8;
+    }
+    .sc.alarm {
+      border-color: var(--alarm);
+      animation: flash-alarm-border 1.5s infinite;
+    }
+    @keyframes flash-alarm-border {
+      0%, 100% {
+        border-color: #c0392b;
+      }
+      50% {
+        border-color: #e74c3c;
+      }
+    }
+    .sc.delay {
+      border-color: var(--delay);
+      animation: flash-delay-border 1.5s infinite;
+    }
+    @keyframes flash-delay-border {
+      0%, 100% {
+        border-color: #ba9b4d;
+      }
+      50% {
+        border-color: #d4b567;
+      }
+    }
+    .sc.offline {
+      border-color: var(--border);
+      background: #f8fafc;
+      opacity: .75;
+    }
+    .rname {
+      color: #64748b;
+    }
+    .sc.offline .sc-divider {
+      background: #e2e8f0;
+    }
+    .rname {
+      font-size: 15.5px;
+      color: var(--text-1);
+      font-weight: 700;
+      letter-spacing: .5px;
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      margin: 0;
+    }
+    .card-mid {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .sc-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .sc-divider {
+      width: 1.5px;
+      height: 38px;
+      background: #cbd5e1;
+      margin: 0 4px;
+      flex-shrink: 0;
+    }
+    .tv {
+      font-size: 36px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .tu {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-3);
+      margin-left: 2px;
+    }
+    .pw-v {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--text-1);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .pw-u {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-3);
+      margin-left: 2px;
+    }
+    /* ── Switch Slider (開關表示) ── */
+    .switch-label {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+      cursor: pointer;
+    }
+    .switch-label input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .switch-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #cbd5e1;
+      border-radius: 22px;
+      transition: .2s;
+    }
+    .switch-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    input:checked + .switch-slider {
+      background-color: var(--ok);
+    }
+    input:checked + .switch-slider:before {
+      transform: translateX(22px);
+    }
+    .t-ok {
+      color: var(--text-1);
+    }
+    .t-alarm {
+      color: var(--alarm);
+    }
+    .t-delay {
+      color: #e67e22;
+    }
+    .t-off {
+      color: var(--text-3);
+    }
+    .slt {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+    }
+    .lt-ok {
+      background: var(--ok);
+    }
+    .lt-alarm {
+      background: var(--alarm);
+    }
+    .lt-delay {
+      background: #e67e22;
+    }
+    .lt-off {
+      background: var(--text-3);
+    }
+    .cid {
+      display: none;
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      font-size: 11px;
+      color: var(--text-3);
+      font-weight: 700;
+    }
+    #page-chart {
+      display: none;
+      width: 100%;
+    }
+    .chart-toolbar {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tb-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tb-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-2);
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .range-btns {
+      display: flex;
+      gap: 4px;
+    }
+    .rbtn {
+      padding: 5px 14px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .rbtn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .rbtn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .ch-filters {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+    .ch-cb-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      user-select: none;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .ch-cb-label:hover {
+      border-color: var(--accent);
+      background: #f0f6ff;
+    }
+    .ch-cb-label.checked {
+      border-color: var(--accent);
+      background: #eef4ff;
+    }
+    .ch-cb-label input {
+      cursor: pointer;
+      margin: 0;
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+    .ch-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .chart-wrap {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .chart-wrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 300px !important;
+    }
+    .stats-wrap {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .stats-hdr {
+      padding: 8px 14px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stats-hdr span {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+    table.stats-tbl {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.stats-tbl th {
+      background: #f7fafc;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-2);
+      letter-spacing: 1px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    table.stats-tbl td {
+      font-size: 11px;
+      color: var(--text-1);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    table.stats-tbl tr:last-child td {
+      border-bottom: none;
+    }
+    table.stats-tbl tr:hover td {
+      background: #f7fafc;
+    }
+    .tbl-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .badge-ok {
+      background: #e8f5ee;
+      color: var(--ok);
+    }
+    .badge-alarm {
+      background: #fdecea;
+      color: var(--alarm);
+    }
+    .badge-warning {
+      background: #fff7e6;
+      color: #b7791f;
+    }
+    .badge-critical {
+      background: #fdecea;
+      color: var(--alarm);
+    }
+    .badge-info {
+      background: #e8f5ee;
+      color: var(--ok);
+    }
+    .badge-active {
+      background: #fff1f1;
+      color: var(--alarm);
+    }
+    .badge-cleared {
+      background: #eef7f0;
+      color: var(--ok);
+    }
+    .alarm-location {
+      font-weight: 700;
+      color: var(--text-1);
+    }
+    .alarm-message {
+      font-weight: 700;
+      color: var(--text-2);
+    }
+    #page-alarm {
+      display: none;
+      width: 100%;
+    }
+    .query-bar {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .query-bar select,
+    .query-bar input[type=date] {
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-1);
+      background: #fff;
+      cursor: pointer;
+    }
+    .query-bar select:focus,
+    .query-bar input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .qbtn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .qbtn-search {
+      background: var(--accent);
+      color: #fff;
+    }
+    .qbtn-search:hover {
+      background: #1550a0;
+    }
+    .qbtn-reset {
+      background: #f0f4f8;
+      color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+    .qbtn-reset:hover {
+      background: #e0e8f0;
+    }
+    .alarm-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+    .sum-card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .sum-card .sum-name {
+      font-size: 10px;
+      color: var(--text-2);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .sum-card .sum-total {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--alarm);
+    }
+    .sum-card .sum-detail {
+      font-size: 10px;
+      color: var(--text-3);
+      margin-top: 2px;
+    }
+    .alarm-tbl-wrap {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .alarm-tbl-hdr {
+      padding: 8px 14px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .alarm-tbl-hdr span {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+    .alarm-tbl-hdr .total-badge {
+      font-size: 10px;
+      background: #ffffff33;
+      padding: 2px 8px;
+      border-radius: 10px;
+      color: #fff;
+    }
+    table.alarm-tbl {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.alarm-tbl th {
+      background: #f7fafc;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-2);
+      letter-spacing: 1px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    table.alarm-tbl td {
+      font-size: 11px;
+      color: var(--text-1);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    table.alarm-tbl tr:last-child td {
+      border-bottom: none;
+    }
+    table.alarm-tbl tr:hover td {
+      background: #f7fafc;
+    }
+    .atype-high {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      background: #fdecea;
+      color: var(--alarm);
+    }
+    .atype-low {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      background: #e8f0fd;
+      color: var(--accent);
+    }
+    .no-data {
+      text-align: center;
+      padding: 30px;
+      color: var(--text-3);
+      font-size: 12px;
+    }
+    #page-report {
+      display: none;
+      width: 100%;
+    }
+    .report-center {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 40px;
+    }
+    .report-card {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 36px;
+      width: 460px;
+      box-shadow: 0 2px 12px #00000012;
+    }
+    .report-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .report-card-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 18px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .report-field {
+      margin-bottom: 20px;
+    }
+    .report-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-2);
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .report-field select,
+    .report-field input:not([type=checkbox]):not([type=radio]) {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-1);
+      background: #fff;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236a8aaa' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .report-field select:focus,
+    .report-field input:not([type=checkbox]):not([type=radio]):focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px #1a5fa820;
+    }
+    .report-field input[type=checkbox] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      cursor: pointer;
+      appearance: auto;
+      -webkit-appearance: auto;
+      flex-shrink: 0;
+    }
+    .report-field input[type=date],
+    .report-field input[type=month] {
+      background-image: none;
+    }
+    .report-week-row {
+      display: flex;
+      gap: 10px;
+    }
+    .report-week-row select {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-1);
+      background: #fff;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236a8aaa' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+    .report-time-hint {
+      font-size: 10px;
+      color: var(--text-3);
+      margin-top: 6px;
+    }
+    .report-btns {
+      display: flex;
+      gap: 10px;
+      margin-top: 28px;
+    }
+    .btn-cancel {
+      flex: 1;
+      padding: 11px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-cancel:hover {
+      background: #f0f4f8;
+      border-color: var(--text-3);
+    }
+    .btn-download {
+      flex: 2;
+      padding: 11px;
+      border: none;
+      border-radius: 6px;
+      background: var(--ok);
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      transition: background .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-download:hover {
+      background: #156a3e;
+    }
+    .btn-download svg {
+      width: 16px;
+      height: 16px;
+      fill: #fff;
+    }
+    .report-info {
+      background: #f0f6ff;
+      border: 1px solid #c8dff8;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+    .report-info p {
+      font-size: 11px;
+      color: #1a5fa8;
+      line-height: 1.8;
+    }
+    .report-info strong {
+      font-weight: 700;
+    }
+    .footer {
+      background: var(--bg-1);
+      border-top: 1px solid var(--border);
+      padding: 5px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-3);
+      flex-shrink: 0;
+    }
+    /* ── 切換按鈕（正常卡片模式）── */
+    .view-toggle-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .view-btn {
+      padding: 4px 14px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all .15s;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .view-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .view-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    /* ── 平面圖模式：頁面佈局 ── */
+    #page-dashboard.fp-mode {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #page-dashboard.fp-mode .view-toggle-row {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 30;
+      margin-bottom: 0;
+      background: rgba(255, 255, 255, 0.90);
+      border-radius: 7px;
+      padding: 3px;
+      box-shadow: 0 2px 10px #00000025;
+      gap: 4px;
+    }
+    #page-dashboard.fp-mode .view-btn {
+      padding: 3px 10px;
+      font-size: 10px;
+    }
+    #page-dashboard.fp-mode #fp-container {
+      flex: 1;
+      min-height: 0;
+      justify-content: center;
+      align-items: center;
+      padding-top: clamp(36px, 5vh, 64px);
+      padding-bottom: clamp(16px, 3vh, 40px);
+    }
+    /* ── 平面圖容器與圖片 ── */
+    #fp-container {
+      width: 100%;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+    }
+    #fp-wrapper {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #fp-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    /* ── 平面圖標籤：錨點 + 連線 + 小卡 ── */
+    .fp-label {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+    /* 右側卡片：錨點在左，卡片在右 */
+    .fp-right {
+      transform: translate(-5px, -50%);
+      flex-direction: row;
+    }
+    /* 左側卡片：卡片在左，錨點在右 */
+    .fp-left {
+      transform: translate(calc(-100% + 5px), -50%);
+      flex-direction: row-reverse;
+    }
+    /* 錨點圓點（固定在偵測區文字中心） */
+    .fp-anchor {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1.5px var(--accent);
+      flex-shrink: 0;
+      z-index: 2;
+      transition: background .2s;
+    }
+    .fp-anchor.anc-ok {
+      background: var(--ok);
+      box-shadow: 0 0 0 1.5px var(--ok);
+    }
+    .fp-anchor.anc-alarm {
+      background: var(--alarm);
+      box-shadow: 0 0 0 1.5px var(--alarm);
+    }
+    .fp-anchor.anc-delay {
+      background: #e67e22;
+      box-shadow: 0 0 0 1.5px #e67e22;
+    }
+    .fp-anchor.anc-off {
+      background: var(--text-3);
+      box-shadow: 0 0 0 1.5px var(--text-3);
+    }
+    /* 連線 */
+    .fp-line {
+      width: 18px;
+      height: 1.5px;
+      flex-shrink: 0;
+      transition: background .2s;
+    }
+    .fp-line.ln-ok {
+      background: var(--ok);
+    }
+    .fp-line.ln-alarm {
+      background: var(--alarm);
+    }
+    .fp-line.ln-delay {
+      background: #e67e22;
+    }
+    .fp-line.ln-off {
+      background: var(--text-3);
+    }
+    /* 小卡片 */
+    .fp-bubble {
+      background: rgba(255, 255, 255, 0.93);
+      border: 1.5px solid #aac3e0;
+      border-radius: 5px;
+      padding: 2px 6px 3px;
+      min-width: 50px;
+      box-shadow: 0 1px 4px #00000015;
+      transition: box-shadow .15s;
+    }
+    .fp-label:hover .fp-bubble {
+      box-shadow: 0 2px 10px #00000030;
+    }
+    .fp-bubble.fp-alarm {
+      border-color: var(--alarm);
+      background: rgba(255, 240, 240, 0.95);
+    }
+    .fp-bubble.fp-delay {
+      border-color: #e67e22;
+      background: rgba(255, 248, 235, 0.95);
+    }
+    /* 右側廠區用電大卡片 (放大約4倍) */
+    #fp-power-card {
+      position: absolute;
+      left: 63%;
+      top: 18%;
+      width: 32%;
+      height: 38%;
+      margin-top: -55px;
+      margin-left: 15px;
+      background: var(--bg-panel);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      cursor: pointer;
+      z-index: 20;
+    }
+    /* 通道 ID（CH01） */
+    .fp-ch-id {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--text-2);
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+    }
+    /* 狀態列：● 溫度 */
+    .fp-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .fp-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .fp-dot-ok {
+      background: var(--ok);
+    }
+    .fp-dot-alarm {
+      background: var(--alarm);
+    }
+    .fp-dot-delay {
+      background: #e67e22;
+    }
+    .fp-dot-off {
+      background: var(--text-3);
+    }
+    .fp-temp-val {
+      font-size: 11px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .fp-tv-ok {
+      color: var(--text-1);
+    }
+    .fp-tv-alarm {
+      color: var(--alarm);
+    }
+    .fp-tv-delay {
+      color: #e67e22;
+    }
+    .fp-tv-off {
+      color: var(--text-3);
+    }
+    /* ── 平面圖右鍵選單 ── */
+    #fp-menu {
+      position: fixed;
+      z-index: 2000;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      box-shadow: 0 4px 16px #00000022;
+      overflow: hidden;
+      min-width: 160px;
+    }
+    .fp-menu-item {
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-1);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background .12s;
+    }
+    .fp-menu-item:hover {
+      background: #f0f6ff;
+      color: var(--accent);
+    }
+    .fp-menu-item+.fp-menu-item {
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <div id="modal-overlay"
+    style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:999;align-items:center;justify-content:center;">
+    <div
+      style="background:#fff;border-radius:10px;padding:24px;width:960px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 4px 20px #00000033;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 id="modal-title" style="font-size:14px;font-weight:700;color:var(--text-1);letter-spacing:2px;">系統設定</h3>
+        <button onclick="closeModal()"
+          style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-2);">✕</button>
+      </div>
+      <div id="modal-content"></div>
+      <div id="modal-buttons" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;"></div>
+    </div>
+  </div>
+  <div id="modal-control-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1000;align-items:center;justify-content:center;padding:18px 12px;">
+    <div style="background:var(--bg-body);border-radius:12px;width:auto;min-width:400px;max-width:96vw;max-height:calc(100vh - 56px);box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="background:var(--accent);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+        <h3 style="color:#fff;margin:0;font-size:16px;letter-spacing:1px;" id="ctrl-title">設備控制面板</h3>
+        <button onclick="closeControlModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div id="ctrl-dynamic-content" style="padding:16px 24px 18px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
+        <!-- 動態生成內容區 -->
+      </div>
+    </div>
+  </div>
+  <!-- ── 廠區用電資訊 Modal ── -->
+  <div id="modal-power-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1001;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-body);border-radius:12px;width:1150px;max-width:96vw;max-height:90vh;box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="background:var(--accent-secondary);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="color:#fff;margin:0;font-size:16px;letter-spacing:1px;">⚡ 廠區用電資訊</h3>
+        <button onclick="closePowerModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div id="power-modal-content" style="padding:20px;overflow-y:auto;">
+        <!-- dynamically filled by openPowerModal() -->
+      </div>
+    </div>
+  </div>
+  <div class="dash">
+    <div class="topbar">
+      <div class="logo-wrap">
+        <div id="logo-fallback"
+          style="display:flex;width:44px;height:44px;border-radius:6px;background:#ffffff33;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;text-align:center;line-height:44px;">
+          裕珍皇</div>
+        <div>
+          <div class="co-name">裕珍皇</div>
+          <div class="co-sub">COLD CHAIN TEMPERATURE MONITORING SYSTEM</div>
+        </div>
+      </div>
+      <div class="sys-label">
+        <div class="sys-title" id="page-title">即時溫度監控</div>
+        <div class="sys-sub" id="page-sub">REAL-TIME TEMPERATURE DASHBOARD</div>
+      </div>
+      <div class="clock-box">
+        <div class="clock" id="clk">--:--:--</div>
+        <div class="dateline" id="dte">----/--/--</div>
+      </div>
+    </div>
+    <div id="audio-unlock-banner"
+      style="display:none;background:#ffecd6;color:#e67e22;padding:8px 16px;font-size:12px;font-weight:700;text-align:center;border-bottom:1px solid #ffd8b0;cursor:pointer;"
+      onclick="unlockAudio()">
+      ⚠️ 瀏覽器目前阻擋了警報音效，請點擊此處解鎖播放！
+    </div>
+    <div class="statusbar">
+      <div class="si">
+        <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="cnt-ok">--</span>
+      </div>
+      <div class="si">
+        <div class="sdot d-alarm"></div><span class="slabel">警報</span><span class="sval" id="cnt-alarm">--</span>
+      </div>
+      <div class="si">
+        <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="cnt-off">--</span>
+      </div>
+      <span class="sep">|</span>
+      <div class="si"><span class="slabel">監控點：</span><span class="sval" id="cnt-total">--</span></div>
+      <span class="sep">|</span>
+      <div class="si"><span class="slabel">網關連線：</span></div>
+      <div class="si">
+        <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="gw-cnt-ok">--</span>
+      </div>
+      <div class="si">
+        <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="gw-cnt-off">--</span>
+      </div>
+      <button id="btn-silence" onclick="silenceAlarm()"
+        style="display:none;padding:4px 12px;border:1px solid var(--alarm);border-radius:4px;background:#fff0f0;color:var(--alarm);font-size:11px;font-weight:700;cursor:pointer;animation:blink 1s step-start infinite;">🔔
+        關閉警報聲</button>
+    </div>
+    <div class="body">
+      <div class="sidebar">
+        <div class="menu-btn active" id="btn-dashboard">即時監控</div>
+        <div class="menu-btn" id="btn-chart">總圖表</div>
+        <div class="menu-btn" id="btn-alarm">警報查詢</div>
+        <div class="menu-btn" id="btn-report">報表下載</div>
+        <div class="menu-btn" id="btn-settings">系統設定</div>
+        <div class="sidebar-bottom">
+          <div class="sidebar-logo-box" id="sidebar-logo-btn" onclick="toggleCompanyPopup(event)" title="點擊查看公司資訊">
+            <img src="/static/TL_logo.png" alt="LOGO"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+            <div class="sidebar-logo-fallback" style="display:none;">冷鏈科技<br>郵利公司</div>
+            <div class="logo-hint">ℹ 公司資訊</div>
+          </div>
+        </div>
+      </div>
+      <div class="main">
+        <div id="page-dashboard">
+          <!-- 視圖切換按鈕 -->
+          <div class="view-toggle-row" id="view-toggle-row">
+            <button class="view-btn active" id="btn-view-card" onclick="switchDashView('card')">卡片視圖</button>
+            <button class="view-btn" id="btn-view-fp" onclick="switchDashView('floorplan')">平面圖視圖</button>
+          </div>
+          <!-- 卡片視圖 -->
+          <div id="card-view-wrap">
+            <div class="sgrid" id="main-grid"></div>
+          </div>
+          <!-- 平面圖視圖 -->
+          <div id="fp-container" style="display:none;">
+            <div id="fp-wrapper">
+              <img id="fp-img" src="/static/floorplan.png" alt="廠區平面圖" draggable="false">
+              <!-- 右側廠區用電大卡片 -->
+              <div id="fp-power-card" onclick="openPowerModal()"></div>
+            </div>
+          </div>
+        </div>
+        <div id="page-chart">
+          <div class="chart-toolbar">
+            <div class="tb-row">
+              <span class="tb-label">時間範圍</span>
+              <div class="range-btns">
+                <button class="rbtn active" data-range="60">1小時</button>
+                <button class="rbtn" data-range="360">6小時</button>
+                <button class="rbtn" data-range="1440">24小時</button>
+                <button class="rbtn" id="btn-custom-range">選取區間</button>
+              </div>
+              <div id="custom-range-picker" style="display:none; align-items:center; gap:8px; margin-left:12px;">
+                <input type="datetime-local" id="chart-date-from"
+                  style="padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:11px; cursor:pointer;">
+                <span style="font-size:11px; color:var(--text-3);">～</span>
+                <input type="datetime-local" id="chart-date-to"
+                  style="padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:11px; cursor:pointer;">
+                <button class="qbtn qbtn-search" id="btn-chart-search">查詢</button>
+              </div>
+            </div>
+            <div class="tb-row" style="flex-wrap:wrap;gap:10px;align-items:center;">
+              <span class="tb-label">庫別</span>
+              <select id="sel-room" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:100px;">
+                <option value="">-- 選擇庫別 --</option>
+              </select>
+              <span class="tb-label">設備</span>
+              <select id="sel-device" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:160px;" disabled>
+                <option value="">-- 選擇設備 --</option>
+              </select>
+              <span class="tb-label">資訊</span>
+              <select id="sel-info" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:160px;" disabled>
+                <option value="">-- 選擇資訊 --</option>
+              </select>
+              <button class="rbtn" id="btn-chart-add" disabled style="padding:5px 14px;font-size:11px;">加入圖表</button>
+              <button class="rbtn" id="btn-chart-add-all" style="padding:5px 14px;font-size:11px;">加入全庫溫度</button>
+              <button class="rbtn" id="btn-chart-clear" style="padding:5px 14px;font-size:11px;">清除全部</button>
+            </div>
+            <div id="chart-selected-tags" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 2px 0;"></div>
+          </div>
+          <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+          <div class="stats-wrap" id="stats-wrap" style="display:none;">
+            <div class="stats-hdr"><span>統計數據</span></div>
+            <table class="stats-tbl">
+              <thead>
+                <tr>
+                  <th>頻道</th>
+                  <th>線條</th>
+                  <th>最大值</th>
+                  <th>最大值時間</th>
+                  <th>最小值</th>
+                  <th>最小值時間</th>
+                  <th>平均值</th>
+                  <th>筆數</th>
+                  <th>狀態</th>
+                </tr>
+              </thead>
+              <tbody id="stats-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="page-alarm">
+          <div class="query-bar">
+            <span class="tb-label">庫別</span>
+            <select id="alarm-ch-filter">
+              <option value="all">全部庫別</option>
+              <option value="a">A庫</option>
+              <option value="b">B庫</option>
+              <option value="c">D庫</option>
+              <option value="d">E庫</option>
+              <option value="e">F庫</option>
+              <option value="g">G庫</option>
+              <option value="h">H庫</option>
+              <option value="i1">I1庫</option>
+              <option value="i2">I2庫</option>
+              <option value="j">J庫</option>
+              <option value="k">K庫</option>
+            </select>
+            <span class="tb-label">日期範圍</span>
+            <input type="date" id="alarm-date-from">
+            <span style="font-size:11px;color:var(--text-3);">～</span>
+            <input type="date" id="alarm-date-to">
+            <span class="tb-label">嚴重度</span>
+            <select id="alarm-severity-filter">
+              <option value="all">全部</option>
+              <option value="critical">異常</option>
+              <option value="warning">警告</option>
+              <option value="info">紀錄</option>
+            </select>
+            <span class="tb-label">分類</span>
+            <select id="alarm-category-filter">
+              <option value="all">全部分類</option>
+              <option value="溫度警報">溫度警報</option>
+              <option value="設備警報">設備警報</option>
+              <option value="壓差風扇警報">壓差風扇警報</option>
+              <option value="通信警報">通信警報</option>
+              <option value="系統紀錄">系統紀錄</option>
+            </select>
+            <span class="tb-label">狀態</span>
+            <select id="alarm-status-filter">
+              <option value="all">全部狀態</option>
+              <option value="active">警報中</option>
+              <option value="cleared">已復歸</option>
+            </select>
+            <button class="qbtn qbtn-search" onclick="loadAlarmHistory()">查詢</button>
+            <button class="qbtn qbtn-reset" onclick="resetAlarmQuery()">重置</button>
+            <span style="margin-left:auto;font-size:10px;color:var(--text-3);">最多顯示 200 筆</span>
+          </div>
+          <div class="alarm-summary" id="alarm-summary"></div>
+          <div class="alarm-tbl-wrap">
+            <div class="alarm-tbl-hdr">
+              <span>警報記錄</span>
+              <span class="total-badge" id="alarm-total-badge">共 0 筆</span>
+            </div>
+            <table class="alarm-tbl">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>時間</th>
+                  <th>嚴重度</th>
+                  <th>分類</th>
+                  <th>位置 / 範圍</th>
+                  <th>警報內容</th>
+                  <th>狀態</th>
+                  <th>復歸時間</th>
+                </tr>
+              </thead>
+              <tbody id="alarm-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- 報表下載頁 -->
+        <div id="page-report">
+          <div class="report-center">
+            <div class="report-card">
+              <div class="report-card-title">報表下載</div>
+              <div class="report-info">
+                <p><strong>📋 HACCP / ISO 22000</strong> 冷鏈溫度監控報表</p>
+                <p>依稽核標準生成 Excel 格式，包含溫度記錄、統計摘要及異常紀錄。</p>
+              </div>
+              <!-- 報表種類 -->
+              <div class="report-field">
+                <label>報表種類</label>
+                <select id="report-type">
+                  <option value="day">日報表</option>
+                  <option value="week">周報表</option>
+                  <option value="month">月報表</option>
+                </select>
+              </div>
+              <!-- 選擇庫別 -->
+              <div class="report-field">
+                <label>選擇庫別</label>
+                <select id="report-room" onchange="onReportRoomChange()">
+                  <option value="">-- 選擇庫別 --</option>
+                </select>
+              </div>
+              <!-- 選擇設備 -->
+              <div class="report-field">
+                <label>選擇設備</label>
+                <select id="report-device" onchange="onReportDeviceChange()" disabled>
+                  <option value="">-- 選擇設備 --</option>
+                </select>
+              </div>
+              <!-- 選擇資訊 -->
+              <div class="report-field">
+                <label>選擇資訊</label>
+                <select id="report-info" disabled>
+                  <option value="">-- 選擇資訊 --</option>
+                </select>
+              </div>
+              <!-- 選擇時間（動態切換）-->
+              <div class="report-field">
+                <label id="report-time-label">選擇日期</label>
+                <input type="date" id="report-time-date">
+              </div>
+              <!-- 智能採樣 -->
+              <div class="report-field" style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                <input type="checkbox" id="report-sampling" checked style="width:16px; height:16px; margin:0; cursor:pointer;">
+                <label for="report-sampling" style="margin:0; font-size:13px; font-weight:700; color:var(--text-1); cursor:pointer;">啟用智能採樣 (優化讀取速度與報表大小)</label>
+              </div>
+              <div class="report-btns">
+                <button class="btn-cancel" onclick="showPage('dashboard')">取消</button>
+                <button class="btn-download" id="btn-download-report" onclick="downloadReport()">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                  下載 Excel
+                </button>
+              </div>
+              <div id="report-msg" style="margin-top:10px;font-size:12px;color:var(--alarm);display:none;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>裕珍皇 · HACCP / ISO 22000 冷鏈溫度監控系統</span>
+    </div>
+  </div>
+  <!-- 公司資訊 Popup -->
+  <div id="company-popup">
+    <div class="pop-header">
+      <span class="pop-title">SERVICE PROVIDER</span>
+      <button class="pop-close" onclick="closeCompanyPopup()">×</button>
+    </div>
+    <div class="pop-body">
+      <div class="pop-logo-row">
+        <img src="/static/TL_logo.png" alt="LOGO" onerror="this.style.display='none'">
+        <div>
+          <div class="pop-coname">添利機械工業股份有限公司</div>
+          <div class="pop-coname-en">TANSY MACHINE INDUSTRIAL CO. LTD</div>
+        </div>
+      </div>
+      <div class="pop-info-row">
+        <span class="pop-icon">📞</span>
+        <span>02-22928308 #202</span>
+      </div>
+      <div class="pop-info-row">
+        <span class="pop-icon">📍</span>
+        <span>新北市五股區成泰路3段2巷8號</span>
+      </div>
+      <div class="pop-info-row">
+        <span class="pop-icon">🏢</span>
+        <span>統編：24436882</span>
+      </div>
+      <div class="pop-divider"></div>
+      <div class="pop-qr-section">
+        <div class="pop-qr-label">LINE 官方帳號</div>
+        <img src="/static/line_qr.png" alt="LINE QR" onerror="this.style.display='none'">
+      </div>
+    </div>
+    <div class="pop-footer">冷鏈温控技術服務 &middot; COLD CHAIN TEMPERATURE MONITORING</div>
+  </div>
+  <div class="fp-menu-item" id="fp-menu-alarm">⚙️ 設定警報</div>
+  <div class="fp-menu-item" id="fp-menu-chart">📊 查看 6 小時趨勢</div>
+  </div>
+  <script>
+    const ICONS = {
+      cooling: '<div class="svg-icon" title="製冷"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M4.9 19.1l14.2-14.2M12 6L9 3M12 6l3-3M12 18l-3 3M12 18l3 3M6 12L3 9M6 12l-3 3M18 12l3-3M18 12l3 3"/></svg></div>',
+      defrost: '<div class="svg-icon" title="除霜"><svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round"><path d="M12 2v8M4.9 4.9l7.1 7.1M19.1 4.9l-7.1 7.1M6 12L3 9M6 12l-3 3M18 12l3-3M18 12l3 3"/><path d="M12 15c-2 2-2 4 0 6s4-4 4-6-4-6-4-6-4 4-4 6z" fill="#fff" stroke="none"/></svg></div>',
+      fan: '<div class="svg-icon" title="風扇"><svg viewBox="0 0 24 24" fill="#fff" stroke="none"><g transform="translate(12,12)"><path d="M0,0 C3,-8 8,-8 8,-4 C8,0 4,2 0,0 Z"/><path d="M0,0 C3,-8 8,-8 8,-4 C8,0 4,2 0,0 Z" transform="rotate(120)"/><path d="M0,0 C3,-8 8,-8 8,-4 C8,0 4,2 0,0 Z" transform="rotate(240)"/></g></svg></div>',
+      eq_err: '<div class="svg-icon icon-err" title="設備異常">異常</div>',
+      temp_err: '<div class="svg-icon icon-err" title="庫溫異常">庫溫<br>異常</div>'
+    };
+    // ── 公司資訊 Popup ──
+    let _companyPopupOpen = false;
+    function toggleCompanyPopup(e) {
+      e.stopPropagation();
+      const pop = document.getElementById('company-popup');
+      if (_companyPopupOpen) {
+        pop.style.display = 'none';
+        _companyPopupOpen = false;
+      } else {
+        pop.style.display = 'block';
+        _companyPopupOpen = true;
+      }
+    }
+    function closeCompanyPopup() {
+      document.getElementById('company-popup').style.display = 'none';
+      _companyPopupOpen = false;
+    }
+    // 點擊其他區域關閉 popup
+    document.addEventListener('click', function (e) {
+      if (_companyPopupOpen && !document.getElementById('company-popup').contains(e.target)) {
+        closeCompanyPopup();
+      }
+    });
+    // ── 裕珍皇 頻道與卡片聚合設定 ──────────────────────────────────────
+    const CHANNEL_NAMES = {
+      ch01: '1F 冷凍庫 A', ch02: '1F 冷凍庫 B', ch03: '1F 冷凍庫 C', ch04: '1F 冷凍庫 D', ch05: '1F 冷凍庫 E',
+      ch06: '1F 緩衝庫 A', ch07: '1F 碼頭區 A',
+      ch08: '3F 急速庫 20HP', ch09: '3F 急速庫 10HP',
+      ch10: '3F 半成品冷凍庫 A', ch11: '3F 半成品冷凍庫 B',
+      ch12: '3F 冷藏庫',
+      ch13: '1F 集合式電錶', ch14: '3F 集合式電錶'
+    };
+    // 卡片1-6：溫控聚合卡；卡片7：電表聚合卡（方案B，僅顯示聚合4數字，點擊看明細）
+    const CARD_CONFIG = {
+      card1: { name: '1F 冷凍庫', type: 'temp', channels: ['ch01', 'ch02', 'ch03', 'ch04', 'ch05'] },
+      card2: { name: '1F 緩衝庫', type: 'temp', channels: ['ch06'] },
+      card3: { name: '1F 碼頭區', type: 'temp', channels: ['ch07'] },
+      card4: { name: '3F 急速庫', type: 'temp', channels: ['ch08', 'ch09'] },
+      card5: { name: '3F 半成品冷凍庫', type: 'temp', channels: ['ch10', 'ch11'] },
+      card6: { name: '3F 冷藏庫', type: 'temp', channels: ['ch12'] },
+      card7: { name: '廠區電錶資訊', type: 'power', channels: ['ch13', 'ch14'] }
+    };
+    const ALL_CARDS = Object.keys(CARD_CONFIG);
+    const ALL_CHS = ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'ch06', 'ch07', 'ch08', 'ch09', 'ch10', 'ch11', 'ch12', 'ch13', 'ch14'];
+    const METER_CHS = ['ch13', 'ch14'];
+    const GW1_CHS = ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'ch06', 'ch07', 'ch13'];
+    const GW2_CHS = ['ch08', 'ch09', 'ch10', 'ch11', 'ch12', 'ch14'];
+    // 設備運轉狀態燈號：停止=灰 製冷=藍 送風=綠 除霜=橘 異常=紅
+    const RUNSTATE_COLORS = { stop: '#9aa5b1', cooling: '#1a73e8', fan: '#27ae60', defrost: '#e67e22', error: '#e74c3c' };
+    // 運轉電流閾值：每個 channel 各自獨立設定（於「進階設定」頁面調整），存在 alarmSettings[ch].current_threshold
+    function getCurrentThreshold(ch) {
+      const v = alarmSettings[ch]?.current_threshold;
+      return (v !== undefined && v !== null) ? Number(v) : 0.5;
+    }
+    function getRunState(u, ch) {
+      if (!u) return 'stop';
+      if (u.flags?.eq_err || u.flags?.temp_err || u.eq_err || u.temp_err) return 'error';
+      const current = Number(u.compressor_current || 0);
+      if (current <= getCurrentThreshold(ch)) return 'stop';
+      if (u.defrost_status || u.flags?.defrost) return 'defrost';
+      if (u.cooling_status || u.flags?.cooling) return 'cooling';
+      if (u.fan_status || u.flags?.fan) return 'fan';
+      return 'stop';
+    }
+    // 壓力單位換算（若廠內感測器輸出已是 psi，此處先原值回傳；如需 MPa→psi 換算，將 factor 改為 145.038 即可）
+    function mpaToPsi(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0.0;
+    }
+    // ── 網關連線狀態判讀 ──
+    function checkGatewayStatus(gwChs, data, nowTs) {
+      let allOnline = true;
+      for (let ch of gwChs) {
+        const d = data[ch];
+        if (!d?.timestamp) { allOnline = false; break; }
+        const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
+        if (nowTs - dTs >= 30000) { allOnline = false; break; }
+      }
+      return allOnline;
+    }
+    let alarmSettings = {};
+    let chartInstance = null;
+    let currentRange = 60;
+    let chartSeries = [];
+    let realtimeTimer = null;
+    let filtersBuilt = false;
+    let previousDelayingChannels = [];
+    function showPage(page) {
+      ['dashboard', 'chart', 'alarm', 'report'].forEach(p =>
+        document.getElementById('page-' + p).style.display = page === p ? 'block' : 'none'
+      );
+      ['btn-dashboard', 'btn-chart', 'btn-alarm', 'btn-report'].forEach(id =>
+        document.getElementById(id).classList.toggle('active', id === 'btn-' + page)
+      );
+      const T = {
+        dashboard: ['即時溫度監控', 'REAL-TIME TEMPERATURE DASHBOARD'],
+        chart: ['總圖表', 'TEMPERATURE TREND CHART'],
+        alarm: ['警報查詢', 'ALARM HISTORY QUERY'],
+        report: ['報表下載', 'REPORT DOWNLOAD']
+      };
+      document.getElementById('page-title').textContent = T[page][0];
+      document.getElementById('page-sub').textContent = T[page][1];
+      if (page === 'chart') {
+        if (!filtersBuilt) buildChannelFilters();
+        if (chartSeries.length === 0) {
+          chartSeries.push({
+            id: 'ch01_control_temp',
+            ch: 'ch01',
+            field: 'control_temp',
+            name: (CHANNEL_NAMES['ch01'] || '1F 冷凍庫 A') + ' - 控制溫度',
+            unit: '°C',
+            color: CHART_PALETTE[0]
+          });
+          renderChartTags();
+        }
+        setTimeout(loadChartData, 80);
+        if (currentRange !== 'custom') startRealtimeChart();
+      } else if (page === 'alarm') {
+        loadAlarmHistory();
+        stopRealtimeChart();
+      } else if (page === 'report') {
+        initReportPage();
+        stopRealtimeChart();
+      } else {
+        stopRealtimeChart();
+      }
+    }
+    function startRealtimeChart() {
+      stopRealtimeChart();
+      realtimeTimer = setInterval(loadChartData, 5000);
+    }
+    function stopRealtimeChart() {
+      if (realtimeTimer) { clearInterval(realtimeTimer); realtimeTimer = null; }
+    }
+    // ── 報表下載 ──
+    function initReportPage() {
+      const now = new Date();
+      const yr = now.getFullYear();
+      const p = n => String(n).padStart(2, '0');
+      // 預設日期
+      const todayStr = `${yr}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+      document.getElementById('report-time-date').value = todayStr;
+      // 動態初始化庫別下拉
+      const selRoom = document.getElementById('report-room');
+      selRoom.innerHTML = '<option value="">-- 選擇庫別 --</option>';
+      ALL_CARDS.forEach(cardId => {
+        const card = CARD_CONFIG[cardId];
+        const opt = document.createElement('option');
+        opt.value = cardId;
+        opt.textContent = card.name;
+        selRoom.appendChild(opt);
+      });
+      // 增加全廠選項
+      const optAll = document.createElement('option');
+      optAll.value = 'all';
+      optAll.textContent = '全廠廠區';
+      selRoom.appendChild(optAll);
+      // 重設設備與資訊下拉
+      document.getElementById('report-device').innerHTML = '<option value="">-- 選擇設備 --</option>';
+      document.getElementById('report-device').disabled = true;
+      document.getElementById('report-info').innerHTML = '<option value="">-- 選擇資訊 --</option>';
+      document.getElementById('report-info').disabled = true;
+    }
+    function onReportRoomChange() {
+      const ch = document.getElementById('report-room').value;
+      const selDevice = document.getElementById('report-device');
+      const selInfo = document.getElementById('report-info');
+      selDevice.innerHTML = '<option value="">-- 選擇設備 --</option>';
+      selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
+      selDevice.disabled = !ch;
+      selInfo.disabled = true;
+      if (!ch) return;
+      if (ch === 'all') {
+        const opt = document.createElement('option');
+        opt.value = 'factory::1';
+        opt.textContent = '全廠區整體';
+        selDevice.appendChild(opt);
+        selDevice.value = 'factory::1';
+        selDevice.disabled = false;
+        onReportDeviceChange();
+        return;
+      }
+      // 1. 全庫摘要
+      const optSummary = document.createElement('option');
+      optSummary.value = 'room_summary::1';
+      optSummary.textContent = '全庫數據摘要';
+      selDevice.appendChild(optSummary);
+      // 2. 設備明細（卡片底下各 channel）
+      const card = CARD_CONFIG[ch];
+      if (card) {
+        card.channels.forEach(chId => {
+          const opt = document.createElement('option');
+          opt.value = `${card.type === 'power' ? 'S2-800MT' : 'iot627'}::${chId}`;
+          opt.textContent = CHANNEL_NAMES[chId] || chId;
+          selDevice.appendChild(opt);
+        });
+      }
+      selDevice.disabled = false;
+    }
+    function onReportDeviceChange() {
+      const val = document.getElementById('report-device').value;
+      const selInfo = document.getElementById('report-info');
+      selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
+      selInfo.disabled = !val;
+      if (!val) return;
+      const [deviceType, deviceIdx] = val.split('::');
+      if (deviceType === 'room_summary') {
+        const infos = [
+          { key: 'all_info', label: '全部資訊' },
+          { key: 'avg_temp', label: '平均庫溫' },
+          { key: 'kw', label: '即時耗電量' },
+          { key: 'kwh', label: '累積耗電量' }
+        ];
+        infos.forEach(info => {
+          const opt = document.createElement('option');
+          opt.value = info.key;
+          opt.textContent = info.label;
+          selInfo.appendChild(opt);
+        });
+      } else if (deviceType === 'iot627') {
+        const infos = [
+          { key: 'all_info', label: '全部資訊' },
+          { key: 'temp_control', label: '控制溫度' },
+          { key: 'running_hours', label: '主機運轉時數' }
+        ];
+        infos.forEach(info => {
+          const opt = document.createElement('option');
+          opt.value = info.key;
+          opt.textContent = info.label;
+          selInfo.appendChild(opt);
+        });
+      } else if (deviceType === 'S2-800MT') {
+        const infos = [
+          { key: 'all_info', label: '全部資訊' },
+          { key: 'kw', label: '即時耗電量' },
+          { key: 'kwh', label: '累積耗電量' }
+        ];
+        infos.forEach(info => {
+          const opt = document.createElement('option');
+          opt.value = info.key;
+          opt.textContent = info.label;
+          selInfo.appendChild(opt);
+        });
+      } else if (deviceType === 'factory') {
+        const infos = [
+          { key: 'all_info', label: '全部資訊' },
+          { key: 'total_kwh', label: '總累積耗電量' }
+        ];
+        infos.forEach(info => {
+          const opt = document.createElement('option');
+          opt.value = info.key;
+          opt.textContent = info.label;
+          selInfo.appendChild(opt);
+        });
+      }
+      selInfo.disabled = false;
+    }
+    function downloadReport() {
+      const type = document.getElementById('report-type').value;
+      const room = document.getElementById('report-room').value;
+      const deviceVal = document.getElementById('report-device').value;
+      const infoKey = document.getElementById('report-info').value;
+      const msg = document.getElementById('report-msg');
+      const btn = document.getElementById('btn-download-report');
+      if (!room || !deviceVal || !infoKey) {
+        if (msg) { msg.textContent = '⚠ 請先選擇庫別、設備與資訊！'; msg.style.display = 'block'; }
+        return;
+      }
+      const [deviceType, deviceIdx] = deviceVal.split('::');
+      let url = '';
+      const date = document.getElementById('report-time-date').value;
+      if (!date) {
+        if (msg) { msg.textContent = '⚠ 請選擇日期！'; msg.style.display = 'block'; }
+        return;
+      }
+      const samplingCheckbox = document.getElementById('report-sampling');
+      const sampling = samplingCheckbox ? samplingCheckbox.checked : false;
+      url = `/api/report/download?type=${type}&room=${room}&device_type=${deviceType}&device_idx=${deviceIdx}&info_key=${infoKey}&date=${date}&sampling=${sampling}`;
+      // Clear previous error
+      if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+      // Set loading state
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 產生中...'; }
+      fetch(url)
+        .then(resp => {
+          if (!resp.ok) {
+            return resp.text().then(t => { throw new Error(`伺服器錯誤 (${resp.status})：${t}`); });
+          }
+          // Get filename from Content-Disposition header
+          let filename = '溫度報表.xlsx';
+          const cd = resp.headers.get('Content-Disposition');
+          if (cd) {
+            // Try UTF-8 filename* first, then fallback to filename
+            const utf8Match = cd.match(/filename\*=UTF-8''([^;]+)/);
+            const asciiMatch = cd.match(/filename="?([^"]+)"?/);
+            if (utf8Match) filename = decodeURIComponent(utf8Match[1]);
+            else if (asciiMatch) filename = asciiMatch[1];
+          }
+          return resp.blob().then(blob => ({ blob, filename }));
+        })
+        .then(({ blob, filename }) => {
+          // Create a temporary <a> and trigger download
+          const objUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
+          if (msg) { msg.style.color = 'var(--ok)'; msg.textContent = '✓ 報表已下載！'; msg.style.display = 'block'; }
+        })
+        .catch(err => {
+          console.error('Report download error:', err);
+          if (msg) { msg.style.color = 'var(--alarm)'; msg.textContent = `⚠ 下載失敗：${err.message}`; msg.style.display = 'block'; }
+        })
+        .finally(() => {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> 下載 Excel';
+          }
+        });
+    }
+    // ── 即時監控 ──
+    let sseSource = null;
+    let lastSseData = null;
+    function startSSE() {
+      if (sseSource) return;
+      sseSource = new EventSource('/api/temperature_stream');
+      sseSource.addEventListener('temperatures', e => {
+        try { lastSseData = JSON.parse(e.data); } catch (_) { }
+        update(lastSseData);
+      });
+      sseSource.onerror = () => {
+        sseSource.close(); sseSource = null;
+        setTimeout(startSSE, 5000);
+      };
+    }
+    async function fetchTemperatures() {
+      if (lastSseData) return lastSseData;
+      try { return await (await fetch('/api/temperatures')).json(); } catch (e) { return null; }
+    }
+    async function fetchAlarmSettings() {
+      try { alarmSettings = await (await fetch('/api/alarm_settings')).json(); } catch (e) { }
+    }
+    function populateChannelDropdowns() {
+      const alarmFilter = document.getElementById('alarm-ch-filter');
+      if (!alarmFilter) return;
+      let alarmHtml = '<option value="all">全部庫別</option>';
+      ALL_CHS.forEach(ch => {
+        const name = CHANNEL_NAMES[ch] || alarmSettings[ch]?.name || ch.toUpperCase();
+        alarmHtml += `<option value="${ch}">${name}</option>`;
+      });
+      alarmFilter.innerHTML = alarmHtml;
+    }
+    // ── 廠區用電資訊 Modal ─────────────────────────────────────────────
+    function openPowerModal() {
+      const overlay = document.getElementById('modal-power-overlay');
+      const content = document.getElementById('power-modal-content');
+      const data = lastSseData || {};
+      let totalKw = 0, totalKwh = 0, sumV = 0, countV = 0, totalA = 0;
+      let rows = '';
+      METER_CHS.forEach((ch, idx) => {
+        const d = data[ch];
+        const name = CHANNEL_NAMES[ch] || d?.name || alarmSettings[ch]?.name || ch.toUpperCase();
+        let isOnline = false;
+        if (d && d.timestamp) {
+          const nowTs = new Date().getTime();
+          const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
+          if (nowTs - dTs < 30000) {
+            isOnline = true;
+          }
+        }
+        const hasPower = isOnline && d?.power && typeof d.power === 'object' && 
+          ((d.power.power_total !== undefined && d.power.power_total !== '--' && d.power.power_total !== null) || 
+           (d.power.kw !== undefined && d.power.kw !== '--' && d.power.kw !== null));
+        let v_rs = '--', v_st = '--', v_tr = '--', v_avg = '--';
+        let a_r = '--', a_s = '--', a_t = '--', a_avg = '--';
+        let kw = '--', kwh = '--', pf = '--';
+        let loadPctHtml = '--';
+        let statusHtml = `<span style="color:var(--text-3); font-weight:700;">斷線</span>`;
+        const rawV = hasPower ? Number((d.power.voltage_ll_avg !== undefined && d.power.voltage_ll_avg !== null) ? d.power.voltage_ll_avg : 0) : 0;
+        const hasRealReading = hasPower && rawV > 0;
+        if (hasRealReading) {
+          const rawA = Number((d.power.current_avg !== undefined && d.power.current_avg !== null) ? d.power.current_avg : (d.power.a || 0));
+          let rawKw = 0;
+          if (d.power.power_total !== undefined && d.power.power_total !== null) {
+            rawKw = Number(d.power.power_total) / 1000.0;
+          } else if (d.power.kw !== undefined) {
+            rawKw = Number(d.power.kw);
+          }
+          let rawKwh = 0;
+          if (d.power.energy_total !== undefined && d.power.energy_total !== null) {
+            rawKwh = Number(d.power.energy_total) / 1000.0;
+          } else if (d.power.kwh !== undefined) {
+            rawKwh = Number(d.power.kwh);
+          }
+          const rawPf = Number((d.power.power_factor !== undefined && d.power.power_factor !== null) ? d.power.power_factor : 0);
+          v_rs = (d.power.voltage_rs !== undefined && d.power.voltage_rs !== '--' && d.power.voltage_rs !== null) ? Number(d.power.voltage_rs).toFixed(1) : '--';
+          v_st = (d.power.voltage_st !== undefined && d.power.voltage_st !== '--' && d.power.voltage_st !== null) ? Number(d.power.voltage_st).toFixed(1) : '--';
+          v_tr = (d.power.voltage_tr !== undefined && d.power.voltage_tr !== '--' && d.power.voltage_tr !== null) ? Number(d.power.voltage_tr).toFixed(1) : '--';
+          v_avg = rawV.toFixed(1);
+          a_r = (d.power.current_r !== undefined && d.power.current_r !== '--' && d.power.current_r !== null) ? Number(d.power.current_r).toFixed(1) : '--';
+          a_s = (d.power.current_s !== undefined && d.power.current_s !== '--' && d.power.current_s !== null) ? Number(d.power.current_s).toFixed(1) : '--';
+          a_t = (d.power.current_t !== undefined && d.power.current_t !== '--' && d.power.current_t !== null) ? Number(d.power.current_t).toFixed(1) : '--';
+          a_avg = rawA.toFixed(1);
+          kw = rawKw.toFixed(1);
+          kwh = rawKwh.toFixed(1);
+          pf = rawPf.toFixed(1);
+          statusHtml = `<span style="color:var(--ok); font-weight:700;">正常</span>`;
+          totalKw += rawKw;
+          totalKwh += rawKwh;
+          totalA += rawA;
+          sumV += rawV;
+          countV++;
+          const nfbRated = Number(alarmSettings[ch]?.nfb_rated_current || 0);
+          if (nfbRated > 0) {
+            const loadPct = (rawA / nfbRated) * 100;
+            const loadColor = loadPct >= 95 ? 'var(--alarm)' : loadPct >= 80 ? 'var(--delay)' : 'var(--ok)';
+            loadPctHtml = `<span style="color:${loadColor};">${loadPct.toFixed(1)}%</span>`;
+          } else {
+            loadPctHtml = `<span style="color:var(--text-3);">未設定NFB</span>`;
+          }
+        }
+        const rowBg = idx % 2 === 0 ? '#f7f9fd' : '#ffffff';
+        rows += `<tr style="background:${rowBg}; font-size:12px; font-weight:700; border-bottom:1px solid var(--border);">
+          <td style="padding:8px 10px;">${name}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_rs}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_st}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_tr}</td>
+          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${v_avg}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_r}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_s}</td>
+          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_t}</td>
+          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${a_avg}</td>
+          <td style="padding:8px 10px;color:var(--accent); font-variant-numeric:tabular-nums;">${kw}</td>
+          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${kwh}</td>
+          <td style="padding:8px 10px;color:var(--text-2); font-variant-numeric:tabular-nums;">${pf}</td>
+          <td style="padding:8px 10px;font-variant-numeric:tabular-nums;">${loadPctHtml}</td>
+          <td style="padding:8px 10px;text-align:center;">${statusHtml}</td>
+        </tr>`;
+      });
+      content.innerHTML = `
+        <div style="display:flex;gap:12px;margin-bottom:16px;">
+          <div style="flex:1;background:var(--accent-primary);border-radius:10px;padding:12px 16px;color:#fff;">
+            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">即時總用電</div>
+            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalKw.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">kW</span></div>
+          </div>
+          <div style="flex:1;background:var(--accent-secondary);border-radius:10px;padding:12px 16px;color:#fff;">
+            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">總累積用電量</div>
+            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalKwh.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">kWh</span></div>
+          </div>
+          <div style="flex:1;background:var(--accent-secondary);border-radius:10px;padding:12px 16px;color:#fff;">
+            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">平均線電壓</div>
+            <div style="font-size:26px;font-weight:800;margin-top:4px;">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:13px;font-weight:400;margin-left:4px;">V</span></div>
+          </div>
+          <div style="flex:1;background:var(--accent-primary);border-radius:10px;padding:12px 16px;color:#fff;">
+            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">總平均電流</div>
+            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalA.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">A</span></div>
+          </div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+          <thead>
+            <tr style="background:var(--accent-secondary);color:#fff;font-size:11px;">
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">庫別</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">RS線電壓 (V)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">ST線電壓 (V)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">TR線電壓 (V)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">平均電壓 (V)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">R相電流 (A)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">S相電流 (A)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">T相電流 (A)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">平均電流 (A)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">瞬時功率 (kW)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">累積功率 (kWh)</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">功率因數</th>
+              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">滿載百分比</th>
+              <th style="padding:10px 8px;text-align:center;letter-spacing:1px;white-space:nowrap;">連線狀態</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="background:#e8f0fe;font-weight:800;font-size:12px;">
+              <td style="padding:10px 8px;color:var(--accent);">合計</td>
+              <td colspan="3" style="padding:10px 8px;"></td>
+              <td style="padding:10px 8px;color:var(--accent);">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">V</span></td>
+              <td colspan="3" style="padding:10px 8px;"></td>
+              <td style="padding:10px 8px;color:var(--accent);">${totalA.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">A</span></td>
+              <td style="padding:10px 8px;color:var(--accent);">${totalKw.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">kW</span></td>
+              <td style="padding:10px 8px;color:var(--accent-secondary);">${totalKwh.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">kWh</span></td>
+              <td colspan="3" style="padding:10px 8px;"></td>
+            </tr>
+          </tfoot>
+        </table>`;
+      overlay.style.display = 'flex';
+    }
+    function closePowerModal() {
+      document.getElementById('modal-power-overlay').style.display = 'none';
+    }
+    // Close power modal when clicking the backdrop
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('modal-power-overlay').addEventListener('click', function(e) {
+        if (e.target === this) closePowerModal();
+      });
+    });
+    // ──────────────────────────────────────────────────────────────────
+    function isRoomOnline(d, nowTs = Date.now()) {
+      if (!d || !d.timestamp) return false;
+      const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
+      return Number.isFinite(dTs) && (nowTs - dTs < 30000);
+    }
+    function isUnitOnline(unit, roomOnline) {
+      if (!roomOnline) return false;
+      if (unit && unit.connected === false) return false;
+      return true;
+    }
+    function isAlarm(v, ch) {
+      const s = alarmSettings[ch];
+      if (!s || !s.alarm_enabled) return false;
+      return v > s.hi || v < s.lo;
+    }
+    // 單一 channel 的線上/數值/告警狀態（告警由該 channel 獨立設定的高低溫閾值驅動）
+    function getChannelState(data, ch, nowTs) {
+      const d = data[ch];
+      const online = isRoomOnline(d, nowTs);
+      const value = (d && d.value !== undefined && d.value !== null) ? Number(d.value) : null;
+      const inAlarm = online && !!(d && d.in_alarm);
+      return { d, online, value, inAlarm };
+    }
+    // 聚合一張溫控卡片（可能包含多個 channel，例如 1F 冷凍庫 = ch01~ch05）
+    function aggregateTempCard(cardId, data, nowTs) {
+      const cfg = CARD_CONFIG[cardId];
+      let sum = 0, cnt = 0, anyAlarm = false, anyOnline = false;
+      const dots = [];
+      cfg.channels.forEach(ch => {
+        const { d, online, value, inAlarm } = getChannelState(data, ch, nowTs);
+        if (online) {
+          anyOnline = true;
+          if (Number.isFinite(value)) { sum += value; cnt++; }
+          if (inAlarm) anyAlarm = true;
+          dots.push({ ch, online: true, state: getRunState(d, ch) });
+        } else {
+          dots.push({ ch, online: false, state: 'stop' });
+        }
+      });
+      const avg = cnt > 0 ? sum / cnt : null;
+      const status = !anyOnline ? 'OFFLINE' : anyAlarm ? 'TRIGGERED' : 'NORMAL';
+      return { online: anyOnline, value: avg, status, dots };
+    }
+    // 溫控卡片：頭部區域名稱(依警報變色) + 左上角設備燈號陣列 + 中央大號聚合溫度
+    function tempCardHtml(cardId, agg) {
+      const cfg = CARD_CONFIG[cardId];
+      const isTriggered = agg.status === 'TRIGGERED';
+      const isOffline = agg.status === 'OFFLINE';
+      let headerBg = 'var(--accent-secondary)';
+      if (isTriggered) headerBg = 'var(--alarm)';
+      else if (isOffline) headerBg = 'var(--text-3)';
+      const dotsHtml = agg.dots.map(dot => {
+        const bg = dot.online ? RUNSTATE_COLORS[dot.state] : '#fff';
+        const border = dot.online ? 'none' : '1.5px solid #cbd5e1';
+        return `<span title="${CHANNEL_NAMES[dot.ch] || dot.ch}" style="width:9px;height:9px;border-radius:50%;background:${bg};border:${border};display:inline-block;"></span>`;
+      }).join('');
+      const valueClass = isTriggered ? 't-alarm' : isOffline ? 't-off' : 't-ok';
+      const valueHtml = (agg.online && Number.isFinite(agg.value)) ? `${agg.value.toFixed(1)}<span class="tu">°C</span>` : `--<span class="tu">°C</span>`;
+      return `
+      <div class="sc${isTriggered ? ' alarm' : ''}${isOffline ? ' offline' : ''}" onclick="openControlModal('${cardId}')">
+        <div class="sc-header" style="background:${headerBg}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px; min-height:38px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;">${cfg.name}</div>
+        <div class="card-mid" style="flex:1; padding:8px 12px 12px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div class="tv ${valueClass}" style="text-align:center;">${valueHtml}</div>
+          <div class="sc-lights" style="display:flex; gap:4px; margin-top:6px;">${dotsHtml}</div>
+        </div>
+      </div>`;
+    }
+    // 電表卡片（方案B）：卡片只顯示4個聚合數字，點擊開 Modal 看 ch13/ch14 明細
+    function powerCardHtml(cardId, data, nowTs) {
+      const cfg = CARD_CONFIG[cardId];
+      let totalKw = 0, totalKwh = 0, totalA = 0, sumV = 0, countV = 0, anyOnline = false;
+      cfg.channels.forEach(ch => {
+        const d = data[ch];
+        if (!isRoomOnline(d, nowTs) || !d?.power) return;
+        anyOnline = true;
+        const p = d.power;
+        totalKw += Number(p.kw !== undefined && p.kw !== null ? p.kw : (p.power_total ? p.power_total / 1000.0 : 0)) || 0;
+        totalKwh += Number(p.kwh !== undefined && p.kwh !== null ? p.kwh : (p.energy_total ? p.energy_total / 1000.0 : 0)) || 0;
+        totalA += Number(p.current_avg !== undefined && p.current_avg !== null ? p.current_avg : (p.a || 0)) || 0;
+        const v = Number(p.voltage_ll_avg !== undefined && p.voltage_ll_avg !== null ? p.voltage_ll_avg : (p.v || 0));
+        if (v > 0) { sumV += v; countV++; }
+      });
+      const avgV = countV > 0 ? (sumV / countV) : null;
+      return `
+      <div class="sc power-card${!anyOnline ? ' offline' : ''}" onclick="openPowerModal()" style="grid-column: 1 / -1; height:auto;">
+        <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px;">⚡ ${cfg.name}</div>
+        <div style="display:flex; padding:14px 20px; gap:12px;">
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">即時耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kW</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">總耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKwh.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電流總和</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">A</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電壓</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">V</span></div></div>
+        </div>
+      </div>`;
+    }
+    async function update(data) {
+      if (data === undefined) data = await fetchTemperatures();
+      if (!data) data = {};
+      const nowTs = new Date().getTime();
+      let ok = 0, al = 0, off = 0, gridHtml = '';
+      ALL_CHS.forEach(ch => {
+        const { online, inAlarm } = getChannelState(data, ch, nowTs);
+        if (!online) off++;
+        else if (inAlarm) al++;
+        else ok++;
+      });
+      ALL_CARDS.forEach(cardId => {
+        const cfg = CARD_CONFIG[cardId];
+        gridHtml += (cfg.type === 'power') ? powerCardHtml(cardId, data, nowTs) : tempCardHtml(cardId, aggregateTempCard(cardId, data, nowTs));
+      });
+      const mainGrid = document.getElementById('main-grid');
+      if (mainGrid) mainGrid.innerHTML = gridHtml;
+      const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setText('cnt-ok', ok);
+      setText('cnt-alarm', al);
+      setText('cnt-off', off);
+      setText('cnt-total', ALL_CHS.length);
+      const gw1Online = checkGatewayStatus(GW1_CHS, data, nowTs);
+      const gw2Online = checkGatewayStatus(GW2_CHS, data, nowTs);
+      const gwOffCount = [gw1Online, gw2Online].filter(v => !v).length;
+      setText('gw-cnt-ok', [gw1Online, gw2Online].filter(Boolean).length);
+      setText('gw-cnt-off', gwOffCount);
+      // 網關離線純粹靜態顯示（GW2 目前現場尚未架設，本來就會是離線狀態），
+      // 不當作警報處理，不閃爍、不觸發警報音效——避免已知狀態一直吵人。
+      const silenceBtn = document.getElementById('btn-silence');
+      if (silenceBtn) silenceBtn.style.display = al > 0 ? 'inline-block' : 'none';
+      updateAlarmSound(al > 0);
+      // Update floorplan power summary card for CP-1 & CP-3
+      const fpPowerCard = document.getElementById('fp-power-card');
+      if (fpPowerCard) {
+        const cp1_data = data['ch13'];
+        const cp3_data = data['ch14'];
+
+        let cp1 = { kw: 0, kwh: 0, sumV: 0, countV: 0, totalA: 0, online: false };
+        let cp3 = { kw: 0, kwh: 0, sumV: 0, countV: 0, totalA: 0, online: false };
+
+        if (cp1_data && isRoomOnline(cp1_data, nowTs)) {
+          cp1.online = true;
+          if (cp1_data.power) {
+            cp1.kw = cp1_data.power.kw || (cp1_data.power.power_total ? cp1_data.power.power_total / 1000.0 : 0);
+            cp1.kwh = cp1_data.power.kwh || (cp1_data.power.energy_total ? cp1_data.power.energy_total / 1000.0 : 0);
+            cp1.sumV = cp1_data.power.v || cp1_data.power.voltage_ll_avg || 0;
+            cp1.countV = cp1.sumV > 0 ? 1 : 0;
+            cp1.totalA = cp1_data.power.a || cp1_data.power.current_avg || 0;
+          }
+        }
+
+        if (cp3_data && isRoomOnline(cp3_data, nowTs)) {
+          cp3.online = true;
+          if (cp3_data.power) {
+            cp3.kw = cp3_data.power.kw || (cp3_data.power.power_total ? cp3_data.power.power_total / 1000.0 : 0);
+            cp3.kwh = cp3_data.power.kwh || (cp3_data.power.energy_total ? cp3_data.power.energy_total / 1000.0 : 0);
+            cp3.sumV = cp3_data.power.v || cp3_data.power.voltage_ll_avg || 0;
+            cp3.countV = cp3.sumV > 0 ? 1 : 0;
+            cp3.totalA = cp3_data.power.a || cp3_data.power.current_avg || 0;
+          }
+        }
+
+        const hasPowerData = cp1.online || cp3.online;
+        const totalKwStr = hasPowerData ? (cp1.kw + cp3.kw).toFixed(1) : '--';
+        const totalKwhStr = hasPowerData ? (cp1.kwh + cp3.kwh).toFixed(1) : '--';
+        fpPowerCard.innerHTML = `
+          <div class="fp-power-head">
+            <span>⚡</span>
+            <span>廠區電錶資訊</span>
+          </div>
+          <div class="fp-power-body">
+            <div class="fp-power-metric">
+              <div class="fp-power-label">即時總用電量</div>
+              <div><span class="fp-power-value instant">${totalKwStr}</span><span class="fp-power-unit">kW</span></div>
+            </div>
+            <div class="fp-power-divider"></div>
+            <div class="fp-power-metric">
+              <div class="fp-power-label">總累積用電量</div>
+              <div><span class="fp-power-value energy">${totalKwhStr}</span><span class="fp-power-unit">kWh</span></div>
+            </div>
+          </div>`;
+      }
+    }
+    let currentCardId = null;
+    function openControlModal(cardId) {
+      currentCardId = cardId;
+      fetch('/api/temperatures')
+        .then(resp => resp.json())
+        .then(data => {
+          lastSseData = data || lastSseData;
+          renderControlModal(cardId);
+        })
+        .catch(() => renderControlModal(cardId));
+      renderControlModal(cardId);
+    }
+    const RUNSTATE_LABEL = { stop: '停止', cooling: '製冷', fan: '送風', defrost: '除霜', error: '異常' };
+    function renderControlModal(cardId) {
+      const cfg = CARD_CONFIG[cardId];
+      if (!cfg) return;
+      document.getElementById('ctrl-title').textContent = cfg.name + ' 控制面板';
+      document.getElementById('modal-control-overlay').style.display = 'flex';
+      const contentEl = document.getElementById('ctrl-dynamic-content');
+      contentEl.style.flexDirection = 'row';
+      contentEl.style.overflowX = 'auto';
+      contentEl.style.alignItems = 'stretch';
+      const data = lastSseData || {};
+      const nowTs = new Date().getTime();
+      let html = '';
+      cfg.channels.forEach(ch => {
+        const u = data[ch] || {};
+        const uOnline = isRoomOnline(u, nowTs);
+        const cardTitle = CHANNEL_NAMES[ch] || ch;
+        const vCtrl = Number((u.control_temperature ?? u.value) || 0);
+        const vCoil = Number(u.coil_temperature || 0);
+        const vAmp = Number(u.compressor_current || 0);
+        const vHp = mpaToPsi(u.high_pressure);
+        const vLp = mpaToPsi(u.low_pressure);
+        const vSet = Number(u.control_temperature_set || 0);
+        const isRunning = !!(u.running_status ?? u.flags?.running);
+        const runState = uOnline ? getRunState(u, ch) : 'stop';
+        const ledColor = RUNSTATE_COLORS[runState];
+        const ledText = RUNSTATE_LABEL[runState];
+        const ledGlow = runState === 'stop' ? 'none' : `0 0 10px ${ledColor}`;
+        const ledAnim = runState === 'error' ? 'animation: blink 1.5s step-start infinite;' : '';
+        const runtimeHours = Number(u.runtime_hours || 0);
+        html += `
+        <div style="flex:1; min-width:248px; max-width:268px; background:#ffffff; border:1.5px solid var(--border); border-radius:8px; color:#1e293b; font-family:var(--font-main); display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 4px 10px rgba(0,0,0,0.06); overflow:hidden;">
+           <div>
+              <div style="background:var(--accent); text-align:center; padding:8px 34px 8px 10px; font-size:14px; font-weight:700; color:#ffffff; letter-spacing:1px; position:relative;">
+                  ${cardTitle}
+                 <span title="${uOnline ? '連線中' : '斷線'}" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:9px; height:9px; border-radius:50%; background:${uOnline ? 'var(--ok)' : 'var(--alarm)'}; display:inline-block; box-shadow:0 0 0 2px rgba(255,255,255,0.18); animation:${uOnline ? 'pls 2s infinite' : 'blink 1.5s step-start infinite'};"></span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px; padding:12px 14px 8px 14px; font-size:13px; font-weight:700;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">控制溫度</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCtrl.toFixed(1)} °C</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">盤管溫度</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCoil.toFixed(1)} °C</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">運轉電流</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vAmp.toFixed(1)} A</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">高壓壓力</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vHp.toFixed(1)} psi</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">低壓壓力</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vLp.toFixed(1)} psi</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; gap:8px;">
+                    <span style="color:var(--text-2); white-space:nowrap;">設定溫度</span>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                       <span id="tempset-light-${ch}" title="尚無傳輸紀錄" style="width:9px; height:9px; border-radius:50%; background:#cbd5e1; display:inline-block; flex-shrink:0;"></span>
+                       <input type="number" step="0.1" id="tempset-input-${ch}" data-baseline="${vSet.toFixed(1)}" value="${vSet.toFixed(1)}" oninput="onTempSetInputChange('${ch}')" style="width:56px; padding:3px 4px; border:1px solid var(--border); border-radius:4px; font-size:13px; text-align:right;">
+                       <span style="color:var(--text-2); font-size:12px;">°C</span>
+                       <button id="tempset-btn-${ch}" onclick="sendTempCmd('${ch}')" disabled style="padding:3px 8px; border:none; border-radius:4px; background:#cbd5e1; color:#64748b; font-size:11px; font-weight:700; cursor:not-allowed; transition:background-color .15s, color .15s;">送出</button>
+                    </div>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; gap:8px;">
+                    <span style="color:var(--text-2); white-space:nowrap;">設備起停</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                       <span id="power-light-${ch}" title="尚無傳輸紀錄" style="width:9px; height:9px; border-radius:50%; background:#cbd5e1; display:inline-block; flex-shrink:0;"></span>
+                       <label style="position:relative; display:inline-block; width:40px; height:22px; cursor:pointer; margin:0;">
+                          <input type="checkbox" id="power-toggle-${ch}" data-baseline="${isRunning ? '1' : '0'}" ${isRunning ? 'checked' : ''} onchange="onPowerToggleChange('${ch}')" style="opacity:0; width:0; height:0; position:absolute;">
+                          <span id="power-toggle-track-${ch}" style="position:absolute; top:0; left:0; right:0; bottom:0; background:${isRunning ? 'var(--ok)' : '#ccc'}; border-radius:11px; transition:.3s;"></span>
+                          <span id="power-toggle-knob-${ch}" style="position:absolute; top:2px; left:${isRunning ? '20px' : '2px'}; width:18px; height:18px; background:#fff; border-radius:50%; transition:.3s; box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+                       </label>
+                    </div>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
+                    <span style="color:var(--text-2);">主機運轉時數</span>
+                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${runtimeHours.toFixed(1)} hr</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:2px;">
+                    <span style="color:var(--text-2);">設備狀態</span>
+                    <span style="display:flex; align-items:center; gap:8px;">
+                       <span style="width:12px; height:12px; border-radius:50%; background:${ledColor}; display:inline-block; box-shadow:${ledGlow}; ${ledAnim}"></span>
+                       <span style="font-size:13px; font-weight:700; color:var(--text-1);">${ledText}</span>
+                    </span>
+                 </div>
+              </div>
+           </div>
+        </div>
+        `;
+      });
+      contentEl.innerHTML = html;
+    }
+    function closeControlModal() {
+      document.getElementById('modal-control-overlay').style.display = 'none';
+      currentCardId = null;
+    }
+    function setTempBtnState(ch, enabled) {
+      const btn = document.getElementById(`tempset-btn-${ch}`);
+      if (!btn) return;
+      btn.disabled = !enabled;
+      if (enabled) {
+        btn.style.background = 'var(--accent-secondary)';
+        btn.style.color = '#fff';
+        btn.style.cursor = 'pointer';
+      } else {
+        btn.style.background = '#cbd5e1';
+        btn.style.color = '#64748b';
+        btn.style.cursor = 'not-allowed';
+      }
+    }
+    function onTempSetInputChange(ch) {
+      const input = document.getElementById(`tempset-input-${ch}`);
+      if (!input) return;
+      const baseline = Number(input.dataset.baseline);
+      const current = Number(input.value);
+      setTempBtnState(ch, Number.isFinite(current) && current !== baseline);
+    }
+    // 傳輸狀態燈號：idle=灰(靜態) pending=閃爍 success=綠恆亮 failed=紅恆亮 timeout=灰恆亮(逾時未知)
+    const TEMP_LIGHT_STYLE = {
+      idle:    { color: '#cbd5e1', title: '尚無傳輸紀錄',                 blink: false },
+      pending: { color: 'var(--accent-secondary)', title: '傳輸中，等待現場設備執行', blink: true  },
+      success: { color: 'var(--ok)',    title: '已確認執行成功',           blink: false },
+      failed:  { color: 'var(--alarm)', title: '執行失敗',                 blink: false },
+      timeout: { color: '#9aa5b1', title: '逾時未收到現場執行結果（設備可能離線）', blink: false }
+    };
+    function setTempLight(ch, state) {
+      const light = document.getElementById(`tempset-light-${ch}`);
+      if (!light) return;
+      const s = TEMP_LIGHT_STYLE[state] || TEMP_LIGHT_STYLE.idle;
+      light.style.background = s.color;
+      light.title = s.title;
+      light.style.animation = s.blink ? 'blink 1s step-start infinite' : 'none';
+    }
+    function setTempInputLocked(ch, locked) {
+      const input = document.getElementById(`tempset-input-${ch}`);
+      if (input) input.disabled = locked;
+      const btn = document.getElementById(`tempset-btn-${ch}`);
+      if (btn) btn.disabled = locked || btn.disabled;
+    }
+    const TEMP_CMD_POLL_MAX = 20;   // 最多輪詢次數
+    const TEMP_CMD_POLL_MS = 2000;  // 輪詢間隔
+    async function pollTempCmdResult(ch, cmdId, value, attempt) {
+      attempt = attempt || 0;
+      let json;
+      try {
+        const resp = await fetch(`/api/device_commands/${cmdId}`);
+        json = await resp.json();
+        if (!resp.ok) throw new Error(json.error || '查詢失敗');
+      } catch (e) {
+        // 查詢本身失敗：不用紅燈強調，燈號回到灰色，baseline 不變＝按鈕維持可按，代表沒成功可以重試
+        setTempLight(ch, 'idle');
+        setTempInputLocked(ch, false);
+        onTempSetInputChange(ch);
+        return;
+      }
+      if (json.status === 'success') {
+        setTempLight(ch, 'success');
+        const input = document.getElementById(`tempset-input-${ch}`);
+        if (input) input.dataset.baseline = value.toFixed(1);
+        setTempInputLocked(ch, false);
+        onTempSetInputChange(ch);
+        return;
+      }
+      if (json.status === 'failed') {
+        setTempLight(ch, 'idle');
+        setTempInputLocked(ch, false);
+        onTempSetInputChange(ch);
+        return;
+      }
+      // 仍是 pending
+      if (attempt >= TEMP_CMD_POLL_MAX) {
+        setTempLight(ch, 'idle');
+        setTempInputLocked(ch, false);
+        onTempSetInputChange(ch);
+        return;
+      }
+      setTimeout(() => pollTempCmdResult(ch, cmdId, value, attempt + 1), TEMP_CMD_POLL_MS);
+    }
+    async function sendTempCmd(ch) {
+      const input = document.getElementById(`tempset-input-${ch}`);
+      const value = Number(input.value);
+      if (!Number.isFinite(value) || value < -60 || value > 60) {
+        alert('請輸入 -60 ~ 60 之間的溫度值');
+        return;
+      }
+      if (!confirm(`確定要將 ${CHANNEL_NAMES[ch] || ch} 的設定溫度改為 ${value.toFixed(1)}°C 嗎？\n\n命令會送到伺服器排隊，等現場設備上線後才會真正寫入。`)) {
+        return;
+      }
+      setTempInputLocked(ch, true);
+      setTempLight(ch, 'pending');
+      try {
+        const resp = await fetch('/api/device_commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: ch, command_type: 'set_temperature', value })
+        });
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json.error || '送出失敗');
+        pollTempCmdResult(ch, json.id, value, 0);
+      } catch (e) {
+        alert(`送出失敗：${e.message}`);
+        setTempLight(ch, 'idle');
+        setTempInputLocked(ch, false);
+        onTempSetInputChange(ch);
+      }
+    }
+    // ── 設備起停（A801 停控模式，40179，1=開 0=停，現場實測確認位址）──────
+    function setPowerLight(ch, state) {
+      const light = document.getElementById(`power-light-${ch}`);
+      if (!light) return;
+      const s = TEMP_LIGHT_STYLE[state] || TEMP_LIGHT_STYLE.idle;
+      light.style.background = s.color;
+      light.title = s.title;
+      light.style.animation = s.blink ? 'blink 1s step-start infinite' : 'none';
+    }
+    function setPowerToggleVisual(ch, on) {
+      const track = document.getElementById(`power-toggle-track-${ch}`);
+      const knob = document.getElementById(`power-toggle-knob-${ch}`);
+      if (track) track.style.background = on ? 'var(--ok)' : '#ccc';
+      if (knob) knob.style.left = on ? '20px' : '2px';
+    }
+    function setPowerToggleLocked(ch, locked) {
+      const input = document.getElementById(`power-toggle-${ch}`);
+      if (input) input.disabled = locked;
+    }
+    async function pollPowerCmdResult(ch, cmdId, targetOn, attempt) {
+      attempt = attempt || 0;
+      let json;
+      try {
+        const resp = await fetch(`/api/device_commands/${cmdId}`);
+        json = await resp.json();
+        if (!resp.ok) throw new Error(json.error || '查詢失敗');
+      } catch (e) {
+        // 查不到結果：不用紅燈強調，直接把開關跳回原狀代表沒成功
+        const inputEl = document.getElementById(`power-toggle-${ch}`);
+        const baselineEl = inputEl ? inputEl.dataset.baseline === '1' : !targetOn;
+        if (inputEl) inputEl.checked = baselineEl;
+        setPowerToggleVisual(ch, baselineEl);
+        setPowerLight(ch, 'idle');
+        setPowerToggleLocked(ch, false);
+        return;
+      }
+      const input = document.getElementById(`power-toggle-${ch}`);
+      if (json.status === 'success') {
+        setPowerLight(ch, 'success');
+        if (input) input.dataset.baseline = targetOn ? '1' : '0';
+        setPowerToggleLocked(ch, false);
+        return;
+      }
+      if (json.status === 'failed' || attempt >= TEMP_CMD_POLL_MAX) {
+        // 失敗或逾時：不用紅燈強調，直接把開關跳回操作前的狀態代表沒成功
+        const baseline = input ? input.dataset.baseline === '1' : !targetOn;
+        if (input) input.checked = baseline;
+        setPowerToggleVisual(ch, baseline);
+        setPowerLight(ch, 'idle');
+        setPowerToggleLocked(ch, false);
+        return;
+      }
+      setTimeout(() => pollPowerCmdResult(ch, cmdId, targetOn, attempt + 1), TEMP_CMD_POLL_MS);
+    }
+    async function onPowerToggleChange(ch) {
+      const input = document.getElementById(`power-toggle-${ch}`);
+      const targetOn = input.checked;
+      const baseline = input.dataset.baseline === '1';
+      if (!confirm(`確定要${targetOn ? '啟動' : '停止'} ${CHANNEL_NAMES[ch] || ch} 嗎？\n\n命令會送到伺服器排隊，等現場設備上線後才會真正寫入。`)) {
+        input.checked = baseline;
+        return;
+      }
+      setPowerToggleVisual(ch, targetOn);
+      setPowerToggleLocked(ch, true);
+      setPowerLight(ch, 'pending');
+      try {
+        const resp = await fetch('/api/device_commands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: ch, command_type: 'set_power_state', value: targetOn ? 1 : 0 })
+        });
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json.error || '送出失敗');
+        pollPowerCmdResult(ch, json.id, targetOn, 0);
+      } catch (e) {
+        alert(`送出失敗：${e.message}`);
+        setPowerLight(ch, 'idle');
+        input.checked = baseline;
+        setPowerToggleVisual(ch, baseline);
+        setPowerToggleLocked(ch, false);
+      }
+    }
+    // ── 卡片視圖 / 平面圖視圖 切換 ──────────────────────────────────────
+    function switchDashView(view) {
+      document.getElementById('btn-view-card').classList.toggle('active', view === 'card');
+      document.getElementById('btn-view-fp').classList.toggle('active', view === 'floorplan');
+      document.getElementById('card-view-wrap').style.display = view === 'card' ? 'block' : 'none';
+      document.getElementById('fp-container').style.display = view === 'floorplan' ? 'block' : 'none';
+    }
+    // ── 系統設定 Modal：溫度通道的高低溫警報閥值 / 延遲 / 校正值，電表通道的滿載百分比 ──
+    function openSettingsModal() {
+      const content = document.getElementById('modal-content');
+      const tempChs = ALL_CHS.filter(ch => !METER_CHS.includes(ch));
+      let rows = '';
+      tempChs.forEach(ch => {
+        const s = alarmSettings[ch] || {};
+        rows += `
+        <tr data-ch="${ch}" style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
+          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-hi" value="${s.hi ?? ''}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-lo" value="${s.lo ?? ''}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+          <td style="padding:6px 8px;"><input type="number" step="1" class="set-delay" value="${s.delay ?? 0}" style="width:60px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+          <td style="padding:6px 8px;text-align:center;"><input type="checkbox" class="set-enabled" ${s.alarm_enabled ? 'checked' : ''}></td>
+          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-offset" value="${s.temp_offset ?? 0}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+        </tr>`;
+      });
+      let meterRows = '';
+      METER_CHS.forEach(ch => {
+        const s = alarmSettings[ch] || {};
+        meterRows += `
+        <tr data-meter-ch="${ch}" style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
+          <td style="padding:6px 8px;"><input type="number" step="1" min="0" class="set-nfb-current" value="${s.nfb_rated_current ?? ''}" placeholder="例：600" style="width:90px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+        </tr>`;
+      });
+      content.innerHTML = `
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">🔔 溫度警報設定</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 8px;text-align:left;">通道</th>
+            <th style="padding:6px 8px;text-align:left;">高溫警報 (°C)</th>
+            <th style="padding:6px 8px;text-align:left;">低溫警報 (°C)</th>
+            <th style="padding:6px 8px;text-align:left;">延遲 (分)</th>
+            <th style="padding:6px 8px;">啟用</th>
+            <th style="padding:6px 8px;text-align:left;">溫度校正 (°C)</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚡ 電表設定</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 8px;text-align:left;">通道</th>
+            <th style="padding:6px 8px;text-align:left;">NFB 額定電流 (A)</th>
+          </tr></thead>
+          <tbody>${meterRows}</tbody>
+        </table>
+        <div style="display:flex; justify-content:flex-end; margin-top:20px;">
+          <button onclick="openAdvancedSettings()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#f8fafc;color:var(--text-1);cursor:pointer;font-size:12px;font-weight:700;">🔐 進階設定</button>
+        </div>`;
+      document.getElementById('modal-title').textContent = '系統設定';
+      document.getElementById('modal-buttons').innerHTML = `
+        <button onclick="closeModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-size:12px;">取消</button>
+        <button onclick="saveSettings()" style="padding:8px 16px;border:none;border-radius:5px;background:var(--text-1);color:#fff;cursor:pointer;font-size:12px;font-weight:700;">儲存設定</button>`;
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').style.display = 'none';
+    }
+    async function saveSettings() {
+      const payload = {};
+      document.querySelectorAll('#modal-content tr[data-ch]').forEach(tr => {
+        const ch = tr.dataset.ch;
+        const hiVal = tr.querySelector('.set-hi').value;
+        const loVal = tr.querySelector('.set-lo').value;
+        const existing = alarmSettings[ch] || {};
+        payload[ch] = {
+          hi: hiVal !== '' ? Number(hiVal) : null,
+          lo: loVal !== '' ? Number(loVal) : null,
+          delay: Number(tr.querySelector('.set-delay').value) || 0,
+          alarm_enabled: tr.querySelector('.set-enabled').checked ? 1 : 0,
+          temp_offset: Number(tr.querySelector('.set-offset').value) || 0,
+          current_threshold: existing.current_threshold ?? 0.5,
+          nfb_rated_current: existing.nfb_rated_current ?? null
+        };
+      });
+      document.querySelectorAll('#modal-content tr[data-meter-ch]').forEach(tr => {
+        const ch = tr.dataset.meterCh;
+        const nfbVal = tr.querySelector('.set-nfb-current').value;
+        const existing = alarmSettings[ch] || {};
+        payload[ch] = {
+          hi: existing.hi ?? null,
+          lo: existing.lo ?? null,
+          delay: existing.delay ?? 0,
+          alarm_enabled: existing.alarm_enabled ?? 1,
+          temp_offset: existing.temp_offset ?? 0,
+          current_threshold: existing.current_threshold ?? 0.5,
+          nfb_rated_current: nfbVal !== '' ? Number(nfbVal) : null
+        };
+      });
+      try {
+        await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        await fetchAlarmSettings();
+        closeModal();
+        update();
+      } catch (e) {
+        alert('儲存失敗，請確認後端連線');
+      }
+    }
+    // ── 進階設定（密碼保護）────────────────────────────────────────
+    const ADVANCED_SETTINGS_PASSWORD = '24436882';
+    function openAdvancedSettings() {
+      const pwd = prompt('請輸入進階設定密碼：');
+      if (pwd === ADVANCED_SETTINGS_PASSWORD) {
+        renderAdvancedSettings();
+      } else if (pwd !== null) {
+        alert('密碼錯誤');
+      }
+    }
+    function renderAdvancedSettings() {
+      const content = document.getElementById('modal-content');
+      const rows = ALL_CHS.filter(ch => !METER_CHS.includes(ch)).map(ch => {
+        const threshold = getCurrentThreshold(ch);
+        return `
+        <tr data-ch="${ch}" style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
+          <td style="padding:6px 8px;"><input type="number" step="0.1" min="0" max="10" class="adv-threshold" value="${threshold}" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+        </tr>`;
+      }).join('');
+      content.innerHTML = `
+        <div style="margin-bottom:10px; font-size:11px; color:var(--text-3); line-height:1.6;">
+          運轉電流 ≤ 此通道的閾值時，判定為現場控制開關未開啟：卡片與控制面板的設備狀態燈顯示灰燈（停止），「主機運轉時數」不計入累積時間。各通道可依設備規格獨立設定。
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 8px;text-align:left;">通道</th>
+            <th style="padding:6px 8px;text-align:left;">運轉電流閾值 (A)</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      document.getElementById('modal-title').textContent = '進階設定';
+      document.getElementById('modal-buttons').innerHTML = `
+        <button onclick="openSettingsModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer;font-size:12px;">← 返回</button>
+        <button onclick="saveAdvancedSettings()" style="padding:8px 16px;border:none;border-radius:5px;background:var(--text-1);color:#fff;cursor:pointer;font-size:12px;font-weight:700;">儲存設定</button>`;
+      document.getElementById('modal-overlay').style.display = 'flex';
+    }
+    async function saveAdvancedSettings() {
+      const payload = {};
+      let valid = true;
+      document.querySelectorAll('#modal-content tr[data-ch]').forEach(tr => {
+        const ch = tr.dataset.ch;
+        const v = Number(tr.querySelector('.adv-threshold').value);
+        if (!Number.isFinite(v) || v < 0) { valid = false; return; }
+        const existing = alarmSettings[ch] || {};
+        payload[ch] = {
+          hi: existing.hi ?? null,
+          lo: existing.lo ?? null,
+          delay: existing.delay ?? 0,
+          alarm_enabled: existing.alarm_enabled ?? 1,
+          temp_offset: existing.temp_offset ?? 0,
+          current_threshold: v,
+          nfb_rated_current: existing.nfb_rated_current ?? null
+        };
+      });
+      if (!valid) {
+        alert('請輸入有效的閾值');
+        return;
+      }
+      try {
+        await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        await fetchAlarmSettings();
+        closeModal();
+        update();
+        alert('進階設定已儲存');
+      } catch (e) {
+        alert('儲存失敗，請確認後端連線');
+      }
+    }
+    // ── 警報查詢頁 ───────────────────────────────────────────────────
+    function resetAlarmQuery() {
+      document.getElementById('alarm-ch-filter').value = 'all';
+      document.getElementById('alarm-date-from').value = '';
+      document.getElementById('alarm-date-to').value = '';
+      document.getElementById('alarm-severity-filter').value = 'all';
+      document.getElementById('alarm-category-filter').value = 'all';
+      document.getElementById('alarm-status-filter').value = 'all';
+      loadAlarmHistory();
+    }
+    async function loadAlarmHistory() {
+      const ch = document.getElementById('alarm-ch-filter').value;
+      const from = document.getElementById('alarm-date-from').value;
+      const to = document.getElementById('alarm-date-to').value;
+      const params = new URLSearchParams({ channel: ch, limit: 200 });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      let json;
+      try {
+        json = await (await fetch('/api/alarm_history?' + params.toString())).json();
+      } catch (e) {
+        document.getElementById('alarm-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-3);">查詢失敗，請確認後端連線</td></tr>';
+        return;
+      }
+      const records = json.records || [];
+      const summary = json.summary || [];
+      const totalHigh = summary.reduce((s, r) => s + (r.high_cnt || 0), 0);
+      const totalLow = summary.reduce((s, r) => s + (r.low_cnt || 0), 0);
+      const totalBadge = document.getElementById('alarm-total-badge');
+      if (totalBadge) totalBadge.textContent = `共 ${json.total ?? records.length} 筆`;
+      const summaryEl = document.getElementById('alarm-summary');
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <div style="display:flex;gap:12px;">
+            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+              <div style="font-size:11px;color:var(--text-3);font-weight:700;">總筆數</div>
+              <div style="font-size:22px;font-weight:800;color:var(--text-1);">${records.length}</div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+              <div style="font-size:11px;color:var(--text-3);font-weight:700;">高溫警報</div>
+              <div style="font-size:22px;font-weight:800;color:var(--alarm);">${totalHigh}</div>
+            </div>
+            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+              <div style="font-size:11px;color:var(--text-3);font-weight:700;">低溫警報</div>
+              <div style="font-size:22px;font-weight:800;color:var(--delay);">${totalLow}</div>
+            </div>
+          </div>`;
+      }
+      const tbody = document.getElementById('alarm-tbody');
+      if (!tbody) return;
+      if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-3);">查無資料</td></tr>';
+        return;
+      }
+      tbody.innerHTML = records.map((r, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${r.triggered_at || ''}</td>
+          <td><span style="color:var(--alarm);font-weight:700;">異常</span></td>
+          <td>溫度警報</td>
+          <td>${CHANNEL_NAMES[r.channel] || r.name || r.channel}</td>
+          <td>${r.alarm_type === 'HIGH' ? '高溫警報' : '低溫警報'}（${Number(r.value).toFixed(1)}°C，閾值 ${r.alarm_type === 'HIGH' ? r.hi : r.lo}）</td>
+          <td><span style="color:var(--alarm);font-weight:700;">警報中</span></td>
+          <td>--</td>
+        </tr>
+      `).join('');
+    }
+    // ── 總圖表頁：庫別→設備→資訊 下拉選單 + 多線疊加 + 統計表 ────────────────
+    const CHART_PALETTE = ['#1a5fa8', '#c0392b', '#1a7a4a', '#e67e22', '#8e44ad', '#16a085', '#2980b9', '#d35400', '#27ae60', '#e74c3c', '#7f8c8d', '#2c3e50', '#9b59b6', '#f39c12'];
+    const INFO_CONFIG = {
+      // 溫控
+      control_temp:        { label: '控制溫度', unit: '°C', type: 'temp' },
+      coil_temp:           { label: '盤管溫度', unit: '°C', type: 'temp' },
+      compressor_current:  { label: '運轉電流', unit: 'A', type: 'temp' },
+      high_pressure:       { label: '高壓壓力', unit: 'MPa', type: 'temp' },
+      low_pressure:        { label: '低壓壓力', unit: 'MPa', type: 'temp' },
+      set_temp:            { label: '設定溫度', unit: '°C', type: 'temp' },
+      runtime_hours:       { label: '運轉時數', unit: '小時', type: 'temp' },
+      // 電錶
+      energy_total:        { label: '累積用電量', unit: 'kWh', type: 'power' },
+      power_total:         { label: '總有效功率', unit: 'kW', type: 'power' },
+      voltage_ll_avg:      { label: '平均線電壓', unit: 'V', type: 'power' },
+      current_avg:         { label: '平均電流', unit: 'A', type: 'power' },
+      power_factor:        { label: '功率因數', unit: '', type: 'power' }
+    };
+
+    function buildChannelFilters() {
+      filtersBuilt = true;
+      const selRoom = document.getElementById('sel-room');
+      selRoom.innerHTML = '<option value="">-- 選擇庫別 --</option>';
+      ALL_CARDS.forEach(cardId => {
+        const opt = document.createElement('option');
+        opt.value = cardId;
+        opt.textContent = CARD_CONFIG[cardId].name;
+        selRoom.appendChild(opt);
+      });
+
+      selRoom.addEventListener('change', () => {
+        const cardId = selRoom.value;
+        const selDevice = document.getElementById('sel-device');
+        const selInfo = document.getElementById('sel-info');
+        selDevice.innerHTML = '<option value="">-- 選擇設備 --</option>';
+        selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
+        selInfo.disabled = true;
+        document.getElementById('btn-chart-add').disabled = true;
+        selDevice.disabled = !cardId;
+        if (!cardId) return;
+
+        CARD_CONFIG[cardId].channels.forEach(ch => {
+          const opt = document.createElement('option');
+          opt.value = ch;
+          opt.textContent = CHANNEL_NAMES[ch] || ch;
+          selDevice.appendChild(opt);
+        });
+      });
+
+      document.getElementById('sel-device').addEventListener('change', () => {
+        const ch = document.getElementById('sel-device').value;
+        const selInfo = document.getElementById('sel-info');
+        const cardId = document.getElementById('sel-room').value;
+        const isPower = CARD_CONFIG[cardId]?.type === 'power';
+
+        if (!ch) {
+          selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
+          selInfo.disabled = true;
+          document.getElementById('btn-chart-add').disabled = true;
+          return;
+        }
+
+        if (isPower) {
+          selInfo.innerHTML = `
+            <option value="">-- 選擇資訊 --</option>
+            <option value="energy_total">累積用電量 (kWh)</option>
+            <option value="power_total">總有效功率 (kW)</option>
+            <option value="voltage_ll_avg">平均線電壓 (V)</option>
+            <option value="current_avg">平均電流 (A)</option>
+            <option value="power_factor">功率因數</option>
+          `;
+        } else {
+          selInfo.innerHTML = `
+            <option value="">-- 選擇資訊 --</option>
+            <option value="control_temp">控制溫度 (°C)</option>
+            <option value="coil_temp">盤管溫度 (°C)</option>
+            <option value="compressor_current">運轉電流 (A)</option>
+            <option value="high_pressure">高壓壓力 (MPa)</option>
+            <option value="low_pressure">低壓壓力 (MPa)</option>
+            <option value="set_temp">設定溫度 (°C)</option>
+            <option value="runtime_hours">運轉時數 (小時)</option>
+          `;
+        }
+        selInfo.disabled = false;
+        document.getElementById('btn-chart-add').disabled = !selInfo.value;
+      });
+
+      document.getElementById('sel-info').addEventListener('change', () => {
+        const val = document.getElementById('sel-info').value;
+        document.getElementById('btn-chart-add').disabled = !val;
+      });
+
+      document.getElementById('btn-chart-add').addEventListener('click', () => {
+        const ch = document.getElementById('sel-device').value;
+        const field = document.getElementById('sel-info').value;
+        if (!ch || !field) return;
+        const sid = `${ch}_${field}`;
+        if (chartSeries.some(s => s.id === sid)) return;
+
+        const info = INFO_CONFIG[field] || { label: field, unit: '' };
+        const devName = CHANNEL_NAMES[ch] || ch;
+        const color = CHART_PALETTE[chartSeries.length % CHART_PALETTE.length];
+
+        chartSeries.push({
+          id: sid,
+          ch: ch,
+          field: field,
+          name: `${devName} - ${info.label}`,
+          unit: info.unit,
+          color: color
+        });
+
+        renderChartTags();
+        loadChartData();
+      });
+
+      document.getElementById('btn-chart-add-all')?.addEventListener('click', () => {
+        const tempChannels = ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'ch06', 'ch07', 'ch08', 'ch09', 'ch10', 'ch11', 'ch12'];
+        tempChannels.forEach(ch => {
+          const sid = `${ch}_control_temp`;
+          if (!chartSeries.some(s => s.id === sid)) {
+            const devName = CHANNEL_NAMES[ch] || ch;
+            chartSeries.push({
+              id: sid,
+              ch: ch,
+              field: 'control_temp',
+              name: `${devName} - 控制溫度`,
+              unit: '°C',
+              color: CHART_PALETTE[chartSeries.length % CHART_PALETTE.length]
+            });
+          }
+        });
+        renderChartTags();
+        loadChartData();
+      });
+
+      document.getElementById('btn-chart-clear').addEventListener('click', () => {
+        chartSeries = [];
+        renderChartTags();
+        loadChartData();
+      });
+
+      document.querySelectorAll('.rbtn[data-range]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.rbtn[data-range]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentRange = btn.dataset.range;
+          document.getElementById('custom-range-picker').style.display = 'none';
+          stopRealtimeChart();
+          loadChartData();
+          startRealtimeChart();
+        });
+      });
+
+      document.getElementById('btn-custom-range').addEventListener('click', () => {
+        document.querySelectorAll('.rbtn[data-range]').forEach(b => b.classList.remove('active'));
+        currentRange = 'custom';
+        document.getElementById('custom-range-picker').style.display = 'inline-flex';
+        stopRealtimeChart();
+      });
+
+      document.getElementById('btn-chart-search').addEventListener('click', loadChartData);
+    }
+
+    function removeChartSeries(sid) {
+      chartSeries = chartSeries.filter(s => s.id !== sid);
+      renderChartTags();
+      loadChartData();
+    }
+
+    function renderChartTags() {
+      const wrap = document.getElementById('chart-selected-tags');
+      if (!wrap) return;
+      wrap.innerHTML = chartSeries.map(s => {
+        return `<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;background:${s.color}22;border:1px solid ${s.color};font-size:11px;font-weight:700;color:${s.color};">
+          <span style="width:8px;height:8px;border-radius:50%;background:${s.color};"></span>${s.name}
+          <span style="cursor:pointer;font-weight:900;" onclick="removeChartSeries('${s.id}')">×</span>
+        </span>`;
+      }).join('');
+    }
+
+    async function loadChartData() {
+      if (chartSeries.length === 0) {
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        const sw = document.getElementById('stats-wrap');
+        if (sw) sw.style.display = 'none';
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (currentRange === 'custom') {
+        const from = document.getElementById('chart-date-from').value;
+        const to = document.getElementById('chart-date-to').value;
+        if (!from || !to) return;
+        params.set('range', 'custom');
+        params.set('from', from.replace('T', ' ') + ':00');
+        params.set('to', to.replace('T', ' ') + ':00');
+      } else {
+        const rangeMap = { '60': 'realtime', '360': '6h', '1440': '24h' };
+        params.set('range', rangeMap[String(currentRange)] || 'realtime');
+      }
+
+      const tempSeriesNeeded = chartSeries.filter(s => !['energy_total', 'power_total', 'voltage_ll_avg', 'current_avg', 'power_factor'].includes(s.field));
+      const powerSeriesNeeded = chartSeries.filter(s => ['energy_total', 'power_total', 'voltage_ll_avg', 'current_avg', 'power_factor'].includes(s.field));
+
+      let tempJson = { series: {} };
+      if (tempSeriesNeeded.length > 0) {
+        try {
+          tempJson = await (await fetch('/api/chart_data?' + params.toString())).json();
+        } catch (e) { }
+      }
+
+      let powerDataMap = {};
+      for (const s of powerSeriesNeeded) {
+        try {
+          const powerUrl = `/api/power_chart_data?ch=${s.ch}&field=${s.field}&` + params.toString();
+          const pJson = await (await fetch(powerUrl)).json();
+          if (pJson?.series && pJson.series[s.ch]) {
+            powerDataMap[s.id] = pJson.series[s.ch];
+          }
+        } catch (e) { }
+      }
+
+      const tempSeriesMap = tempJson.series || {};
+      const calculatedStats = {};
+
+      const datasets = chartSeries.map(s => {
+        let points = [];
+        if (powerDataMap[s.id]) {
+          points = powerDataMap[s.id].map(d => ({
+            x: new Date(d.t.replace(' ', 'T') + '+08:00').getTime(),
+            y: d.v
+          })).filter(pt => pt.y !== null && !isNaN(pt.y));
+        } else if (tempSeriesMap[s.ch]) {
+          const rawData = tempSeriesMap[s.ch].data || [];
+          points = rawData.map(d => {
+            const rawV = d[s.field] !== undefined ? d[s.field] : (s.field === 'control_temp' ? d.v : null);
+            return {
+              x: new Date(d.t.replace(' ', 'T') + '+08:00').getTime(),
+              y: rawV !== null && rawV !== undefined ? Number(rawV) : null
+            };
+          }).filter(pt => pt.y !== null && !isNaN(pt.y));
+        }
+
+        if (points.length > 0) {
+          const vals = points.map(p => p.y);
+          const maxV = Math.max(...vals);
+          const minV = Math.min(...vals);
+          const maxPt = points.find(p => p.y === maxV);
+          const minPt = points.find(p => p.y === minV);
+          const avgV = vals.reduce((a, b) => a + b, 0) / vals.length;
+          const fmtTime = ts => {
+            const dt = new Date(ts);
+            const p = n => String(n).padStart(2, '0');
+            return `${p(dt.getMonth()+1)}/${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+          };
+
+          calculatedStats[s.id] = {
+            max: Number(maxV.toFixed(1)),
+            max_time: maxPt ? fmtTime(maxPt.x) : '--',
+            min: Number(minV.toFixed(1)),
+            min_time: minPt ? fmtTime(minPt.x) : '--',
+            avg: Number(avgV.toFixed(1)),
+            count: points.length
+          };
+        }
+
+        return {
+          label: s.name + (s.unit ? ` (${s.unit})` : ''),
+          data: points,
+          borderColor: s.color,
+          backgroundColor: s.color,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.15
+        };
+      });
+
+      const canvas = document.getElementById('tempChart');
+      if (!canvas) return;
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'MM/dd HH:mm:ss',
+                displayFormats: { minute: 'HH:mm', hour: 'MM/dd HH:mm', day: 'MM/dd' }
+              },
+              grid: { color: '#e2e8f0' }
+            },
+            y: {
+              beginAtZero: false,
+              grid: { color: '#e2e8f0' },
+              ticks: { font: { size: 11 } }
+            }
+          },
+          plugins: {
+            legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  return ` ${ctx.dataset.label}: ${ctx.parsed.y}`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const statsBody = document.getElementById('stats-body');
+      if (statsBody) {
+        statsBody.innerHTML = chartSeries.map(s => {
+          const st = calculatedStats[s.id];
+          if (!st) {
+            return `<tr><td>${s.ch}</td><td>${s.name}</td><td colspan="7" style="text-align:center;color:var(--text-3);">無資料</td></tr>`;
+          }
+          return `<tr>
+            <td>${s.ch}</td>
+            <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color};margin-right:6px;"></span>${s.name}</td>
+            <td>${st.max} ${s.unit}</td><td>${st.max_time}</td>
+            <td>${st.min} ${s.unit}</td><td>${st.min_time}</td>
+            <td>${st.avg} ${s.unit}</td><td>${st.count}</td>
+            <td><span style="color:var(--ok);font-weight:700;">正常</span></td>
+          </tr>`;
+        }).join('');
+      }
+
+      const sw = document.getElementById('stats-wrap');
+      if (sw) sw.style.display = 'block';
+    }
+    // ── 警報音效引擎（880Hz 方波，簡易版）────────────────────────────
+    let audioCtx = null;
+    let alarmBeepInterval = null;
+    let alarmSilenced = false;
+    function unlockAudio() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const banner = document.getElementById('audio-unlock-banner');
+        if (banner) banner.style.display = 'none';
+      } catch (e) { }
+    }
+    function beep() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.05;
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }
+    function updateAlarmSound(hasAlarm) {
+      if (hasAlarm && !alarmSilenced) {
+        if (!audioCtx) {
+          const banner = document.getElementById('audio-unlock-banner');
+          if (banner) banner.style.display = 'block';
+        } else if (!alarmBeepInterval) {
+          beep();
+          alarmBeepInterval = setInterval(beep, 2000);
+        }
+      } else {
+        if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
+        if (!hasAlarm) alarmSilenced = false;
+      }
+    }
+    function silenceAlarm() {
+      alarmSilenced = true;
+      if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
+      const btn = document.getElementById('btn-silence');
+      if (btn) btn.style.display = 'none';
+    }
+    // ── 初始化：時鐘、側邊欄導覽、資料輪詢 ──────────────────────────────
+    function tickClock() {
+      const now = new Date();
+      const p = n => String(n).padStart(2, '0');
+      const clk = document.getElementById('clk');
+      const dte = document.getElementById('dte');
+      if (clk) clk.textContent = `${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+      if (dte) dte.textContent = `${now.getFullYear()}/${p(now.getMonth() + 1)}/${p(now.getDate())}`;
+    }
+    document.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('btn-dashboard').addEventListener('click', () => showPage('dashboard'));
+      document.getElementById('btn-chart').addEventListener('click', () => showPage('chart'));
+      document.getElementById('btn-alarm').addEventListener('click', () => showPage('alarm'));
+      document.getElementById('btn-report').addEventListener('click', () => showPage('report'));
+      document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
+      tickClock();
+      setInterval(tickClock, 1000);
+      await fetchAlarmSettings();
+      populateChannelDropdowns();
+      await update();
+      startSSE();
+      setInterval(update, 10000);
+    });
+  </script>
+</body>
+</html>
