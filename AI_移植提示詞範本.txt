@@ -1,0 +1,85 @@
+我有一個已運作中的中央監控電視牆系統，資料夾名稱是「精簡版專案包」。
+
+請先完整分析這個資料夾，不要急著改程式。目標是把它整理成可重複套用到新案場的模板包，降低未來移植時來回確認的時間成本。
+
+請依序說明：
+1. 分析目前系統架構
+   - 採集層如何讀 Modbus / RS485
+   - 後端 app.py 如何提供 API、資料庫、頁面路由、歷史查詢與報表匯出
+   - 前端 HTML/JS/CSS 如何即時刷新與顯示警報
+   - 哪些檔案是本地電視牆核心，哪些是遠端儀表板選配
+
+2. 判斷移植到新案場時必須修改的地方
+   - Modbus IP / Port
+   - Slave ID
+   - Register 位址
+   - 點位名稱
+   - 倍率與資料型別
+   - 警報上下限與延遲
+   - 平面圖與圖控座標
+   - 設備數量與區域配置
+   - 報表欄位與顯示名稱
+
+3. 判斷哪些架構可以沿用
+   - Flask 後端架構
+   - API 與資料庫邏輯
+   - 即時刷新方式
+   - 警報顯示方式
+   - 歷史查詢與報表匯出功能
+   - 前端畫面框架
+
+4. 判斷哪些資料應集中到設定
+   - `config/site_config.example.json`
+   - `collector/channel_config.example.json`
+   - `collector/alarm_rules.example.json`
+   - `.env.example`
+   - 新案場回填表 Excel
+
+5. 判斷哪些內容應排除在乾淨模板包之外
+   - `tmp/` 舊案場與實驗輸出
+   - `outputs/` 產物
+   - `node_modules/`
+   - `.db` / `.sqlite`
+   - `.env` 與正式密碼、token、key
+
+接著請協助改成新案場版本。
+
+新案場資料如下：
+- 案場名稱：
+- 客戶名稱：
+- 設備清單：
+- Modbus IP / Port：
+- Slave ID：
+- Register 位址表：
+- 資料型別 / 倍率 / offset：
+- 點位名稱：
+- 警報條件：
+- 設備數量與庫別配置：
+- 平面圖或畫面配置需求：
+- 報表欄位需求：
+
+請保留原本系統的後端 API、即時刷新、警報顯示、歷史查詢與報表匯出架構，只替換新案場需要修改的設備、點位、畫面與警報設定。
+
+請優先閱讀這些檔案：
+
+1. `AI_使用說明.md`
+2. `docs/模板包瘦身與設定集中化.md`
+3. `docs/新案場資料必填清單.md`
+4. `config/site_config.example.json`
+5. `collector/channel_config.example.json`
+6. `collector/alarm_rules.example.json`
+7. `collector/modbus_reader.py`
+8. `local_web/app.py`
+9. `local_web/templates/index.html`
+10. `docs/通道對照表.xlsx`
+11. `docs/施工設定表.xlsx`
+12. `docs/系統架構圖.html`
+
+注意事項：
+
+- 不要把這份資料夾當成完整備份，它是給 AI 分析與移植用的精簡版專案包。
+- 不要要求我一開始就重寫整套系統。
+- 先判斷哪些檔案要改、哪些可以沿用。
+- 新案場改版時，請盡量保留原本可運作架構，只替換案場差異。
+- 如果發現敏感資訊，例如 token、密碼、IP、金鑰，請提醒我，不要直接寫死在程式裡。
+- 回答請用繁體中文。

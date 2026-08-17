@@ -1,0 +1,29 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Generated local data
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.bak
+*.tmp
+*.inspect.ndjson
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node / frontend
+node_modules/
+.next/
+
+# Template tool outputs
+outputs/
+dist/
+
+# Historical case scratch space kept for reference, not for clean template delivery
+tmp/
