@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>裕珍皇 冷鏈溫度監控系統</title>
+  <link rel="icon" type="image/png" href="/static/YJH_logo.png">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script
     src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -86,12 +87,15 @@
       gap: 12px;
     }
     .logo-img {
-      height: 42px;
+      height: 40px;
       width: auto;
+      max-height: 40px;
+      object-fit: contain;
       display: block;
-      background: white;
+      background: #ffffff;
       border-radius: 6px;
-      padding: 4px 8px;
+      padding: 2px 4px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
     }
     .co-name {
       font-size: 15px;
@@ -1204,56 +1208,57 @@
       color: #fff;
     }
     /* ── 平面圖模式：頁面佈局 ── */
-    #page-dashboard.fp-mode {
-      position: relative;
+    .dash.fp-active .main {
+      overflow: hidden !important;
+      padding: 8px 12px 6px;
+    }
+    #page-dashboard {
       height: 100%;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
-    #page-dashboard.fp-mode .view-toggle-row {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      z-index: 30;
-      margin-bottom: 0;
-      background: rgba(255, 255, 255, 0.90);
-      border-radius: 7px;
-      padding: 3px;
-      box-shadow: 0 2px 10px #00000025;
-      gap: 4px;
+    .view-toggle-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      flex-shrink: 0;
     }
-    #page-dashboard.fp-mode .view-btn {
-      padding: 3px 10px;
-      font-size: 10px;
-    }
-    #page-dashboard.fp-mode #fp-container {
+    #card-view-wrap {
       flex: 1;
-      min-height: 0;
-      justify-content: center;
-      align-items: center;
-      padding-top: clamp(36px, 5vh, 64px);
-      padding-bottom: clamp(16px, 3vh, 40px);
+      overflow-y: auto;
     }
-    /* ── 平面圖容器與圖片 ── */
+    /* ── 平面圖容器與圖片 (電視牆滿版自適應，零滾軸，邊界不裁切) ── */
     #fp-container {
+      flex: 1;
       width: 100%;
+      height: 100%;
+      min-height: 0;
+      min-width: 0;
       overflow: hidden;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 8px;
+      box-sizing: border-box;
     }
     #fp-wrapper {
       position: relative;
-      display: inline-block;
-      max-width: 100%;
+      display: block;
       user-select: none;
       flex-shrink: 0;
+      box-sizing: border-box;
     }
     #fp-img {
-      display: block;
       width: 100%;
-      height: auto;
+      height: 100%;
+      display: block;
       border-radius: 6px;
       border: 1px solid var(--border);
+      background: #ffffff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      box-sizing: border-box;
     }
     /* ── 平面圖標籤：錨點 + 連線 + 小卡 ── */
     .fp-label {
@@ -1324,8 +1329,9 @@
       background: rgba(255, 255, 255, 0.93);
       border: 1.5px solid #aac3e0;
       border-radius: 5px;
-      padding: 2px 6px 3px;
-      min-width: 50px;
+      padding: 3px 8px;
+      min-width: 68px;
+      white-space: nowrap;
       box-shadow: 0 1px 4px #00000015;
       transition: box-shadow .15s;
     }
@@ -1340,32 +1346,39 @@
       border-color: #e67e22;
       background: rgba(255, 248, 235, 0.95);
     }
-    /* 右側廠區用電大卡片 (放大約4倍) */
+    /* 平面圖廠區用電懸浮資訊卡 (參照卡片視圖設計，上方中間靠右) */
     #fp-power-card {
       position: absolute;
-      left: 63%;
-      top: 18%;
-      width: 32%;
-      height: 38%;
-      margin-top: -55px;
-      margin-left: 15px;
-      background: var(--bg-panel);
+      left: 55%;
+      top: 10px;
+      width: 42%;
+      min-width: 380px;
+      max-width: 520px;
+      background: rgba(255, 255, 255, 0.96);
       border: 1.5px solid var(--border);
-      border-radius: 12px;
+      border-radius: 8px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
       overflow: hidden;
       cursor: pointer;
       z-index: 20;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      backdrop-filter: blur(4px);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     }
-    /* 通道 ID（CH01） */
+    #fp-power-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      border-color: var(--accent-secondary);
+    }
+    /* 通道 ID / 庫別名稱 */
     .fp-ch-id {
-      font-size: 8.5px;
+      font-size: 9.5px;
       font-weight: 700;
       color: var(--text-2);
       letter-spacing: 0.5px;
-      line-height: 1.4;
+      line-height: 1.3;
+      white-space: nowrap;
     }
     /* 狀態列：● 溫度 */
     .fp-row {
@@ -1480,8 +1493,10 @@
   <div class="dash">
     <div class="topbar">
       <div class="logo-wrap">
+        <img class="logo-img" id="main-logo" src="/static/YJH_logo.png" alt="裕珍皇 LOGO"
+          onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';">
         <div id="logo-fallback"
-          style="display:flex;width:44px;height:44px;border-radius:6px;background:#ffffff33;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;text-align:center;line-height:44px;">
+          style="display:none;width:40px;height:40px;border-radius:6px;background:#ffffff33;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;text-align:center;line-height:40px;">
           裕珍皇</div>
         <div>
           <div class="co-name">裕珍皇</div>
@@ -1838,12 +1853,12 @@
     };
     // 卡片1-6：溫控聚合卡；卡片7：電表聚合卡（方案B，僅顯示聚合4數字，點擊看明細）
     const CARD_CONFIG = {
-      card1: { name: '1F 冷凍庫', type: 'temp', channels: ['ch01', 'ch02', 'ch03', 'ch04', 'ch05'] },
-      card2: { name: '1F 緩衝庫', type: 'temp', channels: ['ch06'] },
-      card3: { name: '1F 碼頭區', type: 'temp', channels: ['ch07'] },
-      card4: { name: '3F 急速庫', type: 'temp', channels: ['ch08', 'ch09'] },
-      card5: { name: '3F 半成品冷凍庫', type: 'temp', channels: ['ch10', 'ch11'] },
-      card6: { name: '3F 冷藏庫', type: 'temp', channels: ['ch12'] },
+      card1: { name: '1F 冷凍庫', type: 'temp', channels: ['ch01', 'ch02', 'ch03', 'ch04', 'ch05'], fp: { x: 0.25, y: 0.46, side: 'right' } },
+      card2: { name: '1F 緩衝庫', type: 'temp', channels: ['ch06'], fp: { x: 0.13, y: 0.70, side: 'right' } },
+      card3: { name: '1F 碼頭區', type: 'temp', channels: ['ch07'], fp: { x: 0.13, y: 0.81, side: 'right' } },
+      card4: { name: '3F 急速庫', type: 'temp', channels: ['ch08', 'ch09'], fp: { x: 0.78, y: 0.64, offsetY: 5, side: 'right' } },
+      card5: { name: '3F 半成品冷凍庫', type: 'temp', channels: ['ch10', 'ch11'], fp: { x: 0.78, y: 0.83, offsetY: -45, side: 'right' } },
+      card6: { name: '3F 冷藏庫', type: 'temp', channels: ['ch12'], fp: { x: 0.92, y: 0.31, side: 'left' } },
       card7: { name: '廠區電錶資訊', type: 'power', channels: ['ch13', 'ch14'] }
     };
     const ALL_CARDS = Object.keys(CARD_CONFIG);
@@ -1898,6 +1913,8 @@
       ['btn-dashboard', 'btn-chart', 'btn-alarm', 'btn-report'].forEach(id =>
         document.getElementById(id).classList.toggle('active', id === 'btn-' + page)
       );
+      const isFpActive = page === 'dashboard' && document.getElementById('btn-view-fp')?.classList.contains('active');
+      document.querySelector('.dash')?.classList.toggle('fp-active', !!isFpActive);
       const T = {
         dashboard: ['即時溫度監控', 'REAL-TIME TEMPERATURE DASHBOARD'],
         chart: ['總圖表', 'TEMPERATURE TREND CHART'],
@@ -2145,8 +2162,18 @@
       if (lastSseData) return lastSseData;
       try { return await (await fetch('/api/temperatures')).json(); } catch (e) { return null; }
     }
+    let systemConfig = { push_cooldown_min: 10, buzzer_snooze_min: 10 };
+    async function fetchSystemConfig() {
+      try {
+        const resp = await fetch('/api/system_config');
+        if (resp.ok) systemConfig = await resp.json();
+      } catch (e) { }
+    }
     async function fetchAlarmSettings() {
-      try { alarmSettings = await (await fetch('/api/alarm_settings')).json(); } catch (e) { }
+      try {
+        alarmSettings = await (await fetch('/api/alarm_settings')).json();
+        await fetchSystemConfig();
+      } catch (e) { }
     }
     function populateChannelDropdowns() {
       const alarmFilter = document.getElementById('alarm-ch-filter');
@@ -2159,13 +2186,13 @@
       alarmFilter.innerHTML = alarmHtml;
     }
     // ── 廠區用電資訊 Modal ─────────────────────────────────────────────
-    function openPowerModal() {
+    async function openPowerModal() {
       const overlay = document.getElementById('modal-power-overlay');
       const content = document.getElementById('power-modal-content');
       const data = lastSseData || {};
       let totalKw = 0, totalKwh = 0, sumV = 0, countV = 0, totalA = 0;
-      let rows = '';
-      METER_CHS.forEach((ch, idx) => {
+      const meters = [];
+      METER_CHS.forEach((ch) => {
         const d = data[ch];
         const name = CHANNEL_NAMES[ch] || d?.name || alarmSettings[ch]?.name || ch.toUpperCase();
         let isOnline = false;
@@ -2176,14 +2203,16 @@
             isOnline = true;
           }
         }
-        const hasPower = isOnline && d?.power && typeof d.power === 'object' && 
-          ((d.power.power_total !== undefined && d.power.power_total !== '--' && d.power.power_total !== null) || 
+        const hasPower = isOnline && d?.power && typeof d.power === 'object' &&
+          ((d.power.power_total !== undefined && d.power.power_total !== '--' && d.power.power_total !== null) ||
            (d.power.kw !== undefined && d.power.kw !== '--' && d.power.kw !== null));
-        let v_rs = '--', v_st = '--', v_tr = '--', v_avg = '--';
-        let a_r = '--', a_s = '--', a_t = '--', a_avg = '--';
-        let kw = '--', kwh = '--', pf = '--';
-        let loadPctHtml = '--';
-        let statusHtml = `<span style="color:var(--text-3); font-weight:700;">斷線</span>`;
+        const m = { name, isOnline,
+          v_rs: '--', v_st: '--', v_tr: '--', v_avg: '--',
+          a_r: '--', a_s: '--', a_t: '--', a_avg: '--',
+          kw: '--', kwh: '--', pf: '--',
+          loadPctHtml: '<span style="color:var(--text-3);">--</span>',
+          statusHtml: `<span style="color:var(--text-3); font-weight:700;">斷線</span>`
+        };
         const rawV = hasPower ? Number((d.power.voltage_ll_avg !== undefined && d.power.voltage_ll_avg !== null) ? d.power.voltage_ll_avg : 0) : 0;
         const hasRealReading = hasPower && rawV > 0;
         if (hasRealReading) {
@@ -2201,18 +2230,18 @@
             rawKwh = Number(d.power.kwh);
           }
           const rawPf = Number((d.power.power_factor !== undefined && d.power.power_factor !== null) ? d.power.power_factor : 0);
-          v_rs = (d.power.voltage_rs !== undefined && d.power.voltage_rs !== '--' && d.power.voltage_rs !== null) ? Number(d.power.voltage_rs).toFixed(1) : '--';
-          v_st = (d.power.voltage_st !== undefined && d.power.voltage_st !== '--' && d.power.voltage_st !== null) ? Number(d.power.voltage_st).toFixed(1) : '--';
-          v_tr = (d.power.voltage_tr !== undefined && d.power.voltage_tr !== '--' && d.power.voltage_tr !== null) ? Number(d.power.voltage_tr).toFixed(1) : '--';
-          v_avg = rawV.toFixed(1);
-          a_r = (d.power.current_r !== undefined && d.power.current_r !== '--' && d.power.current_r !== null) ? Number(d.power.current_r).toFixed(1) : '--';
-          a_s = (d.power.current_s !== undefined && d.power.current_s !== '--' && d.power.current_s !== null) ? Number(d.power.current_s).toFixed(1) : '--';
-          a_t = (d.power.current_t !== undefined && d.power.current_t !== '--' && d.power.current_t !== null) ? Number(d.power.current_t).toFixed(1) : '--';
-          a_avg = rawA.toFixed(1);
-          kw = rawKw.toFixed(1);
-          kwh = rawKwh.toFixed(1);
-          pf = rawPf.toFixed(1);
-          statusHtml = `<span style="color:var(--ok); font-weight:700;">正常</span>`;
+          m.v_rs = (d.power.voltage_rs !== undefined && d.power.voltage_rs !== '--' && d.power.voltage_rs !== null) ? Number(d.power.voltage_rs).toFixed(1) : '--';
+          m.v_st = (d.power.voltage_st !== undefined && d.power.voltage_st !== '--' && d.power.voltage_st !== null) ? Number(d.power.voltage_st).toFixed(1) : '--';
+          m.v_tr = (d.power.voltage_tr !== undefined && d.power.voltage_tr !== '--' && d.power.voltage_tr !== null) ? Number(d.power.voltage_tr).toFixed(1) : '--';
+          m.v_avg = rawV.toFixed(1);
+          m.a_r = (d.power.current_r !== undefined && d.power.current_r !== '--' && d.power.current_r !== null) ? Number(d.power.current_r).toFixed(1) : '--';
+          m.a_s = (d.power.current_s !== undefined && d.power.current_s !== '--' && d.power.current_s !== null) ? Number(d.power.current_s).toFixed(1) : '--';
+          m.a_t = (d.power.current_t !== undefined && d.power.current_t !== '--' && d.power.current_t !== null) ? Number(d.power.current_t).toFixed(1) : '--';
+          m.a_avg = rawA.toFixed(1);
+          m.kw = rawKw.toFixed(1);
+          m.kwh = rawKwh.toFixed(1);
+          m.pf = rawPf.toFixed(1);
+          m.statusHtml = `<span style="color:var(--ok); font-weight:700;">正常</span>`;
           totalKw += rawKw;
           totalKwh += rawKwh;
           totalA += rawA;
@@ -2220,83 +2249,151 @@
           countV++;
           const nfbRated = Number(alarmSettings[ch]?.nfb_rated_current || 0);
           if (nfbRated > 0) {
-            const loadPct = (rawA / nfbRated) * 100;
+            const phaseCurrents = [
+              Number(d.power.current_r), Number(d.power.current_s), Number(d.power.current_t)
+            ].filter(v => Number.isFinite(v));
+            const maxPhaseCurrent = phaseCurrents.length > 0 ? Math.max(...phaseCurrents) : rawA;
+            const loadPct = (maxPhaseCurrent / nfbRated) * 100;
             const loadColor = loadPct >= 95 ? 'var(--alarm)' : loadPct >= 80 ? 'var(--delay)' : 'var(--ok)';
-            loadPctHtml = `<span style="color:${loadColor};">${loadPct.toFixed(1)}%</span>`;
+            m.loadPctHtml = `<span style="color:${loadColor};" title="以三相最大電流 ${maxPhaseCurrent.toFixed(1)}A 計算（非平均電流）">${loadPct.toFixed(1)}%</span>`;
           } else {
-            loadPctHtml = `<span style="color:var(--text-3);">未設定NFB</span>`;
+            m.loadPctHtml = `<span style="color:var(--text-3);">未設定NFB</span>`;
           }
         }
-        const rowBg = idx % 2 === 0 ? '#f7f9fd' : '#ffffff';
-        rows += `<tr style="background:${rowBg}; font-size:12px; font-weight:700; border-bottom:1px solid var(--border);">
-          <td style="padding:8px 10px;">${name}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_rs}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_st}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${v_tr}</td>
-          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${v_avg}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_r}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_s}</td>
-          <td style="padding:8px 10px;color:var(--text-1); font-variant-numeric:tabular-nums;">${a_t}</td>
-          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${a_avg}</td>
-          <td style="padding:8px 10px;color:var(--accent); font-variant-numeric:tabular-nums;">${kw}</td>
-          <td style="padding:8px 10px;color:var(--accent-secondary); font-variant-numeric:tabular-nums;">${kwh}</td>
-          <td style="padding:8px 10px;color:var(--text-2); font-variant-numeric:tabular-nums;">${pf}</td>
-          <td style="padding:8px 10px;font-variant-numeric:tabular-nums;">${loadPctHtml}</td>
-          <td style="padding:8px 10px;text-align:center;">${statusHtml}</td>
-        </tr>`;
+        meters.push(m);
       });
+
+      // 抓取能源統計 API
+      let stats = {
+        today_kwh: 0,
+        month_kwh: totalKwh,
+        last_week_daily_avg_kwh: 0,
+        month_peak_kwh: 0,
+        month_semi_peak_kwh: 0,
+        month_off_peak_kwh: 0,
+        month_non_peak_kwh: 0,
+        peak_ratio: 0,
+        non_peak_ratio: 0,
+        anomaly_threshold_pct: 15,
+        is_today_abnormal: false,
+        daily_records: []
+      };
+      try {
+        const resp = await fetch('/api/power_energy_stats');
+        if (resp.ok) {
+          const sJson = await resp.json();
+          if (sJson.status === 'ok') stats = sJson;
+        }
+      } catch (e) { }
+
+      const FIELDS = [
+        { label: 'RS電壓',   unit: 'V',   key: 'v_rs' },
+        { label: 'ST電壓',   unit: 'V',   key: 'v_st' },
+        { label: 'TR電壓',   unit: 'V',   key: 'v_tr' },
+        { label: '平均電壓', unit: 'V',   key: 'v_avg', accent: true },
+        { label: 'R相電流',  unit: 'A',   key: 'a_r' },
+        { label: 'S相電流',  unit: 'A',   key: 'a_s' },
+        { label: 'T相電流',  unit: 'A',   key: 'a_t' },
+        { label: '平均電流', unit: 'A',   key: 'a_avg', accent: true },
+        { label: '瞬時功率', unit: 'kW',  key: 'kw' },
+        { label: '累積功率', unit: 'kWh', key: 'kwh' },
+        { label: '功率因數', unit: '',    key: 'pf' },
+        { label: '滿載率',   unit: '',    key: 'loadPctHtml', html: true },
+        { label: '連線',     unit: '',    key: 'statusHtml', html: true }
+      ];
+      const meterTables = meters.map(m => {
+        const headerCells = FIELDS.map(f =>
+          `<th style="padding:8px 4px;text-align:center;letter-spacing:0.5px;white-space:nowrap;">${f.label}</th>`
+        ).join('');
+        const valueCells = FIELDS.map(f => {
+          const raw = m[f.key];
+          const display = f.html ? raw : `${raw}${raw !== '--' && f.unit ? ' ' + f.unit : ''}`;
+          const color = f.accent ? 'var(--accent-secondary)' : 'var(--text-1)';
+          return `<td style="padding:10px 4px;text-align:center;font-variant-numeric:tabular-nums;color:${color};">${display}</td>`;
+        }).join('');
+        return `
+        <div style="margin-bottom:14px;">
+          <div style="font-weight:700;font-size:13px;color:var(--text-1);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+            ${m.name}
+            <span title="${m.isOnline ? '連線中' : '斷線'}" style="width:8px;height:8px;border-radius:50%;background:${m.isOnline ? 'var(--ok)' : 'var(--alarm)'};display:inline-block;"></span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--border);font-size:12px;font-weight:700;table-layout:fixed;">
+            <thead><tr style="background:var(--accent-secondary);color:#fff;font-size:11px;">${headerCells}</tr></thead>
+            <tbody><tr style="background:#f7f9fd;">${valueCells}</tr></tbody>
+          </table>
+        </div>`;
+      }).join('');
+
       content.innerHTML = `
-        <div style="display:flex;gap:12px;margin-bottom:16px;">
-          <div style="flex:1;background:var(--accent-primary);border-radius:10px;padding:12px 16px;color:#fff;">
-            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">即時總用電</div>
-            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalKw.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">kW</span></div>
+        <!-- 能源管理專區 (整合即時電氣總覽 + 每日/當月用電累計 + 尖離峰分析) -->
+        <div style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:18px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <div style="font-size:15px; font-weight:800; color:var(--text-1); display:flex; align-items:center; gap:6px;">
+              <span>📊</span><span>能源管理</span>
+            </div>
+            <div style="font-size:11px; font-weight:700; color:var(--text-3); background:#f1f5f9; padding:3px 8px; border-radius:4px;">
+              夏月標準 (5/16~10/15) · 夜尖峰 16:00~22:00
+            </div>
           </div>
-          <div style="flex:1;background:var(--accent-secondary);border-radius:10px;padding:12px 16px;color:#fff;">
-            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">總累積用電量</div>
-            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalKwh.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">kWh</span></div>
+
+          <!-- 電氣即時總覽 (3 大核心總覽指標) -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:14px;">
+            <div style="background:var(--accent-primary); border-radius:8px; padding:12px 16px; color:#fff;">
+              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">⚡ 即時總用電</div>
+              <div style="font-size:24px; font-weight:800; margin-top:2px;">${totalKw.toFixed(1)}<span style="font-size:12px; font-weight:400; margin-left:4px;">kW</span></div>
+            </div>
+            <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 16px; color:#fff;">
+              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">🔌 平均線電壓</div>
+              <div style="font-size:24px; font-weight:800; margin-top:2px;">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:12px; font-weight:400; margin-left:4px;">V</span></div>
+            </div>
+            <div style="background:var(--accent-primary); border-radius:8px; padding:12px 16px; color:#fff;">
+              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">⚡ 總平均電流</div>
+              <div style="font-size:24px; font-weight:800; margin-top:2px;">${totalA.toFixed(1)}<span style="font-size:12px; font-weight:400; margin-left:4px;">A</span></div>
+            </div>
           </div>
-          <div style="flex:1;background:var(--accent-secondary);border-radius:10px;padding:12px 16px;color:#fff;">
-            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">平均線電壓</div>
-            <div style="font-size:26px;font-weight:800;margin-top:4px;">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:13px;font-weight:400;margin-left:4px;">V</span></div>
+
+          <!-- 4 大用電累計指標 -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:14px;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+              <div style="font-size:11px; color:var(--text-3); font-weight:700;">☀️ 本日累積用電量</div>
+              <div style="font-size:20px; font-weight:800; color:var(--text-1); margin-top:2px;">${stats.today_kwh.toFixed(1)}<span style="font-size:11px; color:var(--text-3); margin-left:3px;">kWh</span></div>
+            </div>
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+              <div style="font-size:11px; color:var(--text-3); font-weight:700;">🗓️ 當月累積用電量</div>
+              <div style="font-size:20px; font-weight:800; color:var(--accent-secondary); margin-top:2px;">${stats.month_kwh.toFixed(1)}<span style="font-size:11px; color:var(--text-3); margin-left:3px;">kWh</span></div>
+            </div>
+            <div style="background:#fff5f5; border:1px solid #fed7d7; border-radius:8px; padding:12px 14px;">
+              <div style="font-size:11px; color:#c53030; font-weight:700;">🔴 當月尖峰累積用電</div>
+              <div style="font-size:20px; font-weight:800; color:#e53e3e; margin-top:2px;">${stats.month_peak_kwh.toFixed(1)}<span style="font-size:11px; color:#c53030; margin-left:3px;">kWh</span><span style="font-size:12px; font-weight:800; color:#e53e3e; margin-left:6px;">(${stats.peak_ratio}%)</span></div>
+            </div>
+            <div style="background:#f0fff4; border:1px solid #c6f6d5; border-radius:8px; padding:12px 14px;">
+              <div style="font-size:11px; color:#276749; font-weight:700;">🟢 當月離峰/半尖峰用電</div>
+              <div style="font-size:20px; font-weight:800; color:#38a169; margin-top:2px;">${stats.month_non_peak_kwh.toFixed(1)}<span style="font-size:11px; color:#276749; margin-left:3px;">kWh</span><span style="font-size:12px; font-weight:800; color:#38a169; margin-left:6px;">(${stats.non_peak_ratio}%)</span></div>
+            </div>
           </div>
-          <div style="flex:1;background:var(--accent-primary);border-radius:10px;padding:12px 16px;color:#fff;">
-            <div style="font-size:11px;font-weight:600;opacity:0.85;letter-spacing:1px;">總平均電流</div>
-            <div style="font-size:26px;font-weight:800;margin-top:4px;">${totalA.toFixed(1)}<span style="font-size:13px;font-weight:400;margin-left:4px;">A</span></div>
+
+          <!-- 尖離峰比例進度條 -->
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; margin-bottom:6px;">
+              <span style="color:#e53e3e;">🔴 尖峰時段佔比：${stats.peak_ratio}%</span>
+              <span style="color:#38a169;">🟢 離峰/半尖峰佔比：${stats.non_peak_ratio}%</span>
+            </div>
+            <div style="width:100%; height:10px; background:#e2e8f0; border-radius:5px; overflow:hidden; display:flex;">
+              <div style="width:${stats.peak_ratio}%; background:#ef4444; transition:width .3s;"></div>
+              <div style="width:${stats.non_peak_ratio}%; background:#10b981; transition:width .3s;"></div>
+            </div>
           </div>
         </div>
-        <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--border);">
-          <thead>
-            <tr style="background:var(--accent-secondary);color:#fff;font-size:11px;">
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">庫別</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">RS線電壓 (V)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">ST線電壓 (V)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">TR線電壓 (V)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">平均電壓 (V)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">R相電流 (A)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">S相電流 (A)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">T相電流 (A)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">平均電流 (A)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">瞬時功率 (kW)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">累積功率 (kWh)</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">功率因數</th>
-              <th style="padding:10px 8px;text-align:left;letter-spacing:1px;white-space:nowrap;">滿載百分比</th>
-              <th style="padding:10px 8px;text-align:center;letter-spacing:1px;white-space:nowrap;">連線狀態</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-          <tfoot>
-            <tr style="background:#e8f0fe;font-weight:800;font-size:12px;">
-              <td style="padding:10px 8px;color:var(--accent);">合計</td>
-              <td colspan="3" style="padding:10px 8px;"></td>
-              <td style="padding:10px 8px;color:var(--accent);">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">V</span></td>
-              <td colspan="3" style="padding:10px 8px;"></td>
-              <td style="padding:10px 8px;color:var(--accent);">${totalA.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">A</span></td>
-              <td style="padding:10px 8px;color:var(--accent);">${totalKw.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">kW</span></td>
-              <td style="padding:10px 8px;color:var(--accent-secondary);">${totalKwh.toFixed(1)}<span style="font-size:9px;font-weight:400;color:var(--text-3);margin-left:2px;">kWh</span></td>
-              <td colspan="3" style="padding:10px 8px;"></td>
-            </tr>
-          </tfoot>
-        </table>`;
+
+        <!-- 各電表詳細數據 -->
+        ${meterTables}
+        <div style="background:#e8f0fe; border-radius:8px; padding:10px 16px; margin-top:4px; display:flex; gap:20px; flex-wrap:wrap; align-items:center; font-size:12px; font-weight:800;">
+          <span style="color:var(--accent);">合計</span>
+          <span style="color:var(--accent);">平均電壓：${countV > 0 ? (sumV / countV).toFixed(1) : '--'} V</span>
+          <span style="color:var(--accent);">總電流：${totalA.toFixed(1)} A</span>
+          <span style="color:var(--accent);">瞬時功率：${totalKw.toFixed(1)} kW</span>
+          <span style="color:var(--accent);">總累積功率：${totalKwh.toFixed(1)} kWh</span>
+        </div>`;
       overlay.style.display = 'flex';
     }
     function closePowerModal() {
@@ -2376,6 +2473,22 @@
         </div>
       </div>`;
     }
+    let lastEnergyStats = null;
+    let lastEnergyFetchTs = 0;
+    async function fetchEnergyStats() {
+      try {
+        const resp = await fetch('/api/power_energy_stats');
+        if (resp.ok) {
+          const sJson = await resp.json();
+          if (sJson.status === 'ok') {
+            lastEnergyStats = sJson;
+            lastEnergyFetchTs = Date.now();
+          }
+        }
+      } catch (e) {}
+    }
+    fetchEnergyStats();
+
     // 電表卡片（方案B）：卡片只顯示4個聚合數字，點擊開 Modal 看 ch13/ch14 明細
     function powerCardHtml(cardId, data, nowTs) {
       const cfg = CARD_CONFIG[cardId];
@@ -2392,21 +2505,83 @@
         if (v > 0) { sumV += v; countV++; }
       });
       const avgV = countV > 0 ? (sumV / countV) : null;
+      const monthKwhDisplay = (lastEnergyStats && lastEnergyStats.month_kwh !== undefined && lastEnergyStats.month_kwh > 0)
+        ? lastEnergyStats.month_kwh.toFixed(1)
+        : (anyOnline ? totalKwh.toFixed(1) : '--');
+
       return `
       <div class="sc power-card${!anyOnline ? ' offline' : ''}" onclick="openPowerModal()" style="grid-column: 1 / -1; height:auto;">
         <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px;">⚡ ${cfg.name}</div>
         <div style="display:flex; padding:14px 20px; gap:12px;">
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">即時耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kW</span></div></div>
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">總耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKwh.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">當月累積用電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電流總和</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">A</span></div></div>
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電壓</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">V</span></div></div>
         </div>
       </div>`;
     }
+    let fpLabelsBuilt = false;
+    function renderFloorplanPins(data, nowTs) {
+      const wrapper = document.getElementById('fp-wrapper');
+      if (!wrapper) return;
+      if (!fpLabelsBuilt) {
+        wrapper.querySelectorAll('.fp-label').forEach(el => el.remove());
+        ALL_CARDS.forEach(cardId => {
+          const cfg = CARD_CONFIG[cardId];
+          if (!cfg || cfg.type !== 'temp' || !cfg.fp) return;
+          const el = document.createElement('div');
+          el.className = `fp-label fp-${cfg.fp.side || 'right'}`;
+          el.id = 'fpl-' + cardId;
+          const leftVal = cfg.fp.offsetX ? `calc(${cfg.fp.x * 100}% + ${cfg.fp.offsetX}px)` : `${cfg.fp.x * 100}%`;
+          const topVal = cfg.fp.offsetY ? `calc(${cfg.fp.y * 100}% + ${cfg.fp.offsetY}px)` : `${cfg.fp.y * 100}%`;
+          el.style.left = leftVal;
+          el.style.top = topVal;
+          el.innerHTML = `
+            <div class="fp-anchor anc-off" id="fpanc-${cardId}"></div>
+            <div class="fp-line ln-off" id="fpln-${cardId}"></div>
+            <div class="fp-bubble" id="fpb-${cardId}">
+              <div class="fp-ch-id">${cfg.name}</div>
+              <div class="fp-row">
+                <div class="fp-dot fp-dot-off" id="fpd-${cardId}"></div>
+                <span class="fp-temp-val fp-tv-off" id="fpt-${cardId}">--°C</span>
+              </div>
+            </div>`;
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openControlModal(cardId);
+          });
+          wrapper.appendChild(el);
+        });
+        fpLabelsBuilt = true;
+      }
+      ALL_CARDS.forEach(cardId => {
+        const cfg = CARD_CONFIG[cardId];
+        if (!cfg || cfg.type !== 'temp' || !cfg.fp) return;
+        const dot = document.getElementById('fpd-' + cardId);
+        const tempEl = document.getElementById('fpt-' + cardId);
+        const bubble = document.getElementById('fpb-' + cardId);
+        const anc = document.getElementById('fpanc-' + cardId);
+        const ln = document.getElementById('fpln-' + cardId);
+        if (!dot || !tempEl || !bubble || !anc || !ln) return;
+        const agg = aggregateTempCard(cardId, data, nowTs);
+        const isAlarm = agg.status === 'TRIGGERED';
+        const isOffline = !agg.online;
+        const key = isOffline ? 'off' : isAlarm ? 'alarm' : 'ok';
+        dot.className = `fp-dot fp-dot-${key}`;
+        tempEl.className = `fp-temp-val fp-tv-${key}`;
+        anc.className = `fp-anchor anc-${key}`;
+        ln.className = `fp-line ln-${key}`;
+        tempEl.textContent = (agg.online && Number.isFinite(agg.value)) ? agg.value.toFixed(1) + '°C' : '--°C';
+        bubble.classList.toggle('fp-alarm', isAlarm);
+      });
+    }
     async function update(data) {
       if (data === undefined) data = await fetchTemperatures();
       if (!data) data = {};
       const nowTs = new Date().getTime();
+      if (!lastEnergyStats || Date.now() - lastEnergyFetchTs > 30000) {
+        fetchEnergyStats();
+      }
       let ok = 0, al = 0, off = 0, gridHtml = '';
       ALL_CHS.forEach(ch => {
         const { online, inAlarm } = getChannelState(data, ch, nowTs);
@@ -2435,54 +2610,47 @@
       const silenceBtn = document.getElementById('btn-silence');
       if (silenceBtn) silenceBtn.style.display = al > 0 ? 'inline-block' : 'none';
       updateAlarmSound(al > 0);
-      // Update floorplan power summary card for CP-1 & CP-3
+      // Update floorplan power summary card for CP-1 & CP-3 (參照卡片視圖 4 欄數值設計)
       const fpPowerCard = document.getElementById('fp-power-card');
       if (fpPowerCard) {
-        const cp1_data = data['ch13'];
-        const cp3_data = data['ch14'];
+        let totalKw = 0, totalKwh = 0, totalA = 0, sumV = 0, countV = 0, anyOnline = false;
+        ['ch13', 'ch14'].forEach(ch => {
+          const d = data[ch];
+          if (!isRoomOnline(d, nowTs) || !d?.power) return;
+          anyOnline = true;
+          const p = d.power;
+          totalKw += Number(p.kw !== undefined && p.kw !== null ? p.kw : (p.power_total ? p.power_total / 1000.0 : 0)) || 0;
+          totalKwh += Number(p.kwh !== undefined && p.kwh !== null ? p.kwh : (p.energy_total ? p.energy_total / 1000.0 : 0)) || 0;
+          totalA += Number(p.current_avg !== undefined && p.current_avg !== null ? p.current_avg : (p.a || 0)) || 0;
+          const v = Number(p.voltage_ll_avg !== undefined && p.voltage_ll_avg !== null ? p.voltage_ll_avg : (p.v || 0));
+          if (v > 0) { sumV += v; countV++; }
+        });
+        const avgV = countV > 0 ? (sumV / countV) : null;
+        const monthKwhDisplay = (lastEnergyStats && lastEnergyStats.month_kwh !== undefined && lastEnergyStats.month_kwh > 0)
+          ? lastEnergyStats.month_kwh.toFixed(1)
+          : (anyOnline ? totalKwh.toFixed(1) : '--');
 
-        let cp1 = { kw: 0, kwh: 0, sumV: 0, countV: 0, totalA: 0, online: false };
-        let cp3 = { kw: 0, kwh: 0, sumV: 0, countV: 0, totalA: 0, online: false };
-
-        if (cp1_data && isRoomOnline(cp1_data, nowTs)) {
-          cp1.online = true;
-          if (cp1_data.power) {
-            cp1.kw = cp1_data.power.kw || (cp1_data.power.power_total ? cp1_data.power.power_total / 1000.0 : 0);
-            cp1.kwh = cp1_data.power.kwh || (cp1_data.power.energy_total ? cp1_data.power.energy_total / 1000.0 : 0);
-            cp1.sumV = cp1_data.power.v || cp1_data.power.voltage_ll_avg || 0;
-            cp1.countV = cp1.sumV > 0 ? 1 : 0;
-            cp1.totalA = cp1_data.power.a || cp1_data.power.current_avg || 0;
-          }
-        }
-
-        if (cp3_data && isRoomOnline(cp3_data, nowTs)) {
-          cp3.online = true;
-          if (cp3_data.power) {
-            cp3.kw = cp3_data.power.kw || (cp3_data.power.power_total ? cp3_data.power.power_total / 1000.0 : 0);
-            cp3.kwh = cp3_data.power.kwh || (cp3_data.power.energy_total ? cp3_data.power.energy_total / 1000.0 : 0);
-            cp3.sumV = cp3_data.power.v || cp3_data.power.voltage_ll_avg || 0;
-            cp3.countV = cp3.sumV > 0 ? 1 : 0;
-            cp3.totalA = cp3_data.power.a || cp3_data.power.current_avg || 0;
-          }
-        }
-
-        const hasPowerData = cp1.online || cp3.online;
-        const totalKwStr = hasPowerData ? (cp1.kw + cp3.kw).toFixed(1) : '--';
-        const totalKwhStr = hasPowerData ? (cp1.kwh + cp3.kwh).toFixed(1) : '--';
         fpPowerCard.innerHTML = `
-          <div class="fp-power-head">
-            <span>⚡</span>
-            <span>廠區電錶資訊</span>
-          </div>
-          <div class="fp-power-body">
-            <div class="fp-power-metric">
-              <div class="fp-power-label">即時總用電量</div>
-              <div><span class="fp-power-value instant">${totalKwStr}</span><span class="fp-power-unit">kW</span></div>
+          <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:6px 12px; color:#ffffff; font-size:13px; font-weight:800; letter-spacing:1px;">⚡ 廠區電錶資訊</div>
+          <div style="display:flex; padding:8px 12px; gap:8px; align-items:center; background:#ffffff;">
+            <div style="flex:1; text-align:center;">
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">即時耗電量</div>
+              <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">kW</span></div>
             </div>
-            <div class="fp-power-divider"></div>
-            <div class="fp-power-metric">
-              <div class="fp-power-label">總累積用電量</div>
-              <div><span class="fp-power-value energy">${totalKwhStr}</span><span class="fp-power-unit">kWh</span></div>
+            <div style="width:1px; height:24px; background:#e2e8f0;"></div>
+            <div style="flex:1; text-align:center;">
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">當月累積用電量</div>
+              <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">kWh</span></div>
+            </div>
+            <div style="width:1px; height:24px; background:#e2e8f0;"></div>
+            <div style="flex:1; text-align:center;">
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">平均電流總和</div>
+              <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">A</span></div>
+            </div>
+            <div style="width:1px; height:24px; background:#e2e8f0;"></div>
+            <div style="flex:1; text-align:center;">
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">平均電壓</div>
+              <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">V</span></div>
             </div>
           </div>`;
       }
@@ -2791,14 +2959,45 @@
         setPowerToggleLocked(ch, false);
       }
     }
+    // ── 平面圖自適應視窗縮放（保證寬高完全置中貼合，絕不裁切邊界文字）──
+    function fitFpWrapper() {
+      const container = document.getElementById('fp-container');
+      const wrapper = document.getElementById('fp-wrapper');
+      if (!container || !wrapper) return;
+      if (container.style.display === 'none') return;
+      const pad = 16;
+      const cw = Math.max(container.clientWidth - pad, 100);
+      const ch = Math.max(container.clientHeight - pad, 100);
+      const imgRatio = 1493 / 945;
+      let w, h;
+      if (cw / ch > imgRatio) {
+        h = ch;
+        w = Math.floor(h * imgRatio);
+      } else {
+        w = cw;
+        h = Math.floor(w / imgRatio);
+      }
+      wrapper.style.width = w + 'px';
+      wrapper.style.height = h + 'px';
+    }
     // ── 卡片視圖 / 平面圖視圖 切換 ──────────────────────────────────────
     function switchDashView(view) {
-      document.getElementById('btn-view-card').classList.toggle('active', view === 'card');
-      document.getElementById('btn-view-fp').classList.toggle('active', view === 'floorplan');
-      document.getElementById('card-view-wrap').style.display = view === 'card' ? 'block' : 'none';
-      document.getElementById('fp-container').style.display = view === 'floorplan' ? 'block' : 'none';
+      const isFp = view === 'floorplan';
+      document.getElementById('btn-view-card').classList.toggle('active', !isFp);
+      document.getElementById('btn-view-fp').classList.toggle('active', isFp);
+      document.getElementById('card-view-wrap').style.display = isFp ? 'none' : 'block';
+      document.getElementById('fp-container').style.display = isFp ? 'flex' : 'none';
+      document.querySelector('.dash')?.classList.toggle('fp-active', isFp);
+      document.getElementById('page-dashboard')?.classList.toggle('fp-mode', isFp);
+      if (isFp) {
+        requestAnimationFrame(() => {
+          fitFpWrapper();
+          if (lastSseData) renderFloorplanPins(lastSseData, Date.now());
+        });
+      }
     }
     // ── 系統設定 Modal：溫度通道的高低溫警報閥值 / 延遲 / 校正值，電表通道的滿載百分比 ──
+    // ── 系統設定 Modal：溫度通道的高低溫警報閥值 / 延遲 / 校正值 ──
     function openSettingsModal() {
       const content = document.getElementById('modal-content');
       const tempChs = ALL_CHS.filter(ch => !METER_CHS.includes(ch));
@@ -2815,15 +3014,6 @@
           <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-offset" value="${s.temp_offset ?? 0}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
         </tr>`;
       });
-      let meterRows = '';
-      METER_CHS.forEach(ch => {
-        const s = alarmSettings[ch] || {};
-        meterRows += `
-        <tr data-meter-ch="${ch}" style="border-bottom:1px solid var(--border);">
-          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
-          <td style="padding:6px 8px;"><input type="number" step="1" min="0" class="set-nfb-current" value="${s.nfb_rated_current ?? ''}" placeholder="例：600" style="width:90px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
-        </tr>`;
-      });
       content.innerHTML = `
         <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">🔔 溫度警報設定</div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px;">
@@ -2836,14 +3026,6 @@
             <th style="padding:6px 8px;text-align:left;">溫度校正 (°C)</th>
           </tr></thead>
           <tbody>${rows}</tbody>
-        </table>
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚡ 電表設定</div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#f1f5f9;">
-            <th style="padding:6px 8px;text-align:left;">通道</th>
-            <th style="padding:6px 8px;text-align:left;">NFB 額定電流 (A)</th>
-          </tr></thead>
-          <tbody>${meterRows}</tbody>
         </table>
         <div style="display:flex; justify-content:flex-end; margin-top:20px;">
           <button onclick="openAdvancedSettings()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#f8fafc;color:var(--text-1);cursor:pointer;font-size:12px;font-weight:700;">🔐 進階設定</button>
@@ -2874,30 +3056,18 @@
           nfb_rated_current: existing.nfb_rated_current ?? null
         };
       });
-      document.querySelectorAll('#modal-content tr[data-meter-ch]').forEach(tr => {
-        const ch = tr.dataset.meterCh;
-        const nfbVal = tr.querySelector('.set-nfb-current').value;
-        const existing = alarmSettings[ch] || {};
-        payload[ch] = {
-          hi: existing.hi ?? null,
-          lo: existing.lo ?? null,
-          delay: existing.delay ?? 0,
-          alarm_enabled: existing.alarm_enabled ?? 1,
-          temp_offset: existing.temp_offset ?? 0,
-          current_threshold: existing.current_threshold ?? 0.5,
-          nfb_rated_current: nfbVal !== '' ? Number(nfbVal) : null
-        };
-      });
       try {
-        await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const resp = await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!resp.ok) throw new Error('伺服器回應錯誤');
         await fetchAlarmSettings();
         closeModal();
         update();
+        alert('系統設定已儲存');
       } catch (e) {
         alert('儲存失敗，請確認後端連線');
       }
     }
-    // ── 進階設定（密碼保護）────────────────────────────────────────
+    // ── 進階設定（密碼保護）：電表設定 (NFB額定電流) 與 主機運轉判定閾值 ──────────
     const ADVANCED_SETTINGS_PASSWORD = '24436882';
     function openAdvancedSettings() {
       const pwd = prompt('請輸入進階設定密碼：');
@@ -2909,6 +3079,15 @@
     }
     function renderAdvancedSettings() {
       const content = document.getElementById('modal-content');
+      let meterRows = '';
+      METER_CHS.forEach(ch => {
+        const s = alarmSettings[ch] || {};
+        meterRows += `
+        <tr data-meter-ch="${ch}" style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
+          <td style="padding:6px 8px;"><input type="number" step="1" min="0" class="set-nfb-current" value="${s.nfb_rated_current ?? ''}" placeholder="例：600" style="width:100px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+        </tr>`;
+      });
       const rows = ALL_CHS.filter(ch => !METER_CHS.includes(ch)).map(ch => {
         const threshold = getCurrentThreshold(ch);
         return `
@@ -2918,7 +3097,52 @@
         </tr>`;
       }).join('');
       content.innerHTML = `
-        <div style="margin-bottom:10px; font-size:11px; color:var(--text-3); line-height:1.6;">
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚡ 電表設定 (NFB 額定電流)</div>
+        <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
+          設定各集合式電錶 NFB 額定跳脫電流（單位：A），用於計算滿載百分比與用電跳脫風險預警。
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:6px 8px;text-align:left;">通道</th>
+            <th style="padding:6px 8px;text-align:left;">NFB 額定電流 (A)</th>
+          </tr></thead>
+          <tbody>${meterRows}</tbody>
+        </table>
+
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⏱️ 警報冷卻時間設定</div>
+        <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
+          設定警報觸發後的推播重複發報間隔與網頁蜂鳴音消音後的重響時間。
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:24px;">
+          <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:12px; font-weight:700; color:var(--text-1);">📢 推播/紀錄重複發報冷卻</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="adv-push-cooldown" value="${systemConfig.push_cooldown_min || 10}" min="1" max="1440" step="1" style="width:65px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
+                <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--text-3); line-height:1.4;">
+              同一通道持續超標時，每隔此時間再次發送 LINE/Pushover 推播並記錄於警報歷史。
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:12px; font-weight:700; color:var(--text-1);">🔕 網頁蜂鳴音靜音後重響</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="adv-buzzer-snooze" value="${systemConfig.buzzer_snooze_min || 10}" min="1" max="1440" step="1" style="width:65px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
+                <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--text-3); line-height:1.4;">
+              點擊「關閉警報聲」後若超標仍未排除，經過此時間後自動解除靜音並重新鳴叫。
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚙️ 主機運轉判定閾值</div>
+        <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
           運轉電流 ≤ 此通道的閾值時，判定為現場控制開關未開啟：卡片與控制面板的設備狀態燈顯示灰燈（停止），「主機運轉時數」不計入累積時間。各通道可依設備規格獨立設定。
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -2937,6 +3161,10 @@
     async function saveAdvancedSettings() {
       const payload = {};
       let valid = true;
+
+      const pushCooldown = Number(document.getElementById('adv-push-cooldown')?.value) || 10;
+      const buzzerSnooze = Number(document.getElementById('adv-buzzer-snooze')?.value) || 10;
+
       document.querySelectorAll('#modal-content tr[data-ch]').forEach(tr => {
         const ch = tr.dataset.ch;
         const v = Number(tr.querySelector('.adv-threshold').value);
@@ -2952,12 +3180,33 @@
           nfb_rated_current: existing.nfb_rated_current ?? null
         };
       });
+      document.querySelectorAll('#modal-content tr[data-meter-ch]').forEach(tr => {
+        const ch = tr.dataset.meterCh;
+        const nfbVal = tr.querySelector('.set-nfb-current').value;
+        const existing = alarmSettings[ch] || {};
+        payload[ch] = {
+          hi: existing.hi ?? null,
+          lo: existing.lo ?? null,
+          delay: existing.delay ?? 0,
+          alarm_enabled: existing.alarm_enabled ?? 1,
+          temp_offset: existing.temp_offset ?? 0,
+          current_threshold: existing.current_threshold ?? 0.5,
+          nfb_rated_current: nfbVal !== '' ? Number(nfbVal) : null
+        };
+      });
       if (!valid) {
-        alert('請輸入有效的閾值');
+        alert('請輸入有效的數值');
         return;
       }
       try {
         await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        await fetch('/api/system_config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ push_cooldown_min: pushCooldown, buzzer_snooze_min: buzzerSnooze })
+        });
+        systemConfig.push_cooldown_min = pushCooldown;
+        systemConfig.buzzer_snooze_min = buzzerSnooze;
         await fetchAlarmSettings();
         closeModal();
         update();
@@ -3311,6 +3560,21 @@
         };
       });
 
+      let xMin, xMax;
+      const now = new Date();
+      if (currentRange === 'custom') {
+        const fromVal = document.getElementById('chart-date-from').value;
+        const toVal = document.getElementById('chart-date-to').value;
+        if (fromVal && toVal) {
+          xMin = new Date(fromVal.replace('T', ' ') + '+08:00').getTime();
+          xMax = new Date(toVal.replace('T', ' ') + '+08:00').getTime();
+        }
+      } else {
+        const mins = { '60': 60, '360': 360, '1440': 1440 }[String(currentRange)] || 60;
+        xMin = now.getTime() - mins * 60 * 1000;
+        xMax = now.getTime();
+      }
+
       const canvas = document.getElementById('tempChart');
       if (!canvas) return;
       if (chartInstance) chartInstance.destroy();
@@ -3325,9 +3589,22 @@
           scales: {
             x: {
               type: 'time',
+              min: xMin,
+              max: xMax,
               time: {
-                tooltipFormat: 'MM/dd HH:mm:ss',
-                displayFormats: { minute: 'HH:mm', hour: 'MM/dd HH:mm', day: 'MM/dd' }
+                tooltipFormat: 'yyyy/MM/dd HH:mm:ss',
+                displayFormats: {
+                  second: 'HH:mm:ss',
+                  minute: 'HH:mm',
+                  hour: 'MM/dd HH:mm',
+                  day: 'MM/dd'
+                }
+              },
+              ticks: {
+                maxTicksLimit: 8,
+                maxRotation: 0,
+                autoSkip: true,
+                font: { size: 11 }
               },
               grid: { color: '#e2e8f0' }
             },
@@ -3375,6 +3652,8 @@
     let audioCtx = null;
     let alarmBeepInterval = null;
     let alarmSilenced = false;
+    let buzzerSilenceTime = 0;
+
     function unlockAudio() {
       try {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -3395,24 +3674,60 @@
       osc.stop(audioCtx.currentTime + 0.2);
     }
     function updateAlarmSound(hasAlarm) {
-      if (hasAlarm && !alarmSilenced) {
-        if (!audioCtx) {
-          const banner = document.getElementById('audio-unlock-banner');
-          if (banner) banner.style.display = 'block';
-        } else if (!alarmBeepInterval) {
-          beep();
-          alarmBeepInterval = setInterval(beep, 2000);
+      const btn = document.getElementById('btn-silence');
+      const snoozeMin = Number(systemConfig.buzzer_snooze_min) || 10;
+
+      if (hasAlarm) {
+        // 若已靜音，檢查是否超過靜音重響冷卻時間
+        if (alarmSilenced && buzzerSilenceTime > 0) {
+          const elapsedSec = (Date.now() - buzzerSilenceTime) / 1000;
+          if (elapsedSec >= snoozeMin * 60) {
+            alarmSilenced = false; // 自動解除靜音並重新響起！
+            buzzerSilenceTime = 0;
+          }
+        }
+
+        if (btn) {
+          btn.style.display = 'inline-block';
+          if (alarmSilenced) {
+            const remMin = Math.max(1, Math.ceil((snoozeMin * 60 - (Date.now() - buzzerSilenceTime) / 1000) / 60));
+            btn.innerHTML = `🔕 已靜音 (${remMin}分後重響)`;
+            btn.style.background = '#64748b';
+            btn.style.borderColor = '#64748b';
+            btn.style.color = '#ffffff';
+            btn.style.animation = 'none';
+          } else {
+            btn.innerHTML = `🔔 關閉警報聲`;
+            btn.style.background = '#fff0f0';
+            btn.style.borderColor = 'var(--alarm)';
+            btn.style.color = 'var(--alarm)';
+            btn.style.animation = 'blink 1s step-start infinite';
+          }
+        }
+
+        if (!alarmSilenced) {
+          if (!audioCtx) {
+            const banner = document.getElementById('audio-unlock-banner');
+            if (banner) banner.style.display = 'block';
+          } else if (!alarmBeepInterval) {
+            beep();
+            alarmBeepInterval = setInterval(beep, 2000);
+          }
+        } else {
+          if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
         }
       } else {
         if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
-        if (!hasAlarm) alarmSilenced = false;
+        alarmSilenced = false;
+        buzzerSilenceTime = 0;
+        if (btn) btn.style.display = 'none';
       }
     }
     function silenceAlarm() {
       alarmSilenced = true;
+      buzzerSilenceTime = Date.now();
       if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
-      const btn = document.getElementById('btn-silence');
-      if (btn) btn.style.display = 'none';
+      updateAlarmSound(true);
     }
     // ── 初始化：時鐘、側邊欄導覽、資料輪詢 ──────────────────────────────
     function tickClock() {
@@ -3436,6 +3751,15 @@
       await update();
       startSSE();
       setInterval(update, 10000);
+      window.addEventListener('resize', fitFpWrapper);
+      const fpContainerEl = document.getElementById('fp-container');
+      if (fpContainerEl && window.ResizeObserver) {
+        new ResizeObserver(() => {
+          if (document.getElementById('fp-container')?.style.display !== 'none') {
+            fitFpWrapper();
+          }
+        }).observe(fpContainerEl);
+      }
     });
   </script>
 </body>

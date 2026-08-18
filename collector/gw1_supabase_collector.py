@@ -397,20 +397,25 @@ def handle_w610_connection(conn, addr):
                             "1182_1183": list(r2)
                         }
 
+                        # 依現場實測原始暫存器反推驗證過的正確 offset：
+                        # I_a+I_b+I_c 平均 = I_avg（誤差0）、kW_a+kW_b+kW_c = kW_total（誤差0），
+                        # 這樣的「總和=分量相加」完全吻合才確認出正確位置。
+                        # 舊版 offset (22/24/26/30/44/66/68) 其實讀到的是 kW_a/b/c 與 kVA_total 等
+                        # 完全不同的欄位，被誤標成電流/實功率，導致電流與功率公式對不起來。
                         db_payload.update({
                             "voltage_rs":     decode_float32(r1, 2),
                             "voltage_st":     decode_float32(r1, 4),
                             "voltage_tr":     decode_float32(r1, 6),
                             "voltage_avg":    decode_float32(r1, 8),
                             "frequency":      decode_float32(r1, 20),
-                            "current_r":      decode_float32(r1, 22),
-                            "current_s":      decode_float32(r1, 24),
-                            "current_t":      decode_float32(r1, 26),
-                            "current_avg":    decode_float32(r1, 30),
-                            "power_total":    decode_float32(r1, 44),
+                            "current_r":      decode_float32(r1, 10),
+                            "current_s":      decode_float32(r1, 12),
+                            "current_t":      decode_float32(r1, 14),
+                            "current_avg":    decode_float32(r1, 16),
+                            "power_total":    decode_float32(r1, 28),
                             "power_factor":   decode_float32(r1, 52),
-                            "reactive_power": decode_float32(r1, 66),
-                            "apparent_power": decode_float32(r1, 68),
+                            "reactive_power": decode_float32(r1, 36),
+                            "apparent_power": decode_float32(r1, 44),
                             "energy_total":   decode_float32(r2, 0),
                         })
 

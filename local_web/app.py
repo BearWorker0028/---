@@ -503,105 +503,104 @@ def init_db():
             ''')
 
             cursor.execute('''
-
                 ALTER TABLE alarm_settings ADD COLUMN IF NOT EXISTS nfb_rated_current DOUBLE PRECISION
-
+            ''')
+            cursor.execute('''
+                ALTER TABLE alarm_settings ADD COLUMN IF NOT EXISTS power_anomaly_threshold DOUBLE PRECISION DEFAULT 15.0
             ''')
 
             cursor.execute('''
-
                 ALTER TABLE alarm_settings DROP COLUMN IF EXISTS rated_load_pct
-
             ''')
 
             cursor.execute('''
-
                 CREATE TABLE IF NOT EXISTS alarm_history (
-
                     id BIGSERIAL PRIMARY KEY,
-
                     triggered_at TIMESTAMPTZ NOT NULL,
-
                     channel TEXT,
-
                     name TEXT,
-
                     value DOUBLE PRECISION,
-
                     alarm_type TEXT,
-
                     hi DOUBLE PRECISION,
-
                     lo DOUBLE PRECISION
-
                 )
-
             ''')
 
             cursor.execute('''
-
                 CREATE TABLE IF NOT EXISTS monitoring_logs (
-
                     id          BIGSERIAL PRIMARY KEY,
-
                     timestamp   TIMESTAMPTZ NOT NULL,
-
                     site_code   TEXT NOT NULL,
-
                     device_no   TEXT NOT NULL,
-
                     data_key    TEXT NOT NULL,
-
                     data_value  DOUBLE PRECISION
-
                 )
-
             ''')
 
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_monitoring_logs_timestamp ON monitoring_logs (timestamp)')
-
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_monitoring_logs_device_no_key ON monitoring_logs (device_no, data_key)')
 
             cursor.execute('''
-
                 CREATE TABLE IF NOT EXISTS power_readings (
-
                     id        BIGSERIAL PRIMARY KEY,
-
                     timestamp TIMESTAMPTZ NOT NULL,
-
                     channel   TEXT,
-
                     v         DOUBLE PRECISION,
-
                     a         DOUBLE PRECISION,
-
                     kw        DOUBLE PRECISION,
-
                     pf        DOUBLE PRECISION,
-
                     kwh       DOUBLE PRECISION
-
                 )
-
             ''')
 
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_power_readings_channel_time ON power_readings (channel, timestamp DESC)')
 
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_power_stats (
+                    hour_timestamp TIMESTAMPTZ PRIMARY KEY,
+                    ch13_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
+                    ch14_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
+                    total_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
+                    tariff_type TEXT DEFAULT 'off_peak',
+                    is_anomaly BOOLEAN DEFAULT FALSE
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_hourly_power_stats_time ON hourly_power_stats (hour_timestamp DESC)')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS daily_power_stats (
+                    date DATE PRIMARY KEY,
+                    total_kwh DOUBLE PRECISION DEFAULT 0.0,
+                    peak_kwh DOUBLE PRECISION DEFAULT 0.0,
+                    semi_peak_kwh DOUBLE PRECISION DEFAULT 0.0,
+                    off_peak_kwh DOUBLE PRECISION DEFAULT 0.0,
+                    past_7d_avg_kwh DOUBLE PRECISION DEFAULT 0.0,
+                    is_abnormal_surge BOOLEAN DEFAULT FALSE,
+                    anomaly_pct DOUBLE PRECISION DEFAULT 0.0
+                )
+            ''')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            ''')
+            cursor.execute('''
+                INSERT INTO system_config (key, value) VALUES
+                ('push_cooldown_min', '10'),
+                ('buzzer_snooze_min', '10')
+                ON CONFLICT (key) DO NOTHING
+            ''')
+
             for ch, name, hi, lo in DEFAULT_CHANNELS:
-
                 cursor.execute('''
-
                     INSERT INTO alarm_settings (channel, name, hi, lo)
-
                     VALUES (%s, %s, %s, %s)
-
                     ON CONFLICT (channel) DO NOTHING
-
                 ''', (ch, name, hi, lo))
 
             for ch, name, _, _ in DEFAULT_CHANNELS:
-
                 cursor.execute("UPDATE alarm_settings SET name = %s WHERE channel = %s", (name, ch))
 
 def _get_all_running_hours():
@@ -938,53 +937,32 @@ def _start_mock_data_simulator():
     t.start()
 
 @app.route('/')
-
 def index():
-
     return render_template('index.html')
 
 @app.route('/remote')
-
 def remote():
-
     client_ip = request.remote_addr
-
     forwarded = request.headers.get('X-Forwarded-For', '')
-
     if forwarded:
-
         client_ip = forwarded.split(',')[0].strip()
-
     
-
     allowed_ips = ['127.0.0.1', '61.222.3.117', '192.168.22.11']
-
     if client_ip not in allowed_ips and not client_ip.startswith('192.168.'):
-
         from flask import abort
-
         abort(403, description=f"拒絕存取：尚未授權此 IP ({client_ip}) 檢視遠端監控畫面。")
-
         
-
     return render_template('remote.html')
 
 @app.route('/api/temperatures')
-
 def temperatures():
-
     return jsonify(_latest_temperatures_payload())
 
 @app.route('/api/temperatures', methods=['POST'])
-
 def add_temperatures():
-
     try:
-
         payload = request.get_json(force=True) or {}
-
         raw_readings = payload.get('readings', payload)
-
         if isinstance(raw_readings, dict):
             items_for_runtime = [{'channel': ch, **info} for ch, info in raw_readings.items() if isinstance(info, dict)]
         elif isinstance(raw_readings, list):
@@ -1002,129 +980,102 @@ def add_temperatures():
         realtime_payload = _payload_to_realtime(payload)
 
         with REALTIME_LOCK:
-
             REALTIME_PAYLOAD.clear()
-
             REALTIME_PAYLOAD.update(realtime_payload)
 
         if payload.get('realtime_only'):
             timestamp = payload.get('timestamp') or datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
             _record_temp_only_iot627_high_alarms(timestamp, realtime_payload)
-
             return jsonify({
-
                 'status': 'ok',
-
                 'saved': 0,
-
                 'realtime': len(realtime_payload),
-
                 'timestamp': payload.get('timestamp')
-
             })
 
         saved, timestamp = _save_temperature_payload(payload)
         _record_temp_only_iot627_high_alarms(timestamp, realtime_payload)
 
     except (TypeError, ValueError) as exc:
-
         return jsonify({'error': str(exc)}), 400
-
     return jsonify({'status': 'ok', 'saved': saved, 'timestamp': timestamp})
 
 @app.route('/api/temperature_stream')
-
 def temperature_stream():
-
     @stream_with_context
-
     def event_stream():
-
         last_payload = None
-
         while True:
-
             payload = _latest_temperatures_payload()
-
             encoded = json.dumps(payload, ensure_ascii=False)
-
             if encoded != last_payload:
-
                 yield f"event: temperatures\ndata: {encoded}\n\n"
-
                 last_payload = encoded
-
             else:
-
                 yield ": keepalive\n\n"
-
             time.sleep(1)
-
     return Response(event_stream(), mimetype='text/event-stream')
 
 @app.route('/api/alarm_settings', methods=['GET'])
-
 def get_alarm_settings():
-
     result = {}
-
     for row in _alarm_settings_map().values():
-
         result[row['channel']] = {
-
             'channel': row['channel'],
-
             'name': row['name'],
-
             'hi': row['hi'],
-
             'lo': row['lo'],
-
             'delay': row.get('delay') or 0,
-
             'alarm_enabled': row.get('alarm_enabled') if row.get('alarm_enabled') is not None else 1,
-
             'temp_offset': row.get('temp_offset') or 0.0,
-
             'current_threshold': row.get('current_threshold') if row.get('current_threshold') is not None else 0.5,
-
             'nfb_rated_current': row.get('nfb_rated_current')
-
         }
-
     return jsonify(result)
 
 @app.route('/api/alarm_settings', methods=['POST'])
-
 def save_alarm_settings():
-
     data = request.json
-
     with get_pg() as conn:
-
         with conn.cursor() as cursor:
-
             for channel, setting in data.items():
-
                 cursor.execute('''
-
                     UPDATE alarm_settings
-
                     SET hi=%s, lo=%s, delay=%s, alarm_enabled=%s, temp_offset=%s, current_threshold=%s, nfb_rated_current=%s
-
                     WHERE channel=%s
+                ''', (
+                    setting.get('hi'),
+                    setting.get('lo'),
+                    setting.get('delay', 0),
+                    int(setting.get('alarm_enabled', 1)),
+                    float(setting.get('temp_offset', 0)),
+                    float(setting.get('current_threshold', 0.5)),
+                    (float(setting['nfb_rated_current']) if setting.get('nfb_rated_current') not in (None, '') else None),
+                    channel
+                ))
+    return jsonify({'status': 'ok'})
 
-                ''', (setting.get('hi'), setting.get('lo'), setting.get('delay', 0),
+@app.route('/api/system_config', methods=['GET'])
+def get_system_config():
+    with get_pg() as conn:
+        rows = conn.execute('SELECT key, value FROM system_config').fetchall()
+        cfg = {r['key']: r['value'] for r in rows}
+        return jsonify({
+            'push_cooldown_min': int(float(cfg.get('push_cooldown_min', 10))),
+            'buzzer_snooze_min': int(float(cfg.get('buzzer_snooze_min', 10)))
+        })
 
-                      int(setting.get('alarm_enabled', 1)),
-
-                      float(setting.get('temp_offset', 0)),
-
-                      float(setting.get('current_threshold', 0.5)),
-
-                      (float(setting['nfb_rated_current']) if setting.get('nfb_rated_current') not in (None, '') else None),
-                      channel))
-
+@app.route('/api/system_config', methods=['POST'])
+def save_system_config():
+    data = request.json or {}
+    with get_pg() as conn:
+        with conn.cursor() as cursor:
+            for k in ['push_cooldown_min', 'buzzer_snooze_min']:
+                if k in data and data[k] is not None:
+                    cursor.execute('''
+                        INSERT INTO system_config (key, value) VALUES (%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    ''', (k, str(int(data[k]))))
     return jsonify({'status': 'ok'})
 
 # ============================================================
@@ -1409,25 +1360,286 @@ def power_chart_data():
 
     now_tw = datetime.now(TZ_TW_APP)
     if range_type == 'custom' and date_from and date_to:
-        from_str = date_from
-        to_str   = date_to
+        dt_from = _normalize_dt(date_from)
+        dt_to   = _normalize_dt(date_to)
     else:
         minutes_map = {'realtime': 60, '1h': 60, '4h': 240, '6h': 360, '24h': 1440}
         minutes  = minutes_map.get(range_type, int(request.args.get('minutes', 60)))
-        from_str = (now_tw - timedelta(minutes=minutes)).strftime('%Y-%m-%d %H:%M:%S')
-        to_str   = now_tw.strftime('%Y-%m-%d %H:%M:%S')
+        dt_from = now_tw - timedelta(minutes=minutes)
+        dt_to   = now_tw
 
     series = {}
     with get_pg() as conn:
         for ch in channels:
             rows = conn.execute(
                 f'SELECT timestamp, {db_col} as val FROM power_readings '
-                f'WHERE channel=%s AND timestamp>=%s AND timestamp<=%s ORDER BY timestamp',
-                (ch, from_str, to_str)
+                f'WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp',
+                (ch, dt_from, dt_to)
             ).fetchall()
-            series[ch] = [{'t': _fmt_ts(r['timestamp']), 'v': round(r['val'] * scale, 1) if r['val'] is not None else None} for r in rows]
+            if not rows and db_col == 'kwh':
+                t_rows = conn.execute(
+                    'SELECT timestamp, value as val FROM temperatures '
+                    'WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp',
+                    (ch, dt_from, dt_to)
+                ).fetchall()
+                rows = t_rows
+            series[ch] = [{'t': _fmt_ts(r['timestamp']), 'v': round(float(r['val']) * scale, 2) if r['val'] is not None else None} for r in rows]
 
     return jsonify({'series': series, 'field': field})
+
+# ── 台電時間電價尖離峰時段判斷 ────────────────────────────────────
+OFF_PEAK_HOLIDAYS = [
+    "01-01",  # 元旦
+    "02-28",  # 二二八和平紀念日
+    "04-04",  # 兒童節
+    "04-05",  # 清明節
+    "05-01",  # 勞動節
+    "10-10",  # 國慶日
+]
+
+TAIPOWER_TARIFF_RULES = {
+    "summer": {
+        "weekday": [
+            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},
+            {"start_hour": 9, "end_hour": 16, "type": "semi_peak"},
+            {"start_hour": 16, "end_hour": 22, "type": "peak"},       # 16:00~22:00 夜尖峰
+            {"start_hour": 22, "end_hour": 24, "type": "semi_peak"},
+        ],
+        "saturday": [
+            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},
+            {"start_hour": 9, "end_hour": 24, "type": "semi_peak"},
+        ],
+        "sunday_and_holidays": [
+            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},
+        ],
+    },
+    "non_summer": {
+        "weekday": [
+            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},
+            {"start_hour": 6, "end_hour": 16, "type": "semi_peak"},
+            {"start_hour": 16, "end_hour": 22, "type": "peak"},
+            {"start_hour": 22, "end_hour": 24, "type": "semi_peak"},
+        ],
+        "saturday": [
+            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},
+            {"start_hour": 6, "end_hour": 24, "type": "semi_peak"},
+        ],
+        "sunday_and_holidays": [
+            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},
+        ],
+    },
+}
+
+def get_tariff_type(dt: datetime, is_high_voltage: bool = True) -> str:
+    """判斷指定時間點的時間電價時段 (peak / semi_peak / off_peak)"""
+    date_str = dt.strftime("%m-%d")
+    time_hour = dt.hour
+    weekday = dt.weekday()  # 0=週一, 5=週六, 6=週日
+
+    if is_high_voltage:
+        is_summer = "05-16" <= date_str <= "10-15"
+    else:
+        is_summer = "06-01" <= date_str <= "09-30"
+
+    season_key = "summer" if is_summer else "non_summer"
+
+    if weekday == 6 or date_str in OFF_PEAK_HOLIDAYS:
+        day_type = "sunday_and_holidays"
+    elif weekday == 5:
+        day_type = "saturday"
+    else:
+        day_type = "weekday"
+
+    rules = TAIPOWER_TARIFF_RULES.get(season_key, {}).get(day_type, [])
+    for rule in rules:
+        if rule["start_hour"] <= time_hour < rule["end_hour"]:
+            return rule["type"]
+
+    return "off_peak"
+
+@app.route('/api/power_energy_stats')
+def power_energy_stats():
+    now_tw = datetime.now(TZ_TW_APP)
+    today_start = now_tw.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now_tw.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # 取得異常警報閾值設定
+    alarm_map = _alarm_settings_map()
+    anomaly_threshold_pct = 15.0
+    for s in alarm_map.values():
+        if s.get('power_anomaly_threshold') is not None:
+            try:
+                anomaly_threshold_pct = float(s['power_anomaly_threshold'])
+                break
+            except (ValueError, TypeError):
+                pass
+
+    # 查詢過去 35 天的電表讀數以計算每日/每小時聚合與前 7 天基準
+    lookback_start = (now_tw - timedelta(days=35)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    hourly_data = {} # (date_str, hour) -> {'ch13': delta, 'ch14': delta, 'total': delta, 'tariff': type}
+    daily_data = {}  # date_str -> {'total_kwh': 0, 'peak_kwh': 0, 'semi_peak_kwh': 0, 'off_peak_kwh': 0}
+
+    with get_pg() as conn:
+        for ch in ['ch13', 'ch14']:
+            rows = conn.execute(
+                "SELECT timestamp, kwh, kw FROM power_readings "
+                "WHERE channel=%s AND timestamp >= %s ORDER BY timestamp ASC",
+                (ch, lookback_start)
+            ).fetchall()
+            
+            if not rows:
+                continue
+
+            hourly_buckets = {}
+            for r in rows:
+                ts = r['timestamp']
+                if not ts.tzinfo:
+                    ts = ts.replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP)
+                else:
+                    ts = ts.astimezone(TZ_TW_APP)
+                bucket_key = (ts.strftime('%Y-%m-%d'), ts.hour)
+                if bucket_key not in hourly_buckets:
+                    hourly_buckets[bucket_key] = {'min_kwh': r['kwh'], 'max_kwh': r['kwh'], 'kw_sum': 0, 'kw_cnt': 0, 'dt': ts}
+                b = hourly_buckets[bucket_key]
+                if r['kwh'] is not None:
+                    if b['min_kwh'] is None or r['kwh'] < b['min_kwh']:
+                        b['min_kwh'] = r['kwh']
+                    if b['max_kwh'] is None or r['kwh'] > b['max_kwh']:
+                        b['max_kwh'] = r['kwh']
+                if r['kw'] is not None:
+                    b['kw_sum'] += float(r['kw'])
+                    b['kw_cnt'] += 1
+
+            sorted_keys = sorted(hourly_buckets.keys())
+            for idx, k in enumerate(sorted_keys):
+                b = hourly_buckets[k]
+                dt_hour = b['dt'].replace(minute=0, second=0, microsecond=0)
+                tariff = get_tariff_type(dt_hour)
+                
+                delta = 0.0
+                if b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
+                    delta = float(b['max_kwh'] - b['min_kwh'])
+                
+                if delta == 0.0 and idx > 0:
+                    prev_k = sorted_keys[idx - 1]
+                    prev_b = hourly_buckets[prev_k]
+                    if b['max_kwh'] is not None and prev_b['max_kwh'] is not None:
+                        diff = float(b['max_kwh'] - prev_b['max_kwh'])
+                        if 0 <= diff < 1500:
+                            delta = diff
+                
+                if delta == 0.0 and b['kw_cnt'] > 0:
+                    avg_kw = b['kw_sum'] / b['kw_cnt']
+                    if avg_kw > 0:
+                        delta = min(avg_kw, 500.0)
+
+                if delta < 0 or delta > 1500:
+                    delta = 0.0
+
+                if k not in hourly_data:
+                    hourly_data[k] = {'ch13': 0.0, 'ch14': 0.0, 'total': 0.0, 'tariff': tariff, 'dt': dt_hour}
+                hourly_data[k][ch] = delta
+                hourly_data[k]['total'] += delta
+
+    for (d_str, hr), h in hourly_data.items():
+        if d_str not in daily_data:
+            daily_data[d_str] = {'total_kwh': 0.0, 'peak_kwh': 0.0, 'semi_peak_kwh': 0.0, 'off_peak_kwh': 0.0, 'date': d_str}
+        tot = h['total']
+        daily_data[d_str]['total_kwh'] += tot
+        if h['tariff'] == 'peak':
+            daily_data[d_str]['peak_kwh'] += tot
+        elif h['tariff'] == 'semi_peak':
+            daily_data[d_str]['semi_peak_kwh'] += tot
+        else:
+            daily_data[d_str]['off_peak_kwh'] += tot
+
+    today_str = now_tw.strftime('%Y-%m-%d')
+    today_kwh = round(daily_data.get(today_str, {}).get('total_kwh', 0.0), 1)
+
+    # ── 當月累積用電量：以每日累積用電量進行聚合加總 ──
+    month_prefix = now_tw.strftime('%Y-%m')
+    month_days = [d_str for d_str in sorted(daily_data.keys()) if d_str.startswith(month_prefix)]
+    
+    month_kwh = 0.0
+    month_peak_kwh = 0.0
+    month_semi_peak_kwh = 0.0
+    month_off_peak_kwh = 0.0
+
+    for d_str in month_days:
+        d = daily_data[d_str]
+        month_kwh += d['total_kwh']
+        month_peak_kwh += d['peak_kwh']
+        month_semi_peak_kwh += d['semi_peak_kwh']
+        month_off_peak_kwh += d['off_peak_kwh']
+
+    month_non_peak_kwh = month_semi_peak_kwh + month_off_peak_kwh
+    if month_kwh > 0:
+        peak_ratio = round((month_peak_kwh / month_kwh) * 100, 1)
+        non_peak_ratio = round((month_non_peak_kwh / month_kwh) * 100, 1)
+    else:
+        peak_ratio = 0.0
+        non_peak_ratio = 0.0
+
+    daily_records = []
+    for i in range(14, -1, -1):
+        target_date = (now_tw - timedelta(days=i)).strftime('%Y-%m-%d')
+        d_val = daily_data.get(target_date, {'total_kwh': 0.0, 'peak_kwh': 0.0, 'semi_peak_kwh': 0.0, 'off_peak_kwh': 0.0, 'date': target_date})
+        
+        tot_k = round(d_val['total_kwh'], 1)
+        daily_records.append({
+            'date': target_date,
+            'total_kwh': tot_k,
+            'peak_kwh': round(d_val['peak_kwh'], 1),
+            'off_peak_kwh': round(d_val['semi_peak_kwh'] + d_val['off_peak_kwh'], 1)
+        })
+
+    # 同步持久化寫入資料庫每小時差值表 (hourly_power_stats) 與每日統計表 (daily_power_stats)
+    try:
+        with get_pg() as conn:
+            with conn.cursor() as cursor:
+                for (d_str, hr), h in hourly_data.items():
+                    cursor.execute('''
+                        INSERT INTO hourly_power_stats (hour_timestamp, ch13_kwh_delta, ch14_kwh_delta, total_kwh_delta, tariff_type)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (hour_timestamp) DO UPDATE
+                        SET ch13_kwh_delta = EXCLUDED.ch13_kwh_delta,
+                            ch14_kwh_delta = EXCLUDED.ch14_kwh_delta,
+                            total_kwh_delta = EXCLUDED.total_kwh_delta,
+                            tariff_type = EXCLUDED.tariff_type
+                    ''', (h['dt'], h.get('ch13', 0.0), h.get('ch14', 0.0), h.get('total', 0.0), h.get('tariff', 'off_peak')))
+
+                for rec in daily_records:
+                    cursor.execute('''
+                        INSERT INTO daily_power_stats (date, total_kwh, peak_kwh, semi_peak_kwh, off_peak_kwh)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (date) DO UPDATE
+                        SET total_kwh = EXCLUDED.total_kwh,
+                            peak_kwh = EXCLUDED.peak_kwh,
+                            semi_peak_kwh = EXCLUDED.semi_peak_kwh,
+                            off_peak_kwh = EXCLUDED.off_peak_kwh
+                    ''', (
+                        rec['date'],
+                        rec['total_kwh'],
+                        rec['peak_kwh'],
+                        daily_data.get(rec['date'], {}).get('semi_peak_kwh', 0.0),
+                        daily_data.get(rec['date'], {}).get('off_peak_kwh', 0.0)
+                    ))
+    except Exception as e:
+        logging.warning(f"Failed to persist hourly power stats to DB: {e}")
+
+    return jsonify({
+        'status': 'ok',
+        'today_kwh': today_kwh,
+        'month_kwh': round(month_kwh, 1),
+        'month_peak_kwh': round(month_peak_kwh, 1),
+        'month_semi_peak_kwh': round(month_semi_peak_kwh, 1),
+        'month_off_peak_kwh': round(month_off_peak_kwh, 1),
+        'month_non_peak_kwh': round(month_non_peak_kwh, 1),
+        'peak_ratio': peak_ratio,
+        'non_peak_ratio': non_peak_ratio,
+        'daily_records': daily_records
+    })
 
 @app.route('/api/report/download')
 def report_download():

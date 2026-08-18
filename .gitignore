@@ -27,3 +27,8 @@ dist/
 
 # Historical case scratch space kept for reference, not for clean template delivery
 tmp/
+
+# OS metadata
+desktop.ini
+Thumbs.db
+.DS_Store

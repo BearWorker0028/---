@@ -177,12 +177,20 @@ def raw_to_temp(raw, cfg=None):
     return temp
 
 def get_alarm_settings():
+    res = {}
     try:
         r = requests.get(f'{API_BASE}/api/alarm_settings', timeout=3)
-        return r.json()
+        if r.ok:
+            res = r.json()
     except Exception as e:
         logging.error(f"取得警報設定失敗: {e}")
-        return {}
+    try:
+        rc = requests.get(f'{API_BASE}/api/system_config', timeout=3)
+        if rc.ok:
+            res['_config'] = rc.json()
+    except Exception:
+        pass
+    return res
 
 def check_and_log_alarm(ch, name, value, settings):
     s = settings.get(ch)
@@ -226,8 +234,11 @@ def check_and_log_alarm(ch, name, value, settings):
 
     key      = f'{ch}_{alarm_type}'
     last_t   = last_alarm_time.get(key, 0)
+    cooldown = ALARM_COOLDOWN
+    if isinstance(settings, dict) and '_config' in settings:
+        cooldown = int(settings['_config'].get('push_cooldown_min', 10)) * 60
 
-    if now - last_t < ALARM_COOLDOWN:
+    if now - last_t < cooldown:
         return 'TRIGGERED'
 
     try:
@@ -341,19 +352,27 @@ def read_all_channels():
 
                             if not resp_p.isError() and len(resp_p.registers) >= 52:
                                 rp = resp_p.registers
+                                # 依現場實測原始暫存器反推驗證過的正確 index（讀取起點=1032，
+                                # 故 index = 絕對offset(以1030為基準) - 2）：
+                                # I_a+I_b+I_c 平均 = I_avg（誤差0）、kW_a+kW_b+kW_c = kW_total（誤差0），
+                                # 用這個「總和=分量相加」完全吻合驗證出正確位置。
+                                # 舊版 index (20/22/24/28/42) 其實讀到的是 kW_a/b/c 與 kVA_total，
+                                # 被誤標成電流/實功率，導致電流與功率公式對不起來。
                                 power_dict = {
                                     'voltage_rs': _unp_f(rp[0], rp[1]),
                                     'voltage_st': _unp_f(rp[2], rp[3]),
                                     'voltage_tr': _unp_f(rp[4], rp[5]),
                                     'voltage_ll_avg': _unp_f(rp[6], rp[7]),
                                     'frequency': _unp_f(rp[18], rp[19]),
-                                    'current_r': _unp_f(rp[20], rp[21]),
-                                    'current_s': _unp_f(rp[22], rp[23]),
-                                    'current_t': _unp_f(rp[24], rp[25]),
-                                    'current_avg': _unp_f(rp[28], rp[29]),
-                                    'power_total': round(_unp_f(rp[42], rp[43]) * 1000.0, 1), # W
-                                    'kw': _unp_f(rp[42], rp[43]),                              # kW
+                                    'current_r': _unp_f(rp[8], rp[9]),
+                                    'current_s': _unp_f(rp[10], rp[11]),
+                                    'current_t': _unp_f(rp[12], rp[13]),
+                                    'current_avg': _unp_f(rp[14], rp[15]),
+                                    'power_total': round(_unp_f(rp[26], rp[27]) * 1000.0, 1), # W
+                                    'kw': _unp_f(rp[26], rp[27]),                              # kW
                                     'power_factor': _unp_f(rp[50], rp[51]),
+                                    'reactive_power': _unp_f(rp[34], rp[35]),                  # kvar
+                                    'apparent_power': _unp_f(rp[42], rp[43]),                  # kVA
                                     'energy_total': round(kwh_val * 1000.0, 1),              # Wh
                                     'kwh': kwh_val                                           # kWh
                                 }
