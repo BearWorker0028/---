@@ -27,6 +27,7 @@ dist/
 
 # Historical case scratch space kept for reference, not for clean template delivery
 tmp/
+scratch/
 
 # OS metadata
 desktop.ini

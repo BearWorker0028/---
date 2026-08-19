@@ -228,13 +228,11 @@ def handle_w610_connection(conn, addr):
                                 "status_defrost_heater":   bool((r35 >> 6) & 1),
                                 "status_fan":              bool((r35 >> 7) & 1),
                                 "status_cooling":          bool((r35 >> 8) & 1),
-                                "status_low_press_err":    bool((r35 >> 9) & 1),
-                                "status_high_press_err":   bool((r35 >> 10) & 1),
-                                "status_phase_err":        bool((r35 >> 11) & 1),
+                                "status_phase_err":        bool((r35 >> 11) & 1),  # L212 設備異常
                                 "status_sensor_err":       bool((r35 >> 12) & 1),
                                 "status_overload_err":     bool((r35 >> 13) & 1),
                                 "status_door_open":        bool((r35 >> 14) & 1),
-                                "status_equip_err":        bool((r35 >> 15) & 1),
+                                "status_equip_err":        bool((r35 >> 15) & 1),  # L216 設備異常
                             })
                         except IndexError:
                             pass

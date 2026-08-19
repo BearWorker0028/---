@@ -34,13 +34,11 @@ CREATE TABLE gw1_temp_status (
     status_defrost_heater                BOOLEAN,        -- Bit6 除霜電熱啟動
     status_fan                            BOOLEAN,        -- Bit7 風機運轉中
     status_cooling                          BOOLEAN,        -- Bit8 壓縮機製冷中
-    status_low_press_err                     BOOLEAN,        -- Bit9 低壓保護跳脫
-    status_high_press_err                      BOOLEAN,        -- Bit10 高壓保護跳脫
-    status_phase_err                             BOOLEAN,        -- Bit11 電源逆相/缺相
-    status_sensor_err                              BOOLEAN,        -- Bit12 感溫頭故障
-    status_overload_err                              BOOLEAN,        -- Bit13 馬達積熱過載
-    status_door_open                                   BOOLEAN,        -- Bit14 庫門開啟中
-    status_equip_err                                     BOOLEAN,        -- Bit15 設備綜合故障
+    status_phase_err                             BOOLEAN,        -- Bit11 (L212) L212設備異常
+    status_sensor_err                              BOOLEAN,        -- Bit12 (L213) 感溫頭故障
+    status_overload_err                              BOOLEAN,        -- Bit13 (L214) 馬達積熱過載
+    status_door_open                                   BOOLEAN,        -- Bit14 (L215) 庫門開啟中
+    status_equip_err                                     BOOLEAN,        -- Bit15 (L216) L216設備異常
 
     raw_data        JSONB           -- 原始 Modbus 暫存器數值 (供除錯追溯)
 );
@@ -114,13 +112,11 @@ CREATE TABLE gw2_temp_status (
     status_defrost_heater                BOOLEAN,        -- Bit6 除霜電熱啟動
     status_fan                            BOOLEAN,        -- Bit7 風機運轉中
     status_cooling                          BOOLEAN,        -- Bit8 壓縮機製冷中
-    status_low_press_err                     BOOLEAN,        -- Bit9 低壓保護跳脫
-    status_high_press_err                      BOOLEAN,        -- Bit10 高壓保護跳脫
-    status_phase_err                             BOOLEAN,        -- Bit11 電源逆相/缺相
-    status_sensor_err                              BOOLEAN,        -- Bit12 感溫頭故障
-    status_overload_err                              BOOLEAN,        -- Bit13 馬達積熱過載
-    status_door_open                                   BOOLEAN,        -- Bit14 庫門開啟中
-    status_equip_err                                     BOOLEAN,        -- Bit15 設備綜合故障
+    status_phase_err                             BOOLEAN,        -- Bit11 (L212) L212設備異常
+    status_sensor_err                              BOOLEAN,        -- Bit12 (L213) 感溫頭故障
+    status_overload_err                              BOOLEAN,        -- Bit13 (L214) 馬達積熱過載
+    status_door_open                                   BOOLEAN,        -- Bit14 (L215) 庫門開啟中
+    status_equip_err                                     BOOLEAN,        -- Bit15 (L216) L216設備異常
 
     raw_data        JSONB           -- 原始 Modbus 暫存器數值 (供除錯追溯)
 );

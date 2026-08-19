@@ -1,14 +1,13 @@
 from flask import Flask, Response, jsonify, render_template, request, send_file, stream_with_context
 
 import io
-
 import json
-
 import os
-
 import time
-
 import threading
+import urllib
+import urllib.request
+import urllib.error
 
 from dotenv import load_dotenv
 
@@ -16,8 +15,9 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env
 
 from datetime import datetime, timedelta, timezone
 
+import openpyxl
 from openpyxl import Workbook
-
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 try:
@@ -39,6 +39,14 @@ try:
 except ImportError:
 
     _create_supabase_client = None
+
+# ============================================================
+# 專業工控冷鏈最佳實踐標準參數（後端固化寫死，現場免手動繁瑣設定）
+# ============================================================
+ALARM_COOLDOWN_MIN   = 30   # 🔴 警報冷卻重響時間：30 分鐘 (HACCP/ISO 22000 食品冷鏈標準)
+WARNING_COOLDOWN_MIN = 60   # 🟡 警告冷卻重響時間：60 分鐘 (1 小時低頻提醒，防群組洗版)
+COMM_DEBOUNCE_SEC    = 180  # 🟡 通訊斷線防抖時間：180 秒 (連續 3 分鐘確認真斷線，過濾暫態雜訊)
+BUZZER_SNOOZE_MIN    = 10   # 🔕 網頁消音後重響時間：10 分鐘 (消音後若未排除則 10 分鐘後重響)
 
 app = Flask(__name__)
 
@@ -522,9 +530,25 @@ def init_db():
                     value DOUBLE PRECISION,
                     alarm_type TEXT,
                     hi DOUBLE PRECISION,
-                    lo DOUBLE PRECISION
+                    lo DOUBLE PRECISION,
+                    category TEXT DEFAULT 'ALARM',
+                    alarm_message TEXT,
+                    restored_at TIMESTAMPTZ,
+                    duration_sec INTEGER,
+                    status TEXT DEFAULT 'ACTIVE'
                 )
             ''')
+            for col, col_type in [
+                ('category', "TEXT DEFAULT 'ALARM'"),
+                ('alarm_message', 'TEXT'),
+                ('restored_at', 'TIMESTAMPTZ'),
+                ('duration_sec', 'INTEGER'),
+                ('status', "TEXT DEFAULT 'ACTIVE'"),
+            ]:
+                try:
+                    cursor.execute(f'ALTER TABLE alarm_history ADD COLUMN IF NOT EXISTS {col} {col_type}')
+                except Exception:
+                    pass
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS monitoring_logs (
@@ -573,10 +597,7 @@ def init_db():
                     total_kwh DOUBLE PRECISION DEFAULT 0.0,
                     peak_kwh DOUBLE PRECISION DEFAULT 0.0,
                     semi_peak_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    off_peak_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    past_7d_avg_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    is_abnormal_surge BOOLEAN DEFAULT FALSE,
-                    anomaly_pct DOUBLE PRECISION DEFAULT 0.0
+                    off_peak_kwh DOUBLE PRECISION DEFAULT 0.0
                 )
             ''')
 
@@ -592,6 +613,35 @@ def init_db():
                 ('buzzer_snooze_min', '10')
                 ON CONFLICT (key) DO NOTHING
             ''')
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS room_alarm_settings (
+                    room_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    channels TEXT NOT NULL,
+                    hi DOUBLE PRECISION,
+                    lo DOUBLE PRECISION,
+                    delay INTEGER DEFAULT 10,
+                    alarm_enabled INTEGER DEFAULT 1,
+                    temp_offset DOUBLE PRECISION DEFAULT 0.0
+                )
+            ''')
+
+            DEFAULT_ROOMS = [
+                ('room1', '1F 冷凍庫', 'ch01,ch02,ch03,ch04,ch05', -15.0, -40.0, 10, 1, 0.0),
+                ('room2', '1F 緩衝庫', 'ch06', 10.0, -40.0, 60, 0, 0.0),
+                ('room3', '1F 碼頭區', 'ch07', 15.0, -40.0, 60, 0, 0.0),
+                ('room4', '3F 急速庫', 'ch08,ch09', -15.0, -40.0, 60, 0, 0.0),
+                ('room5', '3F 半成品冷凍庫', 'ch10,ch11', 8.0, -40.0, 60, 0, 0.0),
+                ('room6', '3F 冷藏庫', 'ch12', 8.0, -40.0, 60, 0, 0.0),
+            ]
+            for r_id, r_name, chs, hi, lo, delay, enabled, offset in DEFAULT_ROOMS:
+                cursor.execute('''
+                    INSERT INTO room_alarm_settings (room_id, name, channels, hi, lo, delay, alarm_enabled, temp_offset)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (room_id) DO UPDATE
+                    SET name = EXCLUDED.name, channels = EXCLUDED.channels
+                ''', (r_id, r_name, chs, hi, lo, delay, enabled, offset))
 
             for ch, name, hi, lo in DEFAULT_CHANNELS:
                 cursor.execute('''
@@ -1061,21 +1111,495 @@ def get_system_config():
         rows = conn.execute('SELECT key, value FROM system_config').fetchall()
         cfg = {r['key']: r['value'] for r in rows}
         return jsonify({
-            'push_cooldown_min': int(float(cfg.get('push_cooldown_min', 10))),
-            'buzzer_snooze_min': int(float(cfg.get('buzzer_snooze_min', 10)))
+            'alarm_cooldown_min': int(float(cfg.get('alarm_cooldown_min', 30))),
+            'warning_cooldown_min': int(float(cfg.get('warning_cooldown_min', 60))),
+            'comm_debounce_sec': COMM_DEBOUNCE_SEC,
+            'buzzer_snooze_min': int(float(cfg.get('buzzer_snooze_min', 10))),
+            'display_resolution': cfg.get('display_resolution') or 'auto',
+            'line_bot_enabled': int(float(cfg.get('line_bot_enabled', 0))),
+            'line_channel_token': cfg.get('line_channel_token', ''),
+            'line_target_id': cfg.get('line_target_id', '')
         })
 
 @app.route('/api/system_config', methods=['POST'])
 def save_system_config():
     data = request.json or {}
+    keys = ['line_bot_enabled', 'line_channel_token', 'line_target_id', 'alarm_cooldown_min', 'warning_cooldown_min', 'buzzer_snooze_min', 'display_resolution']
     with get_pg() as conn:
         with conn.cursor() as cursor:
-            for k in ['push_cooldown_min', 'buzzer_snooze_min']:
+            for k in keys:
                 if k in data and data[k] is not None:
+                    val_str = str(data[k]).strip()
                     cursor.execute('''
                         INSERT INTO system_config (key, value) VALUES (%s, %s)
                         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-                    ''', (k, str(int(data[k]))))
+                    ''', (k, val_str))
+        conn.commit()
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/line_test', methods=['POST'])
+def test_line_push():
+    data = request.json or {}
+    token = data.get('token', '').strip()
+    target_id = data.get('target_id', '').strip()
+
+    if not token or not target_id:
+        return jsonify({'status': 'error', 'message': '請填寫 Channel Access Token 與 Target ID (User ID / Group ID)'}), 400
+
+    test_msg = (
+        "🔔【裕珍皇 · LINE Bot 測試連線】\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "恭喜！系統已成功連線至 LINE Messaging API 官方帳號。\n"
+        "後續若發生冷鏈溫度警報、L212/L216 設備異常或通訊警告，將以此官方帳號自動推播通知。\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"⏰ 測試時間: {datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        'to': target_id,
+        'messages': [{'type': 'text', 'text': test_msg}]
+    }
+    try:
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/push',
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status == 200:
+                return jsonify({'status': 'ok', 'message': '測試訊息已成功推播至 LINE！請檢查手機 LINE 訊息。'})
+            return jsonify({'status': 'error', 'message': f'LINE API 回應狀態碼: {resp.status}'}), 500
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode('utf-8', errors='ignore')
+        return jsonify({'status': 'error', 'message': f'LINE API 錯誤 ({e.code}): {err_body}'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'連線失敗: {str(e)}'}), 500
+
+def send_line_bot_flex(title, alt_text, header_bg, rows, footer_text=None):
+    """
+    發送金煜專案同款高質感 Flex Message（Bubble 視覺化彩色卡片）
+    """
+    try:
+        with get_pg() as conn:
+            cfg_rows = conn.execute("SELECT key, value FROM system_config WHERE key LIKE 'line_%'").fetchall()
+            cfg = {r['key']: r['value'] for r in cfg_rows}
+    except Exception:
+        return False, "無法讀取 system_config"
+
+    enabled = cfg.get('line_bot_enabled') == '1'
+    token = cfg.get('line_channel_token', '').strip()
+    target_id = cfg.get('line_target_id', '').strip()
+
+    if not enabled or not token or not target_id:
+        return False, "LINE Bot 未啟用或設定不完整"
+
+    now_str = datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
+
+    body_contents = []
+    for item in rows:
+        label = item[0]
+        val = item[1]
+        is_colored = item[2] if len(item) > 2 else False
+        color = item[3] if len(item) > 3 else None
+
+        row_box = {
+            'type': 'box', 'layout': 'horizontal',
+            'contents': [
+                {'type': 'text', 'text': label, 'color': '#888888', 'size': 'sm', 'flex': 2},
+                {'type': 'text', 'text': str(val), 'weight': 'bold', 'size': 'sm', 'flex': 5, 'wrap': True}
+            ]
+        }
+        if is_colored and color:
+            row_box['contents'][1]['color'] = color
+        body_contents.append(row_box)
+
+    body_contents.append({'type': 'separator'})
+    body_contents.append({
+        'type': 'text',
+        'text': footer_text or '冷鏈監控系統持續守護中 🛡️',
+        'color': '#888888', 'size': 'xs', 'wrap': True
+    })
+
+    flex_bubble = {
+        'type': 'bubble', 'size': 'mega',
+        'header': {
+            'type': 'box', 'layout': 'vertical',
+            'backgroundColor': header_bg,
+            'contents': [
+                {'type': 'text', 'text': title, 'color': '#FFFFFF', 'weight': 'bold', 'size': 'lg'},
+                {'type': 'text', 'text': now_str, 'color': '#FFFFFF80', 'size': 'sm'}
+            ]
+        },
+        'body': {
+            'type': 'box', 'layout': 'vertical', 'spacing': 'md',
+            'contents': body_contents
+        }
+    }
+
+    payload = {
+        'to': target_id,
+        'messages': [{
+            'type': 'flex',
+            'altText': alt_text,
+            'contents': flex_bubble
+        }]
+    }
+
+    try:
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/push',
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200, "推播成功"
+    except Exception as e:
+        return False, f"LINE 推播失敗: {str(e)}"
+
+def send_line_bot_notification(title, fields, is_alarm=False):
+    """純文字備用通知介面"""
+    rows = []
+    for label, val in fields:
+        rows.append((label, val, False, None))
+    header_bg = '#FF3B30' if is_alarm else '#D97706'
+    return send_line_bot_flex(title, title, header_bg, rows)
+
+def push_gateway_rs485_disconnect(gw_id):
+    """GW 斷線 ➔ 發報『設備 RS-485 通信異常』(金煜 Flex 卡片格式)"""
+    gw_name = "1F 閘道器" if gw_id == "GW1" else "3F 閘道器"
+    if gw_id == "GW1":
+        affected_devices = [
+            "1F 冷凍庫 A~E", "1F 緩衝庫", "1F 碼頭區", "1F 集合式電錶"
+        ]
+    else:
+        affected_devices = [
+            "3F 急速庫 (20HP/10HP)", "3F 半成品冷凍 A/B", "3F 冷藏庫", "3F 集合式電錶"
+        ]
+
+    rows = [
+        ("斷線根因", f"{gw_name} (GW 連線中斷)", True, "#D97706"),
+        ("警告類別", "設備 RS-485 通信異常", False, None),
+        ("影響設備", "、".join(affected_devices), False, None)
+    ]
+    return send_line_bot_flex("⚠️ 設備 RS-485 通信異常", f"[警告] {gw_name} 設備 RS-485 通信異常", "#D97706", rows, "請檢查現場網關與 RS-485 通訊線路。")
+
+def push_device_rs485_disconnect(device_name):
+    """單一設備 RS-485 通信異常"""
+    rows = [
+        ("來源設備", device_name, True, "#D97706"),
+        ("警告類別", "設備 RS-485 通信異常", False, None)
+    ]
+    return send_line_bot_flex("⚠️ 設備 RS-485 通信異常", f"[警告] {device_name} RS-485 通信異常", "#D97706", rows, "請檢查該設備從站接線與電源狀態。")
+
+def push_temperature_alarm(room_name, alarm_type, val, threshold):
+    """🔴 庫溫超標警報通知 (金煜同款 Flex Message 卡片)"""
+    is_high = (alarm_type == 'HIGH')
+    color = '#FF3B30' if is_high else '#007AFF'
+    label = '高溫超標' if is_high else '低溫超標'
+    limit = f'上限 {threshold:.1f}°C' if is_high else f'下限 {threshold:.1f}°C'
+    alt_text = f'[警報] {room_name} {val:.1f}°C {label}'
+
+    rows = [
+        ("庫別名稱", room_name, False, None),
+        ("目前溫度", f"{val:.1f}°C", True, color),
+        ("警報類型", label, True, color),
+        ("設定值", limit, False, None)
+    ]
+    return send_line_bot_flex("🚨 溫度警報通知", alt_text, color, rows, "請立即確認現場冷鏈設備狀態。")
+
+def push_equipment_error_alarm(device_name, error_type):
+    """🟠 L212 / 🟡 L216 設備異常通知（統一暖橘紅設計顏色，比高溫純紅降階）"""
+    color = '#F97316'  # 統一暖橘紅色 (層次低於高溫純紅 #FF3B30，高於通信黃 #D97706)
+    err_badge = f'{error_type} 設備異常'
+    alt_text = f'[異常] {device_name} {err_badge}'
+
+    rows = [
+        ("來源設備", device_name, False, None),
+        ("異常代碼", err_badge, True, color)
+    ]
+    return send_line_bot_flex("🚨 設備異常通知", alt_text, color, rows, "請立即指派現場技術人員檢修。")
+
+def push_recovery_notice(target_name, event_type_desc, restored_devices=None):
+    """🟢 溫度恢復正常通知 (金煜同款 Flex Message 卡片)"""
+    color = '#34C759'
+    alt_text = f'[恢復] {target_name} 溫度已恢復正常'
+
+    rows = [
+        ("庫別名稱", target_name, False, None),
+        ("狀態說明", event_type_desc, True, color)
+    ]
+    if restored_devices:
+        rows.append(("恢復設備", "、".join(restored_devices), False, None))
+    return send_line_bot_flex("🟢 溫度恢復正常通知", alt_text, color, rows, "設備已恢復正常運作。")
+
+_ROOM_ALARM_TRACKER = {}
+_GW_ALARM_TRACKER = {}
+
+def _evaluate_room_alarms_and_push(realtime_payload):
+    """
+    依據各「庫別」設定（hi/lo/delay/offset）與在線通道平均庫溫判定警報，
+    並執行 LINE 官方帳號 Bot 主動推播與冷卻時間管理。
+    """
+    global _ROOM_ALARM_TRACKER, _GW_ALARM_TRACKER
+    if not realtime_payload:
+        return
+
+    now_ts = time.time()
+    now_dt = datetime.now(TZ_TW_APP)
+    tw_now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    try:
+        with get_pg() as conn:
+            room_rows = conn.execute('SELECT room_id, name, channels, hi, lo, delay, alarm_enabled, temp_offset FROM room_alarm_settings').fetchall()
+            cfg_rows = conn.execute("SELECT key, value FROM system_config").fetchall()
+            cfg = {r['key']: r['value'] for r in cfg_rows}
+    except Exception as e:
+        print(f"Error fetching alarm settings in evaluator: {e}")
+        return
+
+    alarm_cooldown_min = int(float(cfg.get('alarm_cooldown_min', 30)))
+    alarm_cooldown_sec = alarm_cooldown_min * 60
+
+    for r in room_rows:
+        room_id = r['room_id']
+        r_name = r['name']
+        chs = [c.strip() for c in (r['channels'] or '').split(',') if c.strip()]
+        hi = r['hi']
+        lo = r['lo']
+        delay_min = int(r.get('delay') if r.get('delay') is not None else 10)
+        delay_sec = delay_min * 60
+        alarm_enabled = bool(r.get('alarm_enabled', 1))
+        temp_offset = float(r.get('temp_offset') or 0.0)
+
+        if room_id not in _ROOM_ALARM_TRACKER:
+            _ROOM_ALARM_TRACKER[room_id] = {
+                'pending_alarm_start': None,
+                'pending_alarm_type': None,
+                'is_alarm_active': False,
+                'active_alarm_type': None,
+                'active_alarm_val': None,
+                'active_history_id': None,
+                'last_push_time': 0
+            }
+        state = _ROOM_ALARM_TRACKER[room_id]
+
+        # 計算在線通道平均庫溫
+        vals = []
+        for ch in chs:
+            d = realtime_payload.get(ch)
+            if d and isinstance(d, dict) and d.get('value') is not None:
+                # 檢查時間戳是否為 45 秒內在線
+                ts_str = d.get('timestamp')
+                is_fresh = True
+                if ts_str:
+                    try:
+                        d_ts = datetime.fromisoformat(ts_str.replace(' ', 'T')).timestamp()
+                        if now_ts - d_ts > 45:
+                            is_fresh = False
+                    except Exception:
+                        pass
+                if is_fresh:
+                    vals.append(float(d['value']))
+
+        # 檢查該庫別目前在 DB 中是否有未解除的警報記錄
+        db_active = False
+        try:
+            with get_pg() as conn:
+                row = conn.execute("""
+                    SELECT id, triggered_at FROM alarm_history
+                    WHERE channel = %s AND (status = 'ACTIVE' OR restored_at IS NULL)
+                    LIMIT 1
+                """, (room_id,)).fetchone()
+                if row:
+                    db_active = True
+        except Exception:
+            pass
+
+        if not vals or not alarm_enabled:
+            # 庫別離線或停用警報 ➔ 若先前有警報則立即自動復歸
+            if state['is_alarm_active'] or db_active:
+                state['is_alarm_active'] = False
+                state['active_history_id'] = None
+                try:
+                    with get_pg() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE alarm_history
+                                SET status = 'CLEARED', restored_at = %s,
+                                    duration_sec = ROUND(EXTRACT(EPOCH FROM (%s - triggered_at)))
+                                WHERE channel = %s AND (status = 'ACTIVE' OR restored_at IS NULL)
+                            """, (tw_now_str, tw_now_str, room_id))
+                        conn.commit()
+                except Exception as e:
+                    print(f"Error clearing alarm_history: {e}")
+            continue
+
+        avg_temp = round((sum(vals) / len(vals)) + temp_offset, 1)
+
+        # 判定高低溫
+        triggered_type = None
+        threshold_val = None
+        if hi is not None and avg_temp > hi:
+            triggered_type = 'HIGH'
+            threshold_val = hi
+        elif lo is not None and avg_temp < lo:
+            triggered_type = 'LOW'
+            threshold_val = lo
+
+        if triggered_type:
+            if state['pending_alarm_type'] != triggered_type:
+                state['pending_alarm_start'] = now_ts
+                state['pending_alarm_type'] = triggered_type
+
+            time_abnormal = now_ts - (state['pending_alarm_start'] or now_ts)
+            if time_abnormal >= delay_sec:
+                if not state['is_alarm_active'] and not db_active:
+                    # 首次觸發警報
+                    state['is_alarm_active'] = True
+                    state['active_alarm_type'] = triggered_type
+                    state['active_alarm_val'] = avg_temp
+                    state['last_push_time'] = now_ts
+
+                    # 寫入 alarm_history
+                    msg = f"{'庫溫過高警報' if triggered_type == 'HIGH' else '庫溫過低警報'} ({avg_temp:.1f}°C, 門檻: {threshold_val:.1f}°C)"
+                    try:
+                        with get_pg() as conn:
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    INSERT INTO alarm_history (triggered_at, channel, name, value, alarm_type, hi, lo, category, alarm_message, status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'ALARM', %s, 'ACTIVE')
+                                    RETURNING id
+                                """, (tw_now_str, room_id, r_name, avg_temp, triggered_type, hi, lo, msg))
+                                row = cur.fetchone()
+                                if row:
+                                    state['active_history_id'] = row['id']
+                            conn.commit()
+                    except Exception as e:
+                        print(f"Error inserting alarm_history: {e}")
+
+                    # 發送 LINE Bot 推播
+                    print(f"🚨 [ALARM TRIGGERED] {r_name} {triggered_type} ({avg_temp}°C > {threshold_val}°C) -> Pushing to LINE...")
+                    push_temperature_alarm(r_name, triggered_type, avg_temp, threshold_val)
+                else:
+                    # 警報持續中，檢查冷卻時間再次發報
+                    state['is_alarm_active'] = True
+                    if now_ts - state['last_push_time'] >= alarm_cooldown_sec:
+                        state['last_push_time'] = now_ts
+                        print(f"🚨 [ALARM COOLDOWN EXPIRED] Re-pushing {r_name} {triggered_type} to LINE...")
+                        push_temperature_alarm(r_name, triggered_type, avg_temp, threshold_val)
+        else:
+            # 庫溫正常 ➔ 若先前處於警報狀態，立即執行復歸！
+            state['pending_alarm_start'] = None
+            state['pending_alarm_type'] = None
+
+            if state['is_alarm_active'] or db_active:
+                state['is_alarm_active'] = False
+                state['active_history_id'] = None
+
+                try:
+                    with get_pg() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE alarm_history
+                                SET status = 'CLEARED', restored_at = %s,
+                                    duration_sec = ROUND(EXTRACT(EPOCH FROM (%s - triggered_at)))
+                                WHERE channel = %s AND (status = 'ACTIVE' OR restored_at IS NULL)
+                            """, (tw_now_str, tw_now_str, room_id))
+                        conn.commit()
+                except Exception as e:
+                    print(f"Error clearing alarm_history: {e}")
+
+                print(f"🟢 [ALARM CLEARED] {r_name} restored to normal ({avg_temp}°C) -> Sending recovery notice to LINE...")
+                push_recovery_notice(r_name, f"庫溫已恢復正常範圍 (目前均溫: {avg_temp:.1f}°C)")
+
+def _start_alarm_monitor_worker():
+    """啟動背景常駐警報評估與推播監控線程"""
+    import threading
+    def _worker():
+        while True:
+            try:
+                with REALTIME_LOCK:
+                    current_payload = dict(REALTIME_PAYLOAD)
+                if current_payload:
+                    _evaluate_room_alarms_and_push(current_payload)
+            except Exception as e:
+                print(f"Alarm monitor worker error: {e}")
+            time.sleep(3.0)
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+_start_alarm_monitor_worker()
+
+@app.route('/api/room_alarm_settings', methods=['GET'])
+def get_room_alarm_settings():
+    with get_pg() as conn:
+        rows = conn.execute('SELECT room_id, name, channels, hi, lo, delay, alarm_enabled, temp_offset FROM room_alarm_settings ORDER BY room_id').fetchall()
+        result = {}
+        for r in rows:
+            result[r['room_id']] = {
+                'room_id': r['room_id'],
+                'name': r['name'],
+                'channels': [c.strip() for c in r['channels'].split(',') if c.strip()],
+                'hi': r['hi'],
+                'lo': r['lo'],
+                'delay': r.get('delay') if r.get('delay') is not None else 10,
+                'alarm_enabled': r.get('alarm_enabled') if r.get('alarm_enabled') is not None else 1,
+                'temp_offset': r.get('temp_offset') or 0.0
+            }
+        return jsonify(result)
+
+@app.route('/api/room_alarm_settings', methods=['POST'])
+def save_room_alarm_settings():
+    data = request.json or {}
+    with get_pg() as conn:
+        with conn.cursor() as cursor:
+            for room_id, setting in data.items():
+                hi = setting.get('hi')
+                lo = setting.get('lo')
+                delay = int(setting.get('delay', 10))
+                enabled = int(setting.get('alarm_enabled', 1))
+                offset = float(setting.get('temp_offset', 0.0))
+                
+                cursor.execute('''
+                    UPDATE room_alarm_settings
+                    SET hi=%s, lo=%s, delay=%s, alarm_enabled=%s, temp_offset=%s
+                    WHERE room_id=%s
+                ''', (hi, lo, delay, enabled, offset, room_id))
+
+                # 同步更新該庫別對應之所有通道 alarm_settings
+                channels_list = setting.get('channels', [])
+                if not channels_list:
+                    r_row = conn.execute('SELECT channels FROM room_alarm_settings WHERE room_id=%s', (room_id,)).fetchone()
+                    if r_row and r_row['channels']:
+                        channels_list = [c.strip() for c in r_row['channels'].split(',') if c.strip()]
+
+                for ch in channels_list:
+                    cursor.execute('''
+                        UPDATE alarm_settings
+                        SET hi=%s, lo=%s, delay=%s, alarm_enabled=%s, temp_offset=%s
+                        WHERE channel=%s
+                    ''', (hi, lo, delay, enabled, offset, ch))
+        conn.commit()
+
+    # 儲存後立即重新評估警報狀態（若調高門檻則立即復歸解除！）
+    try:
+        with REALTIME_LOCK:
+            current_payload = dict(REALTIME_PAYLOAD)
+        if current_payload:
+            _evaluate_room_alarms_and_push(current_payload)
+    except Exception as e:
+        print(f"Post-save alarm evaluation error: {e}")
+
     return jsonify({'status': 'ok'})
 
 # ============================================================
@@ -1084,99 +1608,227 @@ def save_system_config():
 
 # ============================================================
 
-@app.route('/api/alarm_history')
-
+@app.route('/api/alarm_history', methods=['GET'])
 def alarm_history():
+    channel    = request.args.get('channel', 'all')
+    category   = request.args.get('category', 'all')
+    alarm_type = request.args.get('alarm_type', 'all')
+    status     = request.args.get('status', 'all')
+    date_from  = request.args.get('from', None)
+    date_to    = request.args.get('to',   None)
+    limit      = int(request.args.get('limit', 300))
 
-    channel   = request.args.get('channel', 'all')
-
-    date_from = request.args.get('from', None)
-
-    date_to   = request.args.get('to',   None)
-
-    limit     = int(request.args.get('limit', 200))
+    ROOM_CHANNEL_MAP = {
+        'room1': ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'room1'],
+        'room2': ['ch06', 'room2'],
+        'room3': ['ch07', 'room3'],
+        'room4': ['ch08', 'ch09', 'room4'],
+        'room5': ['ch10', 'ch11', 'room5'],
+        'room6': ['ch12', 'room6'],
+    }
 
     conditions, params = [], []
-
     if channel != 'all':
+        if channel in ROOM_CHANNEL_MAP:
+            chs = ROOM_CHANNEL_MAP[channel]
+            placeholders = ', '.join(['%s'] * len(chs))
+            conditions.append(f'channel IN ({placeholders})')
+            params.extend(chs)
+        else:
+            conditions.append('channel = %s')
+            params.append(channel)
 
-        conditions.append('channel = %s')
+    if category != 'all':
+        conditions.append('category = %s')
+        params.append(category)
 
-        params.append(channel)
+    if alarm_type != 'all':
+        conditions.append('alarm_type = %s')
+        params.append(alarm_type)
+
+    if status == 'active':
+        conditions.append("(status = 'ACTIVE' OR restored_at IS NULL)")
+    elif status == 'cleared':
+        conditions.append("(status = 'CLEARED' OR restored_at IS NOT NULL)")
 
     if date_from:
-
         conditions.append('triggered_at >= %s')
-
         params.append(date_from)
 
     if date_to:
-
         to_str = date_to if len(date_to) > 10 else date_to + ' 23:59:59'
-
         conditions.append('triggered_at <= %s')
+        params.append(to_str)
 
+    where = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+
+    now_tw = datetime.now(TZ_TW_APP)
+    month_start = now_tw.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S')
+
+    with get_pg() as conn:
+        records = conn.execute(f'''
+            SELECT id, triggered_at, channel, name, value, alarm_type, hi, lo,
+                   category, alarm_message, restored_at, duration_sec, status
+            FROM alarm_history {where}
+            ORDER BY triggered_at DESC LIMIT %s
+        ''', params + [limit]).fetchall()
+
+        # 頂部三大本月卡片運算：當前未解除、本月高溫警報、本月設備異常
+        try:
+            active_row = conn.execute("SELECT COUNT(*) AS c FROM alarm_history WHERE status = 'ACTIVE' OR restored_at IS NULL").fetchone()
+            active_cnt = active_row['c'] if active_row else 0
+        except Exception:
+            active_cnt = 0
+
+        try:
+            high_row = conn.execute("SELECT COUNT(*) AS c FROM alarm_history WHERE (alarm_type = 'HIGH' OR alarm_type = 'HIGH_TEMP') AND triggered_at >= %s", [month_start]).fetchone()
+            month_high_cnt = high_row['c'] if high_row else 0
+        except Exception:
+            month_high_cnt = 0
+
+        try:
+            equip_row = conn.execute("SELECT COUNT(*) AS c FROM alarm_history WHERE (alarm_type IN ('EQUIP_STOP_L212', 'EQUIP_ERR_L216', 'EQUIP', 'L212', 'L216') OR category = 'EQUIP') AND triggered_at >= %s", [month_start]).fetchone()
+            month_equip_cnt = equip_row['c'] if equip_row else 0
+        except Exception:
+            month_equip_cnt = 0
+
+    formatted_records = []
+    for r in records:
+        d = dict(r)
+        d['triggered_at'] = _fmt_ts(d['triggered_at'])
+        d['restored_at'] = _fmt_ts(d['restored_at']) if d.get('restored_at') else None
+        formatted_records.append(d)
+
+    return jsonify({
+        'records': formatted_records,
+        'total': len(formatted_records),
+        'stats': {
+            'active_count': active_cnt,
+            'month_high_temp_count': month_high_cnt,
+            'month_equip_err_count': month_equip_cnt
+        }
+    })
+
+@app.route('/api/alarm_history', methods=['POST'])
+def add_alarm_history():
+    data = request.json or {}
+    tw_now = datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
+
+    category = data.get('category', 'ALARM')
+    alarm_type = data.get('alarm_type', 'HIGH')
+    msg = data.get('alarm_message') or data.get('message') or f"{'高溫警報' if alarm_type=='HIGH' else '低溫警報'} ({data.get('value')}°C)"
+
+    with get_pg() as conn:
+        conn.execute('''
+            INSERT INTO alarm_history (triggered_at, channel, name, value, alarm_type, hi, lo, category, alarm_message, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (tw_now, data.get('channel'), data.get('name'), data.get('value'),
+              alarm_type, data.get('hi'), data.get('lo'), category, msg, 'ACTIVE'))
+
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/alarm_history/export')
+def export_alarm_history():
+    channel    = request.args.get('channel', 'all')
+    category   = request.args.get('category', 'all')
+    alarm_type = request.args.get('alarm_type', 'all')
+    status     = request.args.get('status', 'all')
+    date_from  = request.args.get('from', None)
+    date_to    = request.args.get('to',   None)
+
+    ROOM_CHANNEL_MAP = {
+        'room1': ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'room1'],
+        'room2': ['ch06', 'room2'],
+        'room3': ['ch07', 'room3'],
+        'room4': ['ch08', 'ch09', 'room4'],
+        'room5': ['ch10', 'ch11', 'room5'],
+        'room6': ['ch12', 'room6'],
+    }
+
+    conditions, params = [], []
+    if channel != 'all':
+        if channel in ROOM_CHANNEL_MAP:
+            chs = ROOM_CHANNEL_MAP[channel]
+            placeholders = ', '.join(['%s'] * len(chs))
+            conditions.append(f'channel IN ({placeholders})')
+            params.extend(chs)
+        else:
+            conditions.append('channel = %s')
+            params.append(channel)
+    if category != 'all':
+        conditions.append('category = %s')
+        params.append(category)
+    if alarm_type != 'all':
+        conditions.append('alarm_type = %s')
+        params.append(alarm_type)
+    if status == 'active':
+        conditions.append("(status = 'ACTIVE' OR restored_at IS NULL)")
+    elif status == 'cleared':
+        conditions.append("(status = 'CLEARED' OR restored_at IS NOT NULL)")
+
+    if date_from:
+        conditions.append('triggered_at >= %s')
+        params.append(date_from)
+    if date_to:
+        to_str = date_to if len(date_to) > 10 else date_to + ' 23:59:59'
+        conditions.append('triggered_at <= %s')
         params.append(to_str)
 
     where = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
 
     with get_pg() as conn:
-
         records = conn.execute(f'''
-
-            SELECT id, triggered_at, channel, name, value, alarm_type, hi, lo
-
+            SELECT id, triggered_at, channel, name, value, alarm_type, hi, lo,
+                   category, alarm_message, restored_at, duration_sec, status
             FROM alarm_history {where}
-
-            ORDER BY triggered_at DESC LIMIT %s
-
-        ''', params + [limit]).fetchall()
-
-        summary_rows = conn.execute(f'''
-
-            SELECT channel, name,
-
-                   COUNT(*) as total,
-
-                   SUM(CASE WHEN alarm_type='HIGH' THEN 1 ELSE 0 END) as high_cnt,
-
-                   SUM(CASE WHEN alarm_type='LOW'  THEN 1 ELSE 0 END) as low_cnt
-
-            FROM alarm_history {where} GROUP BY channel, name ORDER BY total DESC
-
+            ORDER BY triggered_at DESC LIMIT 2000
         ''', params).fetchall()
 
-    return jsonify({
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '警報記錄'
 
-        'records': [{**dict(r), 'triggered_at': _fmt_ts(r['triggered_at'])} for r in records],
+    hdr_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    hdr_fill = PatternFill('solid', fgColor='0C3B82')
+    cell_border = Border(left=Side(style='thin', color='CBD5E1'),
+                         right=Side(style='thin', color='CBD5E1'),
+                         top=Side(style='thin', color='CBD5E1'),
+                         bottom=Side(style='thin', color='CBD5E1'))
 
-        'summary': [dict(r) for r in summary_rows],
+    headers = ['#', '觸發時間', '類別', '來源位置', '警報內容', '觸發數值', '門檻值', '狀態', '復歸時間', '持續時長']
+    widths = [6, 20, 14, 20, 34, 12, 12, 12, 20, 16]
 
-        'total': len(records)
+    for col, (h, w) in enumerate(zip(headers, widths), 1):
+        c = ws.cell(1, col, h)
+        c.font = hdr_font
+        c.fill = hdr_fill
+        c.alignment = Alignment(horizontal='center', vertical='center')
+        ws.column_dimensions[chr(64+col)].width = w
 
-    })
+    for r_idx, r in enumerate(records, 2):
+        d = dict(r)
+        trig_t = _fmt_ts(d['triggered_at'])
+        rest_t = _fmt_ts(d['restored_at']) if d.get('restored_at') else '--'
+        st_label = '警報中' if (d.get('status') == 'ACTIVE' or not d.get('restored_at')) else '已復歸'
+        dur_label = f"{d.get('duration_sec', 0) // 60}分{d.get('duration_sec', 0) % 60}秒" if d.get('duration_sec') else ('發報中' if st_label == '警報中' else '--')
+        msg = d.get('alarm_message') or (f"{'高溫警報' if d.get('alarm_type')=='HIGH' else '低溫警報'} ({d.get('value')}°C)")
 
-@app.route('/api/alarm_history', methods=['POST'])
+        row_vals = [
+            r_idx - 1, trig_t, d.get('category') or 'ALARM',
+            d.get('name') or d.get('channel'), msg,
+            d.get('value') if d.get('value') is not None else '--',
+            d.get('hi') if d.get('alarm_type') == 'HIGH' else (d.get('lo') if d.get('lo') is not None else '--'),
+            st_label, rest_t, dur_label
+        ]
+        for col, val in enumerate(row_vals, 1):
+            c = ws.cell(r_idx, col, val)
+            c.border = cell_border
+            c.alignment = Alignment(horizontal='center' if col in (1, 3, 6, 7, 8, 10) else 'left', vertical='center')
 
-def add_alarm_history():
-
-    data = request.json
-
-    tw_now = datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
-
-    with get_pg() as conn:
-
-        conn.execute('''
-
-            INSERT INTO alarm_history (triggered_at, channel, name, value, alarm_type, hi, lo)
-
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-
-        ''', (tw_now, data['channel'], data['name'], data['value'],
-
-              data['alarm_type'], data['hi'], data['lo']))
-
-    return jsonify({'status': 'ok'})
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name=f'警報歷史紀錄_{datetime.now(TZ_TW_APP).strftime("%Y%m%d_%H%M%S")}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ============================================================
 
@@ -1641,491 +2293,508 @@ def power_energy_stats():
         'daily_records': daily_records
     })
 
-@app.route('/api/report/download')
-def report_download():
-    report_type = request.args.get('type', 'month')
-    room        = request.args.get('room', 'a')
-    device_type = request.args.get('device_type', 'room_summary')
-    device_idx  = request.args.get('device_idx', '1')
-    info_key    = request.args.get('info_key', 'all_info')
+# ============================================================
+# 報表查詢與 Excel 匯出引擎 (冷鏈庫溫歷程紀錄表 & SPM-3 電表能源統計報表)
+# ============================================================
 
-    # Get Chinese name for the room
-    ROOM_NAMES = {
-        'a': 'A庫', 'b': 'B庫', 'c': 'D庫', 'd': 'E庫', 'e': 'F庫',
-        'g': 'G庫', 'h': 'H庫', 'i1': 'I1庫', 'i2': 'I2庫', 'j': 'J庫', 'k': 'K庫',
-        'all': '全廠'
-    }
-    site_code = ROOM_NAMES.get(room, room)
+REPORT_ROOM_DEFINITIONS = {
+    'room1': {'name': '1F 冷凍庫', 'channels': ['ch01', 'ch02', 'ch03', 'ch04', 'ch05']},
+    'room2': {'name': '1F 緩衝庫', 'channels': ['ch06']},
+    'room3': {'name': '1F 碼頭區', 'channels': ['ch07']},
+    'room4': {'name': '3F 急速庫', 'channels': ['ch08', 'ch09']},
+    'room5': {'name': '3F 半成品冷凍庫', 'channels': ['ch10', 'ch11']},
+    'room6': {'name': '3F 冷藏庫', 'channels': ['ch12']},
+}
 
-    ROOM_PREFIXES = {
-        'a': 'A', 'b': 'B', 'c': 'D', 'd': 'E', 'e': 'F',
-        'g': 'G', 'h': 'H', 'i1': 'I1', 'i2': 'I2', 'j': 'J', 'k': 'K'
-    }
-    prefix = ROOM_PREFIXES.get(room, room.upper())
+REPORT_METER_DEFINITIONS = {
+    'all': {'name': '全廠電表資訊', 'channels': ['ch13', 'ch14']},
+    'ch13': {'name': '1F 集合式電錶', 'channels': ['ch13']},
+    'ch14': {'name': '3F 集合式電錶', 'channels': ['ch14']},
+}
 
-    # Map SQL query conditions based on info_key and device_type
-    query_cond = ""
-    query_params = ()
-    device_no = ""
-    data_key = ""
-
-    if info_key == 'all_info':
-        if device_type == 'room_summary':
-            query_cond = f"(device_no = 'SYSTEM' AND data_key = 'avg_temp') OR (device_no = '{prefix}-METER-01' AND data_key IN ('kw', 'kwh'))"
-            query_params = ()
-            device_no = "全庫整體"
-        elif device_type == 'iot627':
-            if room == 'i1':
-                device_no = f"I-{device_idx}"
-            elif room == 'i2':
-                device_no = f"I-{int(device_idx) + 3}"
-            else:
-                device_no = f"{prefix}-{device_idx}"
-            if room in TEMP_ONLY_ROOMS:
-                # D/E/F 庫：感溫棒，無壓縮機電流
-                query_cond = "device_no = %s AND data_key = 'temp_control'"
-            else:
-                query_cond = "device_no = %s AND data_key IN ('temp_control', 'current')"
-            query_params = (device_no,)
-        elif device_type == 'S2-800MT':
-            device_no = f"{prefix}-METER-01"
-            query_cond = "device_no = %s AND data_key IN ('kw', 'kwh')"
-            query_params = (device_no,)
-        elif device_type == 'factory':
-            device_no = 'SYSTEM'
-            query_cond = "device_no = 'SYSTEM' AND data_key = 'total_kwh'"
-            query_params = ()
+def _calculate_report_time_range(period, date_from_str=None, date_to_str=None):
+    now_tw = datetime.now(TZ_TW_APP)
+    today = now_tw.date()
+    
+    if period == 'day':
+        # 自動取前一日 00:00:00 ~ 23:59:59
+        target_date = today - timedelta(days=1)
+        d_from = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(target_date, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{target_date.strftime('%Y-%m-%d')} (日報表)"
+        file_suffix = target_date.strftime('%Y-%m-%d')
+    elif period == 'week':
+        # 自動取前一完整週 (週一 00:00:00 ~ 週日 23:59:59)
+        days_since_monday = now_tw.weekday()
+        last_sunday = today - timedelta(days=days_since_monday + 1)
+        last_monday = last_sunday - timedelta(days=6)
+        d_from = datetime.combine(last_monday, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(last_sunday, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{last_monday.strftime('%Y-%m-%d')} ~ {last_sunday.strftime('%Y-%m-%d')} (週報表)"
+        file_suffix = f"W_{last_monday.strftime('%Y%m%d')}_{last_sunday.strftime('%Y%m%d')}"
+    elif period == 'month':
+        # 自動取前一完整月份 (1日 00:00:00 ~ 月底 23:59:59)
+        first_this_month = today.replace(day=1)
+        last_prev_month = first_this_month - timedelta(days=1)
+        first_prev_month = last_prev_month.replace(day=1)
+        d_from = datetime.combine(first_prev_month, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(last_prev_month, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{first_prev_month.strftime('%Y-%m')} (月報表)"
+        file_suffix = first_prev_month.strftime('%Y-%m')
+    elif period == 'custom':
+        if not date_from_str:
+            date_from_str = today.strftime('%Y-%m-%d')
+        if not date_to_str:
+            date_to_str = today.strftime('%Y-%m-%d')
+        dt_start = datetime.strptime(date_from_str[:10], '%Y-%m-%d').date()
+        dt_end = datetime.strptime(date_to_str[:10], '%Y-%m-%d').date()
+        d_from = datetime.combine(dt_start, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(dt_end, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{dt_start.strftime('%Y-%m-%d')} ~ {dt_end.strftime('%Y-%m-%d')} (自訂區間)"
+        file_suffix = f"{dt_start.strftime('%Y%m%d')}_{dt_end.strftime('%Y%m%d')}"
     else:
-        # Single parameter mapping
-        if device_type == 'room_summary':
-            if info_key == 'avg_temp':
-                device_no = 'SYSTEM'
-                data_key = 'avg_temp'
-            else:
-                device_no = f"{prefix}-METER-01"
-                data_key = info_key
-        elif device_type == 'iot627':
-            if room == 'i1':
-                device_no = f"I-{device_idx}"
-            elif room == 'i2':
-                device_no = f"I-{int(device_idx) + 3}"
-            else:
-                device_no = f"{prefix}-{device_idx}"
-                
-            if info_key == 'running_hours':
-                data_key = 'current'
-            elif info_key == 'control_temperature':
-                data_key = 'temp_control'
-            else:
-                data_key = info_key
-        elif device_type == 'S2-800MT':
-            device_no = f"{prefix}-METER-01"
-            data_key = info_key
-        elif device_type == 'factory':
-            device_no = 'SYSTEM'
-            data_key = info_key
-        else:
-            return jsonify({'error': '無效的設備類型'}), 400
-            
-        query_cond = "device_no = %s AND data_key = %s"
-        query_params = (device_no, data_key)
+        raise ValueError("無效的查詢週期")
 
-    # Calculate time range
-    date_param = request.args.get('date', '')
-    if not date_param:
-        date_param = datetime.now().strftime('%Y-%m-%d')
-        
-    try:
-        selected_date = datetime.strptime(date_param, '%Y-%m-%d')
-    except Exception as e:
-        return jsonify({'error': f'無效的日期格式: {date_param}'}), 400
+    return d_from, d_to, label, file_suffix
 
-    if report_type == 'day':
-        d_from = selected_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        d_to = selected_date.replace(hour=23, minute=59, second=59, microsecond=0)
-        file_label = date_param
-        report_name = '日報表'
-    elif report_type == 'week':
-        monday = selected_date - timedelta(days=selected_date.weekday())
-        d_from = monday.replace(hour=0, minute=0, second=0, microsecond=0)
-        sunday = monday + timedelta(days=6)
-        d_to = sunday.replace(hour=23, minute=59, second=59, microsecond=0)
-        file_label = f"W{monday.strftime('%Y-%m-%d')}_至_{sunday.strftime('%Y-%m-%d')}"
-        report_name = '周報表'
-    elif report_type == 'month':
-        d_from = selected_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if d_from.month == 12:
-            d_to = datetime(d_from.year, 12, 31, 23, 59, 59)
-        else:
-            d_to = (datetime(d_from.year, d_from.month + 1, 1) - timedelta(seconds=1))
-        file_label = d_from.strftime('%Y-%m')
-        report_name = '月報表'
-    else:
-        return jsonify({'error': '無效的報表類型'}), 400
-
-    date_from = d_from.strftime('%Y-%m-%d %H:%M:%S')
-    date_to   = d_to.strftime('%Y-%m-%d %H:%M:%S')
-
-    # Query database
-    sql = f'''
-        SELECT timestamp, data_key, data_value
-        FROM monitoring_logs
-        WHERE site_code=%s AND ({query_cond})
-          AND timestamp BETWEEN %s AND %s
-        ORDER BY timestamp
-    '''
+def _generate_temperature_report_data(room_id, d_from, d_to, interval_min=5):
+    r_def = REPORT_ROOM_DEFINITIONS.get(room_id)
+    if not r_def:
+        raise ValueError("未知的庫別代碼")
+    
+    room_name = r_def['name']
+    chs = r_def['channels']
+    
+    hi, lo = None, None
+    offset = 0.0
     with get_pg() as conn:
-        rows = [{**dict(r), 'timestamp': _fmt_ts(r['timestamp'])} for r in conn.execute(sql, (site_code,) + query_params + (date_from, date_to)).fetchall()]
+        r_set = conn.execute("SELECT hi, lo, temp_offset FROM room_alarm_settings WHERE room_id = %s", (room_id,)).fetchone()
+        if r_set:
+            hi = r_set['hi']
+            lo = r_set['lo']
+            offset = float(r_set.get('temp_offset') or 0.0)
 
-    # Determine sampling interval in minutes
-    sampling_param = request.args.get('sampling', 'false')
-    sampling_enabled = (sampling_param.lower() in ('true', '1', 'yes'))
-    interval_minutes = 1
-    if sampling_enabled:
-        if report_type == 'week':
-            interval_minutes = 5
-        elif report_type == 'month':
-            interval_minutes = 30
+        chs_placeholder = ', '.join(['%s'] * len(chs))
+        rows = conn.execute(f"""
+            SELECT timestamp, channel, name, value, control_temp, coil_temp, compressor_current
+            FROM temperatures
+            WHERE channel IN ({chs_placeholder}) AND timestamp >= %s AND timestamp <= %s
+            ORDER BY timestamp ASC
+        """, chs + [d_from, d_to]).fetchall()
 
-    # Calculate exact total running minutes and total monitoring minutes from 1-minute raw database logs (for iot627 running hours)
-    current_vals = [r['data_value'] for r in rows if r['data_key'] == 'current' and r['data_value'] is not None]
-    min_current = min(current_vals) if current_vals else None
-    
-    raw_running_minutes = 0
-    raw_total_minutes = 0
-    for r in rows:
-        if r['data_key'] == 'current' and r['data_value'] is not None:
-            raw_total_minutes += 1
-            val = r['data_value']
-            is_running = False
-            if val >= 4.0:
-                is_running = True
-            elif min_current is not None and val >= min_current + 1.0 and val >= 1.5:
-                is_running = True
-            elif min_current is None and val >= 1.5:
-                is_running = True
-            if is_running:
-                raw_running_minutes += 1
-
-    # Process data buckets (average per sampling interval for each key)
     from collections import defaultdict
-    bucket_keys = defaultdict(lambda: defaultdict(list))
+    buckets = defaultdict(lambda: {'ts_list': [], 'vals': []})
+    
     for r in rows:
-        try:
-            r_dt = datetime.strptime(r['timestamp'], '%Y-%m-%d %H:%M:%S')
-            floored_minute = (r_dt.minute // interval_minutes) * interval_minutes
-            bucket_time = r_dt.replace(minute=floored_minute, second=0, microsecond=0)
-            bucket_key = bucket_time.strftime('%Y-%m-%d %H:%M')
-            if r['data_value'] is not None:
-                bucket_keys[bucket_key][r['data_key']].append(r['data_value'])
-        except Exception as e:
-            pass
+        ts = r['timestamp']
+        if isinstance(ts, datetime):
+            ts_tw = ts.astimezone(TZ_TW_APP)
+        else:
+            ts_tw = datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
+        
+        floored_min = (ts_tw.minute // interval_min) * interval_min
+        bucket_time = ts_tw.replace(minute=floored_min, second=0, microsecond=0)
+        b_key = bucket_time.strftime('%Y-%m-%d %H:%M')
+        
+        v = r['value'] if r['value'] is not None else r['control_temp']
+        if v is not None:
+            buckets[b_key]['ts_list'].append(ts_tw)
+            buckets[b_key]['vals'].append(float(v) + offset)
+
+    records = []
+    curr = d_from.replace(minute=(d_from.minute // interval_min) * interval_min, second=0, microsecond=0)
+    end_curr = d_to.replace(second=0, microsecond=0)
+    
+    all_avg_temps = []
+    out_of_bounds_count = 0
+    
+    while curr <= end_curr:
+        b_key = curr.strftime('%Y-%m-%d %H:%M')
+        b_data = buckets.get(b_key)
+        
+        if b_data and b_data['vals']:
+            avg_temp = round(sum(b_data['vals']) / len(b_data['vals']), 1)
+            min_temp = round(min(b_data['vals']), 1)
+            max_temp = round(max(b_data['vals']), 1)
+            all_avg_temps.append(avg_temp)
             
-    data_map = {}
-    for t, keys_map in bucket_keys.items():
-        data_map[t] = {k: sum(v)/len(v) for k, v in keys_map.items()}
-
-    current_time = d_from
-    end_time_minute = d_to.replace(second=0, microsecond=0)
-    
-    report_data = []
-    summary_vals = defaultdict(list)
-
-    while current_time <= end_time_minute:
-        t_str = current_time.strftime('%Y-%m-%d %H:%M')
-        val_dict = data_map.get(t_str, {})
-        status_str = '正常' if val_dict else '無效'
-        
-        if info_key == 'all_info':
-            if device_type == 'room_summary':
-                t_val = val_dict.get('avg_temp')
-                kw_val = val_dict.get('kw')
-                kwh_val = val_dict.get('kwh')
-                
-                t_str_val = f"{round(t_val, 1)}" if t_val is not None else '-'
-                kw_str_val = f"{round(kw_val, 1)}" if kw_val is not None else '-'
-                kwh_str_val = f"{round(kwh_val, 1)}" if kwh_val is not None else '-'
-                
-                if t_val is not None: summary_vals['avg_temp'].append(t_val)
-                if kw_val is not None: summary_vals['kw'].append(kw_val)
-                if kwh_val is not None: summary_vals['kwh'].append(kwh_val)
-                
-                report_data.append((t_str, t_str_val, kw_str_val, kwh_str_val, status_str))
-                
-            elif device_type == 'iot627':
-                t_val = val_dict.get('temp_control')
-                t_str_val = f"{round(t_val, 1)}" if t_val is not None else '-'
-                if room in TEMP_ONLY_ROOMS:
-                    # D/E/F 庫：感溫棒，無壓縮機，只顯示控制溫度
-                    if t_val is not None: summary_vals['temp_control'].append(t_val)
-                    report_data.append((t_str, t_str_val, status_str))
-                else:
-                    c_val = val_dict.get('current')
-                    if c_val is not None:
-                        is_running = False
-                        if c_val >= 4.0:
-                            is_running = True
-                        elif min_current is not None and c_val >= min_current + 1.0 and c_val >= 1.5:
-                            is_running = True
-                        elif min_current is None and c_val >= 1.5:
-                            is_running = True
-                        run_str = '運轉' if is_running else '停機'
-                        summary_vals['current'].append(c_val)
-                    else:
-                        run_str = '-'
-                    if t_val is not None: summary_vals['temp_control'].append(t_val)
-                    report_data.append((t_str, t_str_val, run_str, status_str))
-                
-            elif device_type == 'S2-800MT':
-                kw_val = val_dict.get('kw')
-                kwh_val = val_dict.get('kwh')
-                
-                kw_str_val = f"{round(kw_val, 1)}" if kw_val is not None else '-'
-                kwh_str_val = f"{round(kwh_val, 1)}" if kwh_val is not None else '-'
-                
-                if kw_val is not None: summary_vals['kw'].append(kw_val)
-                if kwh_val is not None: summary_vals['kwh'].append(kwh_val)
-                
-                report_data.append((t_str, kw_str_val, kwh_str_val, status_str))
-                
-            elif device_type == 'factory':
-                kwh_val = val_dict.get('total_kwh')
-                kwh_str_val = f"{round(kwh_val, 1)}" if kwh_val is not None else '-'
-                if kwh_val is not None: summary_vals['total_kwh'].append(kwh_val)
-                report_data.append((t_str, kwh_str_val, status_str))
-        else:
-            # Single parameter
-            v = val_dict.get(data_key)
-            if info_key == 'running_hours':
-                if v is not None:
-                    is_running = False
-                    if v >= 4.0:
-                        is_running = True
-                    elif min_current is not None and v >= min_current + 1.0 and v >= 1.5:
-                        is_running = True
-                    elif min_current is None and v >= 1.5:
-                        is_running = True
-                    status_str = '運轉' if is_running else '停機'
-                    report_data.append((t_str, round(v, 1), status_str))
-                    summary_vals['running_hours'].append(v)
-                else:
-                    report_data.append((t_str, '-', '無效'))
+            is_high = (hi is not None and avg_temp > hi)
+            is_low = (lo is not None and avg_temp < lo)
+            if is_high:
+                status_str = f"⚠ 高溫超標 (>{hi}°C)"
+                status_type = "ALARM_HIGH"
+                out_of_bounds_count += 1
+            elif is_low:
+                status_str = f"⚠ 低溫超標 (<{lo}°C)"
+                status_type = "ALARM_LOW"
+                out_of_bounds_count += 1
             else:
-                if v is not None:
-                    v_rounded = round(v, 1)
-                    summary_vals[info_key].append(v_rounded)
-                    report_data.append((t_str, v_rounded, '正常'))
-                else:
-                    report_data.append((t_str, '-', '無效'))
-                    
-        current_time += timedelta(minutes=interval_minutes)
+                status_str = "正常"
+                status_type = "NORMAL"
+                
+            records.append({
+                'time': b_key,
+                'avg_temp': avg_temp,
+                'min_temp': min_temp,
+                'max_temp': max_temp,
+                'status': status_str,
+                'status_type': status_type
+            })
+        curr += timedelta(minutes=interval_min)
 
-    # Create Workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = '資訊摘要'
+    total_samples = len(records)
+    if all_avg_temps:
+        max_t = max(all_avg_temps)
+        min_t = min(all_avg_temps)
+        mean_t = round(sum(all_avg_temps) / len(all_avg_temps), 1)
+        compliance_rate = round(((total_samples - out_of_bounds_count) / total_samples) * 100, 1) if total_samples > 0 else 100.0
+    else:
+        max_t, min_t, mean_t, compliance_rate = None, None, None, 100.0
 
-    accent_fill  = PatternFill(fill_type='solid', fgColor='1A5FA8')
-    alarm_fill   = PatternFill(fill_type='solid', fgColor='FDECEA')
-    header_font  = Font(name='Arial', bold=True, color='FFFFFF', size=11)
-    label_font   = Font(name='Arial', bold=True, size=10)
-    value_font   = Font(name='Arial', size=10)
-    alarm_font   = Font(name='Arial', color='C0392B', size=10)
-    center_align = Alignment(horizontal='center', vertical='center')
-    left_align   = Alignment(horizontal='left',   vertical='center')
-    thin         = Side(border_style='thin', color='DDDDDD')
-    cell_border  = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-    def set_hdr(ws, row, col, text, merge_to=None):
-        c = ws.cell(row=row, column=col, value=text)
-        c.font = header_font; c.fill = accent_fill
-        c.alignment = center_align; c.border = cell_border
-        if merge_to:
-            ws.merge_cells(f'{c.coordinate}:{merge_to}')
-
-    def set_lbl(ws, row, col, text):
-        c = ws.cell(row=row, column=col, value=text)
-        c.font = label_font; c.alignment = left_align; c.border = cell_border
-
-    def set_val(ws, row, col, text):
-        c = ws.cell(row=row, column=col, value=text)
-        c.font = value_font; c.alignment = left_align; c.border = cell_border
-
-    # Label translation for metadata
-    PARAM_LABELS = {
-        'avg_temp': ('平均庫溫', '°C'),
-        'temp_control': ('控制溫度', '°C'),
-        'control_temperature': ('控制溫度', '°C'),
-        'current': ('運轉電流', 'A'),
-        'running_hours': ('主機運轉狀態', ''),
-        'kw': ('即時耗電量', 'kW'),
-        'kwh': ('累積用電量', 'kWh'),
-        'total_kwh': ('總累積耗電量', 'kWh'),
-        'all_info': ('全部資訊', '')
+    summary = {
+        'target_name': room_name,
+        'report_type_name': '冷鏈庫溫歷程紀錄表',
+        'hi': hi,
+        'lo': lo,
+        'total_samples': total_samples,
+        'max_temp': max_t,
+        'min_temp': min_t,
+        'mean_temp': mean_t,
+        'compliance_rate': compliance_rate,
+        'out_of_bounds_count': out_of_bounds_count,
+        'out_of_bounds_minutes': out_of_bounds_count * interval_min
     }
-    param_label, unit = PARAM_LABELS.get(info_key, (info_key, ''))
 
-    # Title Banner
-    ws.merge_cells('A1:D1')
-    ws['A1'].value     = f'{site_code} {param_label} {report_name}'
-    ws['A1'].font      = Font(name='Arial', bold=True, size=16, color='1A5FA8')
-    ws['A1'].alignment = center_align
-    ws.row_dimensions[1].height = 36
+    return summary, records
 
-    ws.merge_cells('A2:D2')
-    ws['A2'].value     = f'生成時間：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
-    ws['A2'].font      = Font(name='Arial', size=9, color='888888')
-    ws['A2'].alignment = left_align
-
-    # Info Header
-    ws.merge_cells('A3:D3')
-    set_hdr(ws, 3, 1, '報 表 資 訊 摘 要')
-    for col in range(2, 5):
-        ws.cell(3, col).fill = accent_fill
-
-    if device_type == 'iot627' and room in TEMP_ONLY_ROOMS:
-        device_label = '庫溫監控器'
-    else:
-        device_label = device_type.replace("room_summary", "全庫").replace("iot627", "冷凍主機").replace("S2-800MT", "電表").replace("factory", "廠區")
-
-    # Build Info Rows
-    info_rows = [
-        ('查詢範圍', f'{site_code} ({room.upper()})'),
-        ('設備名稱', f'{device_label} #{device_idx}'),
-        ('數據項目', f'{param_label} ({unit})' if unit else param_label),
-        ('起始時間', date_from),
-        ('結束時間', date_to)
+METER_EQUIPMENT_MAP = {
+    'all': [
+        ('ch01', '1F 冷凍A'),
+        ('ch02', '1F 冷凍B'),
+        ('ch03', '1F 冷凍C'),
+        ('ch04', '1F 冷凍D'),
+        ('ch05', '1F 冷凍E'),
+        ('ch06', '1F 緩衝A'),
+        ('ch07', '1F 碼頭A'),
+        ('ch08', '3F 急速20HP'),
+        ('ch09', '3F 急速10HP'),
+        ('ch10', '3F 半成品A'),
+        ('ch11', '3F 半成品B'),
+        ('ch12', '3F 冷藏A')
+    ],
+    'ch13': [
+        ('ch01', '1F 冷凍A'),
+        ('ch02', '1F 冷凍B'),
+        ('ch03', '1F 冷凍C'),
+        ('ch04', '1F 冷凍D'),
+        ('ch05', '1F 冷凍E'),
+        ('ch06', '1F 緩衝A'),
+        ('ch07', '1F 碼頭A')
+    ],
+    'ch14': [
+        ('ch08', '3F 急速20HP'),
+        ('ch09', '3F 急速10HP'),
+        ('ch10', '3F 半成品A'),
+        ('ch11', '3F 半成品B'),
+        ('ch12', '3F 冷藏A')
     ]
+}
+
+def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
+    m_def = REPORT_METER_DEFINITIONS.get(meter_id)
+    if not m_def:
+        raise ValueError("未知的電表代碼")
     
-    # helper functions for statistics
-    def add_kwh_stats(rows_list, label_title, vals_list):
-        rows_list.append((f'【{label_title}】', ''))
-        s_val = vals_list[0] if vals_list else '-'
-        e_val = vals_list[-1] if vals_list else '-'
-        consumed = round(e_val - s_val, 1) if isinstance(s_val, (int, float)) and isinstance(e_val, (int, float)) else '-'
-        rows_list.extend([
-            ('  起始電量', f'{s_val} kWh'),
-            ('  結束電量', f'{e_val} kWh'),
-            ('  總用電量', f'{consumed} kWh')
-        ])
-
-    def add_num_stats(rows_list, label_title, vals_list, unit_str):
-        rows_list.append((f'【{label_title}】', ''))
-        mx = round(max(vals_list), 1) if vals_list else '-'
-        mn = round(min(vals_list), 1) if vals_list else '-'
-        av = round(sum(vals_list)/len(vals_list), 1) if vals_list else '-'
-        rows_list.extend([
-            ('  最大值', f'{mx} {unit_str}' if mx != '-' else '-'),
-            ('  最小值', f'{mn} {unit_str}' if mn != '-' else '-'),
-            ('  平均值', f'{av} {unit_str}' if av != '-' else '-')
-        ])
-
-    def add_run_stats(rows_list, label_title):
-        rows_list.append((f'【{label_title}】', ''))
-        dur_h = raw_total_minutes / 60.0
-        run_h = raw_running_minutes / 60.0
-        ratio = round((run_h / dur_h) * 100.0, 1) if dur_h > 0 else 0.0
-        rows_list.extend([
-            ('  總監測時數', f'{round(dur_h, 2)} 小時'),
-            ('  累積運轉時數', f'{round(run_h, 2)} 小時'),
-            ('  運轉率', f'{ratio} %'),
-            ('  判定標準', '動靜態自適應判讀')
-        ])
-
-    if info_key == 'all_info':
-        if device_type == 'room_summary':
-            add_num_stats(info_rows, '平均庫溫', summary_vals['avg_temp'], '°C')
-            add_num_stats(info_rows, '即時耗電量', summary_vals['kw'], 'kW')
-            add_kwh_stats(info_rows, '累積耗電量', summary_vals['kwh'])
-        elif device_type == 'iot627':
-            add_num_stats(info_rows, '控制溫度', summary_vals['temp_control'], '°C')
-            if room not in TEMP_ONLY_ROOMS:
-                # 不是 D/E/F 庫才顯示主機運轉時數
-                add_run_stats(info_rows, '主機運轉時數')
-        elif device_type == 'S2-800MT':
-            add_num_stats(info_rows, '即時耗電量', summary_vals['kw'], 'kW')
-            add_kwh_stats(info_rows, '累積耗電量', summary_vals['kwh'])
-        elif device_type == 'factory':
-            add_kwh_stats(info_rows, '總累積耗電量', summary_vals['total_kwh'])
-    else:
-        # Single parameter summary
-        if info_key == 'running_hours':
-            add_run_stats(info_rows, '主機運轉狀態')
-        elif info_key in ('kwh', 'total_kwh'):
-            add_kwh_stats(info_rows, param_label, summary_vals[info_key])
-        else:
-            add_num_stats(info_rows, param_label, summary_vals[info_key], unit)
-
-    for i, (label, val_text) in enumerate(info_rows, start=4):
-        set_lbl(ws, i, 1, label)
-        ws.merge_cells(f'B{i}:D{i}')
-        set_val(ws, i, 2, val_text)
-        for col in range(3, 5):
-            ws.cell(i, col).border = cell_border
-
-    ws.column_dimensions['A'].width = 18
-    ws.column_dimensions['B'].width = 30
-    ws.column_dimensions['C'].width = 16
-    ws.column_dimensions['D'].width = 16
-
-    # ── 數據工作表 ──
-    wd = wb.create_sheet('歷史數據明細')
+    meter_name = m_def['name']
+    chs = m_def['channels']
+    equip_list = METER_EQUIPMENT_MAP.get(meter_id, [])
+    equip_chs = [ch for ch, _ in equip_list]
     
-    if info_key == 'all_info':
-        if device_type == 'room_summary':
-            headers = ['時間', '平均庫溫 (°C)', '即時耗電量 (kW)', '累積耗電量 (kWh)', '狀態']
-            col_widths = [20, 18, 16, 18, 12]
-        elif device_type == 'iot627':
-            if room in TEMP_ONLY_ROOMS:
-                # D/E/F 庫：感溫棒模式，只有溫度欄
-                headers = ['時間', '控制溫度 (°C)', '狀態']
-                col_widths = [20, 18, 12]
-            else:
-                headers = ['時間', '控制溫度 (°C)', '主機運轉狀態', '狀態']
-                col_widths = [20, 18, 16, 12]
-        elif device_type == 'S2-800MT':
-            headers = ['時間', '即時耗電量 (kW)', '累積耗電量 (kWh)', '狀態']
-            col_widths = [20, 16, 18, 12]
-        elif device_type == 'factory':
-            headers = ['時間', '總累積耗電量 (kWh)', '狀態']
-            col_widths = [20, 20, 12]
-    else:
-        if info_key == 'running_hours':
-            headers = ['時間', '運轉電流 (A)', '運行狀態']
-            col_widths = [20, 16, 12]
-        else:
-            headers = ['時間', f'{param_label} ({unit})' if unit else param_label, '狀態']
-            col_widths = [20, 16, 12]
+    chs_placeholder = ', '.join(['%s'] * len(chs))
+    with get_pg() as conn:
+        rows = conn.execute(f"""
+            SELECT timestamp, channel, v, a, kw, pf, kwh
+            FROM power_readings
+            WHERE channel IN ({chs_placeholder}) AND timestamp >= %s AND timestamp <= %s
+            ORDER BY timestamp ASC
+        """, chs + [d_from, d_to]).fetchall()
+
+        equip_rows = []
+        if equip_chs:
+            equip_placeholder = ', '.join(['%s'] * len(equip_chs))
+            equip_rows = conn.execute(f"""
+                SELECT timestamp, channel, runtime_hours, compressor_current
+                FROM temperatures
+                WHERE channel IN ({equip_placeholder}) AND timestamp >= %s AND timestamp <= %s
+                ORDER BY timestamp ASC
+            """, equip_chs + [d_from, d_to]).fetchall()
+
+    from collections import defaultdict
+    buckets = defaultdict(lambda: {'v_list': [], 'a_list': [], 'kw_list': [], 'pf_list': [], 'kwh_by_ch': {}, 'equip_rt': {}})
+    
+    for r in rows:
+        ts = r['timestamp']
+        ts_tw = ts.astimezone(TZ_TW_APP) if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
+        floored_min = (ts_tw.minute // interval_min) * interval_min
+        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M')
         
-    for col, (h, w) in enumerate(zip(headers, col_widths), 1):
-        set_hdr(wd, 1, col, h)
-        wd.column_dimensions[chr(64+col)].width = w
+        if r['v'] is not None: buckets[b_key]['v_list'].append(float(r['v']))
+        if r['a'] is not None: buckets[b_key]['a_list'].append(float(r['a']))
+        if r['kw'] is not None: buckets[b_key]['kw_list'].append(float(r['kw']))
+        if r['pf'] is not None: buckets[b_key]['pf_list'].append(float(r['pf']))
+        if r['kwh'] is not None: buckets[b_key]['kwh_by_ch'][r['channel']] = float(r['kwh'])
 
-    for r_idx, row_vals in enumerate(report_data, 2):
-        for col, cell_val in enumerate(row_vals, 1):
-            c = wd.cell(r_idx, col, cell_val)
-            c.border = cell_border
-            c.alignment = left_align
-            if cell_val in ('運轉', '正常', '停機', '無效'):
-                c.alignment = center_align
-            if cell_val in ('運轉', '⚠ 超標'):
-                c.fill = alarm_fill
-                c.font = alarm_font
-            elif cell_val in ('停機', '無效'):
-                c.font = Font(name='Arial', color='888888', size=10)
+    for r in equip_rows:
+        ts = r['timestamp']
+        ts_tw = ts.astimezone(TZ_TW_APP) if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
+        floored_min = (ts_tw.minute // interval_min) * interval_min
+        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M')
+        
+        ch = r['channel']
+        rt = float(r['runtime_hours'] or 0.0)
+        buckets[b_key]['equip_rt'][ch] = rt
 
-    # Save to buffer
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    current_rt_state = {ch: 0.0 for ch in equip_chs}
+    records = []
+    curr = d_from.replace(minute=(d_from.minute // interval_min) * interval_min, second=0, microsecond=0)
+    end_curr = d_to.replace(second=0, microsecond=0)
+    
+    all_kws = []
+    all_v = []
+    all_a = []
+    all_pf = []
+    
+    while curr <= end_curr:
+        b_key = curr.strftime('%Y-%m-%d %H:%M')
+        b_data = buckets.get(b_key)
+        
+        if b_data and (b_data['kw_list'] or b_data['kwh_by_ch'] or b_data['equip_rt']):
+            kw_sum = round(sum(b_data['kw_list']), 1) if b_data['kw_list'] else 0.0
+            v_avg = round(sum(b_data['v_list'])/len(b_data['v_list']), 1) if b_data['v_list'] else 0.0
+            a_sum = round(sum(b_data['a_list']), 1) if b_data['a_list'] else 0.0
+            pf_avg = round(sum(b_data['pf_list'])/len(b_data['pf_list']), 2) if b_data['pf_list'] else 0.95
+            
+            kwh_sum = round(sum(b_data['kwh_by_ch'].values()), 1) if b_data['kwh_by_ch'] else 0.0
+            
+            for ch in equip_chs:
+                if ch in b_data['equip_rt']:
+                    current_rt_state[ch] = b_data['equip_rt'][ch]
 
-    filename = f'報表_{site_code}_{param_label}_{file_label}.xlsx'
-    return send_file(
-        buf,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+            equip_runtimes_rec = {ch: round(current_rt_state[ch], 2) for ch in equip_chs}
+
+            all_kws.append(kw_sum)
+            if v_avg > 0: all_v.append(v_avg)
+            if a_sum > 0: all_a.append(a_sum)
+            if pf_avg > 0: all_pf.append(pf_avg)
+            
+            hour = curr.hour
+            is_peak = (16 <= hour < 22)
+            tariff_type = "🔴 夜尖峰" if is_peak else "🟢 離峰/半尖峰"
+            
+            records.append({
+                'time': b_key,
+                'kw': kw_sum,
+                'v': v_avg,
+                'a': a_sum,
+                'pf': pf_avg,
+                'kwh': kwh_sum,
+                'tariff_type': tariff_type,
+                'equip_runtimes': equip_runtimes_rec
+            })
+        curr += timedelta(minutes=interval_min)
+
+    total_samples = len(records)
+    avg_kw = round(sum(all_kws) / len(all_kws), 1) if all_kws else 0.0
+    max_kw = max(all_kws) if all_kws else 0.0
+    avg_v = round(sum(all_v) / len(all_v), 1) if all_v else 0.0
+    avg_a = round(sum(all_a) / len(all_a), 1) if all_a else 0.0
+    avg_pf = round(sum(all_pf) / len(all_pf), 2) if all_pf else 0.0
+    
+    first_kwh = records[0]['kwh'] if records else 0.0
+    last_kwh = records[-1]['kwh'] if records else 0.0
+    consumed_kwh = round(last_kwh - first_kwh, 1) if last_kwh >= first_kwh else 0.0
+
+    summary = {
+        'target_name': meter_name,
+        'report_type_name': 'SPM-3 電表能源統計報表',
+        'total_samples': total_samples,
+        'consumed_kwh': consumed_kwh,
+        'avg_kw': avg_kw,
+        'max_kw': max_kw,
+        'avg_v': avg_v,
+        'avg_a': avg_a,
+        'avg_pf': avg_pf,
+        'equip_headers': [{'key': ch, 'name': name} for ch, name in equip_list]
+    }
+
+    return summary, records
+
+@app.route('/api/reports/query', methods=['GET'])
+def query_report_data():
+    try:
+        category = request.args.get('category', 'temp')
+        target = request.args.get('target', 'room1')
+        period = request.args.get('period', 'day')
+        date_from_str = request.args.get('date_from')
+        date_to_str = request.args.get('date_to')
+        interval_min = int(request.args.get('interval_min', 5))
+
+        d_from, d_to, label, _ = _calculate_report_time_range(period, date_from_str, date_to_str)
+
+        if category == 'temp':
+            summary, records = _generate_temperature_report_data(target, d_from, d_to, interval_min)
+        else:
+            summary, records = _generate_energy_report_data(target, d_from, d_to, interval_min)
+
+        return jsonify({
+            'status': 'ok',
+            'category': category,
+            'target': target,
+            'period': period,
+            'time_label': label,
+            'interval_min': interval_min,
+            'summary': summary,
+            'records': records
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+@app.route('/api/reports/export', methods=['GET'])
+def export_report_excel():
+    try:
+        category = request.args.get('category', 'temp')
+        target = request.args.get('target', 'room1')
+        period = request.args.get('period', 'day')
+        date_from_str = request.args.get('date_from')
+        date_to_str = request.args.get('date_to')
+        interval_min = int(request.args.get('interval_min', 5))
+
+        d_from, d_to, label, file_suffix = _calculate_report_time_range(period, date_from_str, date_to_str)
+
+        if category == 'temp':
+            summary, records = _generate_temperature_report_data(target, d_from, d_to, interval_min)
+            sheet_title = '冷鏈庫溫歷程'
+            filename = f"裕珍皇_{summary['target_name']}_庫溫歷程報表_{file_suffix}.xlsx"
+        else:
+            summary, records = _generate_energy_report_data(target, d_from, d_to, interval_min)
+            sheet_title = 'SPM3電表能源'
+            filename = f"裕珍皇_{summary['target_name']}_能源統計報表_{file_suffix}.xlsx"
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = sheet_title
+
+        hdr_fill = PatternFill('solid', fgColor='0C3B82')
+        sub_fill = PatternFill('solid', fgColor='F1F5F9')
+        alarm_fill = PatternFill('solid', fgColor='FEE2E2')
+        thin_side = Side(style='thin', color='CBD5E1')
+        cell_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+        # 標題橫幅
+        max_col = 6 if category == 'temp' else (6 + len(summary.get('equip_headers', [])))
+        max_col_letter = openpyxl.utils.get_column_letter(max_col)
+
+        ws.merge_cells(f'A1:{max_col_letter}1')
+        ws['A1'].value = f"裕珍皇食品二廠 · {summary['report_type_name']}"
+        ws['A1'].font = Font(name='Arial', size=15, bold=True, color='0C3B82')
+        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 32
+
+        # 統計摘要卡片區
+        ws.merge_cells(f'A2:{max_col_letter}2')
+        ws['A2'].value = f"統計區間：{label}   │   監控對象：{summary['target_name']}   │   產表時間：{datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')}"
+        ws['A2'].font = Font(name='Arial', size=10, bold=True, color='475569')
+        ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[2].height = 22
+
+        if category == 'temp':
+            meta_rows = [
+                ("門檻基準", f"上限 {summary['hi']} °C / 下限 {summary['lo']} °C" if summary['hi'] is not None else "未設定", "合格率", f"{summary['compliance_rate']} %"),
+                ("平均庫溫", f"{summary['mean_temp']} °C" if summary['mean_temp'] is not None else "--", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
+                ("最高庫溫", f"{summary['max_temp']} °C" if summary['max_temp'] is not None else "--", "超標次數", f"{summary['out_of_bounds_count']} 次 (共{summary['out_of_bounds_minutes']}分鐘)"),
+                ("最低庫溫", f"{summary['min_temp']} °C" if summary['min_temp'] is not None else "--", "備註說明", "客觀工程監控數據紀錄")
+            ]
+        else:
+            meta_rows = [
+                ("區間總耗電", f"{summary['consumed_kwh']} kWh", "平均功率因數", f"{summary['avg_pf']}"),
+                ("平均實功率", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
+                ("最大實功率", f"{summary['max_kw']} kW", "平均線電壓", f"{summary['avg_v']} V"),
+                ("平均電流", f"{summary['avg_a']} A", "設備運轉時數", f"已納入下方 {len(summary.get('equip_headers', []))} 台主機明細")
+            ]
+
+        r_start = 4
+        for r_offset, (k1, v1, k2, v2) in enumerate(meta_rows):
+            row_num = r_start + r_offset
+            for col_idx, text, is_label in [(1, k1, True), (2, v1, False), (4, k2, True), (5, v2, False)]:
+                c = ws.cell(row_num, col_idx, text)
+                c.border = cell_border
+                c.font = Font(name='Arial', size=10, bold=is_label)
+                if is_label:
+                    c.fill = sub_fill
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+            ws.merge_cells(start_row=row_num, start_column=2, end_row=row_num, end_column=3)
+            ws.merge_cells(start_row=row_num, start_column=5, end_row=row_num, end_column=min(6, max_col))
+
+        # 數據表格表頭
+        tbl_start_row = 9
+        if category == 'temp':
+            headers = ['#', '採樣時間', '平均庫溫 (°C)', '區間最低溫 (°C)', '區間最高溫 (°C)', '判定狀態']
+            widths = [8, 20, 18, 18, 18, 22]
+        else:
+            equip_hdrs = summary.get('equip_headers', [])
+            headers = ['#', '採樣時間', '瞬時功率 (kW)', '平均線電壓 (V)', '總平均電流 (A)', '電能讀數 (kWh)'] + [f"{eh['name']} (hr)" for eh in equip_hdrs]
+            widths = [8, 20, 18, 18, 18, 20] + [16] * len(equip_hdrs)
+
+        for c_idx, (h, w) in enumerate(zip(headers, widths), 1):
+            cell = ws.cell(tbl_start_row, c_idx, h)
+            cell.fill = hdr_fill
+            cell.font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = cell_border
+            ws.column_dimensions[openpyxl.utils.get_column_letter(c_idx)].width = w
+        ws.row_dimensions[tbl_start_row].height = 24
+
+        # 數據填充
+        equip_keys = [eh['key'] for eh in summary.get('equip_headers', [])]
+        for idx, rec in enumerate(records, 1):
+            r_num = tbl_start_row + idx
+            ws.row_dimensions[r_num].height = 20
+            is_alarm = (category == 'temp' and rec.get('status_type') != 'NORMAL')
+
+            if category == 'temp':
+                vals = [idx, rec['time'], rec['avg_temp'], rec['min_temp'], rec['max_temp'], rec['status']]
+            else:
+                eq_rt_map = rec.get('equip_runtimes', {})
+                vals = [idx, rec['time'], rec['kw'], rec['v'], rec['a'], rec['kwh']] + [eq_rt_map.get(k, 0.0) for k in equip_keys]
+
+            for c_idx, v in enumerate(vals, 1):
+                cell = ws.cell(r_num, c_idx, v)
+                cell.border = cell_border
+                cell.font = Font(name='Arial', size=10)
+                if is_alarm:
+                    cell.fill = alarm_fill
+                    if c_idx == 6:
+                        cell.font = Font(name='Arial', size=10, bold=True, color='991B1B')
+
+                if c_idx == 1 or c_idx == 2 or (category == 'temp' and c_idx == 6):
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 init_db()
 
 MOCK_DATA_ENABLED = os.getenv('MOCK_DATA_ENABLED', 'false').strip().lower() in ('1', 'true', 'yes', 'on')

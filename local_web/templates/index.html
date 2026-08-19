@@ -54,6 +54,70 @@
       --delay: #f39c12;
       --border: #cbd5e1;
       --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+      /* ── 電視牆滿版動態尺寸變數 (預設 auto 自適應) ── */
+      --card-h: clamp(120px, calc((100vh - 190px) / 2), 160px);
+      --card-gap: 10px;
+      --tv-font: 36px;
+      --tu-font: 13px;
+      --pw-font: 30px;
+      --pw-u-font: 12px;
+      --rname-font: 15.5px;
+      --zone-mb: 10px;
+      --main-pad: 12px;
+    }
+
+    /* 📺 1080p Full HD (1920x1080) 建議標準電視牆滿版優化 */
+    html[data-resolution="1920x1080"] {
+      --card-h: clamp(130px, calc((100vh - 195px) / 2), 175px);
+      --card-gap: 12px;
+      --tv-font: 38px;
+      --tu-font: 14px;
+      --pw-font: 32px;
+      --pw-u-font: 13px;
+      --rname-font: 16px;
+      --zone-mb: 10px;
+      --main-pad: 12px;
+    }
+
+    /* 📺 4K Ultra HD (3840x2160) 超高解析度大電視放大優化 */
+    html[data-resolution="3840x2160"] {
+      --card-h: clamp(180px, calc((100vh - 250px) / 2), 260px);
+      --card-gap: 18px;
+      --tv-font: 56px;
+      --tu-font: 18px;
+      --pw-font: 46px;
+      --pw-u-font: 16px;
+      --rname-font: 22px;
+      --zone-mb: 18px;
+      --main-pad: 18px;
+    }
+
+    /* 📺 2K QHD (2560x1440) 高解析度螢幕優化 */
+    html[data-resolution="2560x1440"] {
+      --card-h: clamp(150px, calc((100vh - 210px) / 2), 200px);
+      --card-gap: 14px;
+      --tv-font: 44px;
+      --tu-font: 15px;
+      --pw-font: 36px;
+      --pw-u-font: 14px;
+      --rname-font: 18px;
+      --zone-mb: 14px;
+      --main-pad: 14px;
+    }
+
+    /* 📺 1366x768 / 1280x720 緊湊版型優化 (零滾軸) */
+    html[data-resolution="1366x768"],
+    html[data-resolution="1280x720"] {
+      --card-h: clamp(105px, calc((100vh - 170px) / 2), 125px);
+      --card-gap: 8px;
+      --tv-font: 28px;
+      --tu-font: 11px;
+      --pw-font: 24px;
+      --pw-u-font: 10px;
+      --rname-font: 13.5px;
+      --zone-mb: 6px;
+      --main-pad: 8px;
     }
     html,
     body {
@@ -405,18 +469,18 @@
     }
     .main {
       flex: 1;
-      padding: 12px 12px 10px;
+      padding: var(--main-pad, 12px);
       background: var(--bg-0);
       overflow-y: auto;
     }
     .zone {
-      margin-bottom: 12px;
+      margin-bottom: var(--zone-mb, 10px);
     }
     .zone-hdr {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .zbar {
       width: 3px;
@@ -443,12 +507,12 @@
     .sgrid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+      gap: var(--card-gap, 10px);
     }
     .sc-lights span {
       box-shadow: 0 0 4px rgba(0,0,0,0.15);
     }
-        .sc {
+    .sc {
       background: var(--bg-1);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -458,7 +522,7 @@
       flex-direction: column;
       align-items: stretch;
       justify-content: space-between;
-      height: 140px;
+      height: var(--card-h, 140px);
       transition: all 0.2s ease-in-out;
       cursor: pointer;
       overflow: hidden;
@@ -503,7 +567,7 @@
       background: #e2e8f0;
     }
     .rname {
-      font-size: 15.5px;
+      font-size: var(--rname-font, 15.5px);
       color: var(--text-1);
       font-weight: 700;
       letter-spacing: .5px;
@@ -534,26 +598,26 @@
       flex-shrink: 0;
     }
     .tv {
-      font-size: 36px;
+      font-size: var(--tv-font, 36px);
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
     .tu {
-      font-size: 13px;
+      font-size: var(--tu-font, 13px);
       font-weight: 600;
       color: var(--text-3);
       margin-left: 2px;
     }
     .pw-v {
-      font-size: 30px;
+      font-size: var(--pw-font, 30px);
       font-weight: 800;
       color: var(--text-1);
       font-variant-numeric: tabular-nums;
       line-height: 1.1;
     }
     .pw-u {
-      font-size: 12px;
+      font-size: var(--pw-u-font, 12px);
       font-weight: 600;
       color: var(--text-3);
       margin-left: 2px;
@@ -850,9 +914,9 @@
       padding: 10px 14px;
       margin-bottom: 10px;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 10px;
-      align-items: center;
     }
     .query-bar select,
     .query-bar input[type=date] {
@@ -1529,17 +1593,20 @@
       </div>
       <span class="sep">|</span>
       <div class="si"><span class="slabel">監控點：</span><span class="sval" id="cnt-total">--</span></div>
-      <span class="sep">|</span>
-      <div class="si"><span class="slabel">網關連線：</span></div>
-      <div class="si">
-        <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="gw-cnt-ok">--</span>
+
+      <!-- 網關連線移至右側 -->
+      <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+        <div class="si"><span class="slabel">網關連線：</span></div>
+        <div class="si">
+          <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="gw-cnt-ok">--</span>
+        </div>
+        <div class="si">
+          <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="gw-cnt-off">--</span>
+        </div>
+        <button id="btn-silence" onclick="silenceAlarm()"
+          style="display:none;padding:4px 12px;border:1px solid var(--alarm);border-radius:4px;background:#fff0f0;color:var(--alarm);font-size:11px;font-weight:700;cursor:pointer;animation:blink 1s step-start infinite;">🔔
+          關閉警報聲</button>
       </div>
-      <div class="si">
-        <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="gw-cnt-off">--</span>
-      </div>
-      <button id="btn-silence" onclick="silenceAlarm()"
-        style="display:none;padding:4px 12px;border:1px solid var(--alarm);border-radius:4px;background:#fff0f0;color:var(--alarm);font-size:11px;font-weight:700;cursor:pointer;animation:blink 1s step-start infinite;">🔔
-        關閉警報聲</button>
     </div>
     <div class="body">
       <div class="sidebar">
@@ -1637,69 +1704,123 @@
           </div>
         </div>
         <div id="page-alarm">
-          <div class="query-bar">
-            <span class="tb-label">庫別</span>
-            <select id="alarm-ch-filter">
-              <option value="all">全部庫別</option>
-              <option value="a">A庫</option>
-              <option value="b">B庫</option>
-              <option value="c">D庫</option>
-              <option value="d">E庫</option>
-              <option value="e">F庫</option>
-              <option value="g">G庫</option>
-              <option value="h">H庫</option>
-              <option value="i1">I1庫</option>
-              <option value="i2">I2庫</option>
-              <option value="j">J庫</option>
-              <option value="k">K庫</option>
-            </select>
-            <span class="tb-label">日期範圍</span>
-            <input type="date" id="alarm-date-from">
-            <span style="font-size:11px;color:var(--text-3);">～</span>
-            <input type="date" id="alarm-date-to">
-            <span class="tb-label">嚴重度</span>
-            <select id="alarm-severity-filter">
-              <option value="all">全部</option>
-              <option value="critical">異常</option>
-              <option value="warning">警告</option>
-              <option value="info">紀錄</option>
-            </select>
-            <span class="tb-label">分類</span>
-            <select id="alarm-category-filter">
-              <option value="all">全部分類</option>
-              <option value="溫度警報">溫度警報</option>
-              <option value="設備警報">設備警報</option>
-              <option value="壓差風扇警報">壓差風扇警報</option>
-              <option value="通信警報">通信警報</option>
-              <option value="系統紀錄">系統紀錄</option>
-            </select>
-            <span class="tb-label">狀態</span>
-            <select id="alarm-status-filter">
-              <option value="all">全部狀態</option>
-              <option value="active">警報中</option>
-              <option value="cleared">已復歸</option>
-            </select>
-            <button class="qbtn qbtn-search" onclick="loadAlarmHistory()">查詢</button>
-            <button class="qbtn qbtn-reset" onclick="resetAlarmQuery()">重置</button>
-            <span style="margin-left:auto;font-size:10px;color:var(--text-3);">最多顯示 200 筆</span>
-          </div>
-          <div class="alarm-summary" id="alarm-summary"></div>
-          <div class="alarm-tbl-wrap">
-            <div class="alarm-tbl-hdr">
-              <span>警報記錄</span>
-              <span class="total-badge" id="alarm-total-badge">共 0 筆</span>
+          <!-- 頂部 3 大精簡 KPI 摘要卡片 (本月統計，去冗詞) -->
+          <div style="display:flex; gap:16px; margin-bottom:18px;">
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">🚨 當前未解除</div>
+              <div id="kpi-alarm-active" style="font-size:28px; font-weight:800; color:var(--text-1); line-height:1;">0</div>
             </div>
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">🔴 本月高溫警報</div>
+              <div id="kpi-alarm-month-high" style="font-size:28px; font-weight:800; color:var(--alarm); line-height:1;">0</div>
+            </div>
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div style="font-size:12px; font-weight:700; color:#d97706; margin-bottom:4px;">🟠 本月設備異常</div>
+              <div id="kpi-alarm-month-equip" style="font-size:28px; font-weight:800; color:#d97706; line-height:1;">0</div>
+            </div>
+          </div>
+
+          <!-- 警報多維度篩選工具列 -->
+          <!-- 警報多維度篩選工具列 (二行自然靠左版型，無虛線) -->
+          <div class="query-bar" style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:18px; display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:10px;">
+            <!-- 第一行：來源位置、警報分類、事件狀態 (全靠左) -->
+            <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; gap:10px;">
+              <span class="tb-label">來源位置</span>
+              <select id="alarm-ch-filter" style="max-width:240px;">
+                <option value="all">🌐 全部來源</option>
+                
+                <optgroup label="── 1F 冷凍庫 ──">
+                  <option value="room1">📍 1F 冷凍庫</option>
+                  <option value="ch01">　└ 1F 冷凍庫 A</option>
+                  <option value="ch02">　└ 1F 冷凍庫 B</option>
+                  <option value="ch03">　└ 1F 冷凍庫 C</option>
+                  <option value="ch04">　└ 1F 冷凍庫 D</option>
+                  <option value="ch05">　└ 1F 冷凍庫 E</option>
+                </optgroup>
+                
+                <optgroup label="── 1F 其他庫別 ──">
+                  <option value="ch06">📍 1F 緩衝庫 A</option>
+                  <option value="ch07">📍 1F 碼頭區 A</option>
+                </optgroup>
+                
+                <optgroup label="── 3F 急速庫 ──">
+                  <option value="room4">📍 3F 急速庫</option>
+                  <option value="ch08">　└ 3F 急速庫 20HP</option>
+                  <option value="ch09">　└ 3F 急速庫 10HP</option>
+                </optgroup>
+                
+                <optgroup label="── 3F 半成品冷凍庫 ──">
+                  <option value="room5">📍 3F 半成品冷凍庫</option>
+                  <option value="ch10">　└ 3F 半成品冷凍 A</option>
+                  <option value="ch11">　└ 3F 半成品冷凍 B</option>
+                </optgroup>
+                
+                <optgroup label="── 3F 冷藏庫 ──">
+                  <option value="ch12">📍 3F 冷藏庫 A</option>
+                </optgroup>
+                
+                <optgroup label="── 電錶與通訊網關 ──">
+                  <option value="ch13">⚡ 1F 集合式電錶</option>
+                  <option value="ch14">⚡ 3F 集合式電錶</option>
+                  <option value="GW1">🌐 1F 閘道器</option>
+                  <option value="GW2">🌐 3F 閘道器</option>
+                </optgroup>
+              </select>
+
+              <span class="tb-label">警報分類</span>
+              <select id="alarm-category-filter">
+                <option value="all">全部分類</option>
+                <option value="HIGH">🔴 庫溫高溫警報</option>
+                <option value="LOW">🔵 庫溫低溫警報</option>
+                <option value="EQUIP_STOP_L212">🟠 L212設備異常</option>
+                <option value="EQUIP_ERR_L216">🟡 L216設備異常</option>
+                <option value="RS485_ERR">⚪ RS-485 通訊異常</option>
+                <option value="GATEWAY_ERR">⚪ 網關乙太網斷線</option>
+              </select>
+
+              <span class="tb-label">事件狀態</span>
+              <select id="alarm-status-filter">
+                <option value="all">全部狀態</option>
+                <option value="active">🚨 警報中</option>
+                <option value="cleared">🟢 已復歸</option>
+              </select>
+            </div>
+
+            <!-- 第二行：快捷篩選、日期區間、查詢按鈕 (全靠左) -->
+            <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; gap:10px;">
+              <div style="display:flex; gap:4px;">
+                <button type="button" class="qbtn" onclick="setAlarmTimePreset('today')">今天</button>
+                <button type="button" class="qbtn" onclick="setAlarmTimePreset('7d')">近7天</button>
+                <button type="button" class="qbtn" onclick="setAlarmTimePreset('month')">本月</button>
+              </div>
+
+              <span class="tb-label">日期區間</span>
+              <input type="date" id="alarm-date-from">
+              <span style="font-size:11px; color:var(--text-3);">～</span>
+              <input type="date" id="alarm-date-to">
+
+              <button class="qbtn qbtn-search" onclick="loadAlarmHistory()">🔍 查詢</button>
+              <button class="qbtn qbtn-reset" onclick="resetAlarmQuery()">🔄 重置</button>
+              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportAlarmHistory()">📥 匯出 Excel</button>
+
+              <span style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;" id="alarm-total-badge">共 0 筆</span>
+            </div>
+          </div>
+
+          <!-- 警報資料明細表格 -->
+          <div class="alarm-tbl-wrap" style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
             <table class="alarm-tbl">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>時間</th>
-                  <th>嚴重度</th>
-                  <th>分類</th>
-                  <th>位置 / 範圍</th>
+                  <th style="width:45px; text-align:center;">#</th>
+                  <th style="width:150px;">觸發時間</th>
+                  <th style="width:140px;">分類</th>
+                  <th style="width:140px;">來源位置</th>
                   <th>警報內容</th>
-                  <th>狀態</th>
-                  <th>復歸時間</th>
+                  <th style="width:100px; text-align:center;">數值 / 門檻</th>
+                  <th style="width:90px; text-align:center;">狀態</th>
+                  <th style="width:150px;">復歸時間</th>
+                  <th style="width:110px; text-align:center;">持續時長</th>
                 </tr>
               </thead>
               <tbody id="alarm-tbody"></tbody>
@@ -1708,70 +1829,96 @@
         </div>
         <!-- 報表下載頁 -->
         <div id="page-report">
-          <div class="report-center">
-            <div class="report-card">
-              <div class="report-card-title">報表下載</div>
-              <div class="report-info">
-                <p><strong>📋 HACCP / ISO 22000</strong> 冷鏈溫度監控報表</p>
-                <p>依稽核標準生成 Excel 格式，包含溫度記錄、統計摘要及異常紀錄。</p>
-              </div>
-              <!-- 報表種類 -->
-              <div class="report-field">
-                <label>報表種類</label>
-                <select id="report-type">
-                  <option value="day">日報表</option>
-                  <option value="week">周報表</option>
-                  <option value="month">月報表</option>
-                </select>
-              </div>
-              <!-- 選擇庫別 -->
-              <div class="report-field">
-                <label>選擇庫別</label>
-                <select id="report-room" onchange="onReportRoomChange()">
-                  <option value="">-- 選擇庫別 --</option>
-                </select>
-              </div>
-              <!-- 選擇設備 -->
-              <div class="report-field">
-                <label>選擇設備</label>
-                <select id="report-device" onchange="onReportDeviceChange()" disabled>
-                  <option value="">-- 選擇設備 --</option>
-                </select>
-              </div>
-              <!-- 選擇資訊 -->
-              <div class="report-field">
-                <label>選擇資訊</label>
-                <select id="report-info" disabled>
-                  <option value="">-- 選擇資訊 --</option>
-                </select>
-              </div>
-              <!-- 選擇時間（動態切換）-->
-              <div class="report-field">
-                <label id="report-time-label">選擇日期</label>
-                <input type="date" id="report-time-date">
-              </div>
-              <!-- 智能採樣 -->
-              <div class="report-field" style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-                <input type="checkbox" id="report-sampling" checked style="width:16px; height:16px; margin:0; cursor:pointer;">
-                <label for="report-sampling" style="margin:0; font-size:13px; font-weight:700; color:var(--text-1); cursor:pointer;">啟用智能採樣 (優化讀取速度與報表大小)</label>
-              </div>
-              <div class="report-btns">
-                <button class="btn-cancel" onclick="showPage('dashboard')">取消</button>
-                <button class="btn-download" id="btn-download-report" onclick="downloadReport()">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                  </svg>
-                  下載 Excel
-                </button>
-              </div>
-              <div id="report-msg" style="margin-top:10px;font-size:12px;color:var(--alarm);display:none;"></div>
+          <!-- 頂部 4 大報表 KPI 統計摘要小卡 (動態隨查詢更新) -->
+          <div style="display:flex; gap:16px; margin-bottom:18px;">
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div id="kpi-rep-title-1" style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">📊 統計區間均值</div>
+              <div id="kpi-rep-val-1" style="font-size:26px; font-weight:800; color:var(--text-1); line-height:1;">--</div>
             </div>
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div id="kpi-rep-title-2" style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">🔴 區間極大值</div>
+              <div id="kpi-rep-val-2" style="font-size:26px; font-weight:800; color:var(--alarm); line-height:1;">--</div>
+            </div>
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div id="kpi-rep-title-3" style="font-size:12px; font-weight:700; color:#0284c7; margin-bottom:4px;">🔵 區間極小值</div>
+              <div id="kpi-rep-val-3" style="font-size:26px; font-weight:800; color:#0284c7; line-height:1;">--</div>
+            </div>
+            <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div id="kpi-rep-title-4" style="font-size:12px; font-weight:700; color:var(--ok); margin-bottom:4px;">🟢 溫度合格率</div>
+              <div id="kpi-rep-val-4" style="font-size:26px; font-weight:800; color:var(--ok); line-height:1;">--</div>
+            </div>
+          </div>
+
+          <!-- 報表多維度篩選工具列 (二行靠左版型) -->
+          <div class="query-bar" style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:18px; display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:10px;">
+            <!-- 第一行：報表類型、監控對象、查詢週期、採樣頻率、自訂日期、查詢與匯出按鈕 -->
+            <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; gap:10px; flex-wrap:wrap;">
+              <span class="tb-label">報表類型</span>
+              <select id="rep-category-filter" onchange="onReportCategoryChange()" style="min-width:180px;">
+                <option value="temp">🌡️ 冷鏈庫溫歷程紀錄表</option>
+                <option value="energy">⚡ SPM-3 電表能源統計報表</option>
+              </select>
+
+              <span class="tb-label">監控對象</span>
+              <select id="rep-target-filter" style="min-width:160px;"></select>
+
+              <span class="tb-label">查詢週期</span>
+              <select id="rep-period-filter" onchange="onReportPeriodChange()" style="min-width:130px;">
+                <option value="day">日報表 (前一日)</option>
+                <option value="week">週報表 (前一週)</option>
+                <option value="month">月報表 (前一月)</option>
+                <option value="custom">自訂日期區間</option>
+              </select>
+
+              <span class="tb-label">採樣頻率</span>
+              <select id="rep-interval-filter" style="min-width:110px;">
+                <option value="5">5 分鐘</option>
+                <option value="10">10 分鐘</option>
+                <option value="15">15 分鐘</option>
+                <option value="30">30 分鐘</option>
+                <option value="60">1 小時</option>
+                <option value="1">1 分鐘</option>
+              </select>
+
+              <!-- 自訂區間日期選擇器 (自訂時顯示) -->
+              <div id="rep-custom-date-wrap" style="display:none; align-items:center; gap:6px;">
+                <input type="date" id="rep-date-from" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-size:12px;">
+                <span style="font-size:12px; color:var(--text-3);">～</span>
+                <input type="date" id="rep-date-to" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-size:12px;">
+              </div>
+
+              <button class="qbtn qbtn-search" onclick="generateReportPreview()">🔍 產生預覽</button>
+              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportReportExcel()">📥 匯出 Excel</button>
+
+              <span style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;" id="rep-total-badge">共 0 筆</span>
+            </div>
+
+            <!-- 第二行：採樣資料量技術標註 -->
+            <div style="font-size:11px; color:var(--text-2); font-weight:600; padding:2px 0 0 2px;">
+              📌 採樣資料量參考：日報表 5分鐘 (288筆) │ 週報表 10分鐘 (1,008筆) │ 月報表 30分鐘 (1,440筆) │ 1分鐘 (1,440筆/日)
+            </div>
+          </div>
+
+          <!-- 報表預覽表格 -->
+          <div class="alarm-tbl-wrap" style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+            <div id="rep-preview-header" style="background:#f8fafc; border-bottom:1px solid var(--border); padding:10px 16px; font-size:12px; font-weight:700; color:var(--text-1); display:flex; justify-content:space-between; align-items:center;">
+              <span id="rep-preview-title">報表預覽明細</span>
+              <span id="rep-preview-meta" style="color:var(--text-2); font-weight:500;"></span>
+            </div>
+            <table class="alarm-tbl" id="rep-preview-table">
+              <thead id="rep-thead">
+                <!-- 動態注入欄位 -->
+              </thead>
+              <tbody id="rep-tbody">
+                <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-3);">請點擊「🔍 產生預覽」載入報表數據</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
     </div>
     <div class="footer">
-      <span>裕珍皇 · HACCP / ISO 22000 冷鏈溫度監控系統</span>
+      <span>裕珍皇 · 冷鏈溫控與能源監控管理系統</span>
     </div>
   </div>
   <!-- 公司資訊 Popup -->
@@ -1847,9 +1994,12 @@
       ch01: '1F 冷凍庫 A', ch02: '1F 冷凍庫 B', ch03: '1F 冷凍庫 C', ch04: '1F 冷凍庫 D', ch05: '1F 冷凍庫 E',
       ch06: '1F 緩衝庫 A', ch07: '1F 碼頭區 A',
       ch08: '3F 急速庫 20HP', ch09: '3F 急速庫 10HP',
-      ch10: '3F 半成品冷凍庫 A', ch11: '3F 半成品冷凍庫 B',
-      ch12: '3F 冷藏庫',
-      ch13: '1F 集合式電錶', ch14: '3F 集合式電錶'
+      ch10: '3F 半成品冷凍 A', ch11: '3F 半成品冷凍 B',
+      ch12: '3F 冷藏庫 A',
+      ch13: '1F 集合式電錶', ch14: '3F 集合式電錶',
+      room1: '1F 冷凍庫', room2: '1F 緩衝庫', room3: '1F 碼頭區',
+      room4: '3F 急速庫', room5: '3F 半成品冷凍庫', room6: '3F 冷藏庫',
+      GW1: '1F 閘道器', GW2: '3F 閘道器'
     };
     // 卡片1-6：溫控聚合卡；卡片7：電表聚合卡（方案B，僅顯示聚合4數字，點擊看明細）
     const CARD_CONFIG = {
@@ -1861,6 +2011,14 @@
       card6: { name: '3F 冷藏庫', type: 'temp', channels: ['ch12'], fp: { x: 0.92, y: 0.31, side: 'left' } },
       card7: { name: '廠區電錶資訊', type: 'power', channels: ['ch13', 'ch14'] }
     };
+    const ROOM_LIST = [
+      { id: 'room1', name: '1F 冷凍庫', desc: 'A ~ E (5台主機)', cardId: 'card1', channels: ['ch01', 'ch02', 'ch03', 'ch04', 'ch05'] },
+      { id: 'room2', name: '1F 緩衝庫', desc: 'A (1台主機)', cardId: 'card2', channels: ['ch06'] },
+      { id: 'room3', name: '1F 碼頭區', desc: 'A (1台主機)', cardId: 'card3', channels: ['ch07'] },
+      { id: 'room4', name: '3F 急速庫', desc: '20HP, 10HP (2台主機)', cardId: 'card4', channels: ['ch08', 'ch09'] },
+      { id: 'room5', name: '3F 半成品冷凍庫', desc: 'A, B (2台主機)', cardId: 'card5', channels: ['ch10', 'ch11'] },
+      { id: 'room6', name: '3F 冷藏庫', desc: '1台主機', cardId: 'card6', channels: ['ch12'] },
+    ];
     const ALL_CARDS = Object.keys(CARD_CONFIG);
     const ALL_CHS = ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'ch06', 'ch07', 'ch08', 'ch09', 'ch10', 'ch11', 'ch12', 'ch13', 'ch14'];
     const METER_CHS = ['ch13', 'ch14'];
@@ -1955,235 +2113,276 @@
     function stopRealtimeChart() {
       if (realtimeTimer) { clearInterval(realtimeTimer); realtimeTimer = null; }
     }
-    // ── 報表下載 ──
+    // ── 報表下載模組 ──
+    const REPORT_TARGETS_MAP = {
+      temp: [
+        { id: 'room1', name: '1F 冷凍庫' },
+        { id: 'room2', name: '1F 緩衝庫' },
+        { id: 'room3', name: '1F 碼頭區' },
+        { id: 'room4', name: '3F 急速庫' },
+        { id: 'room5', name: '3F 半成品冷凍庫' },
+        { id: 'room6', name: '3F 冷藏庫' }
+      ],
+      energy: [
+        { id: 'all', name: '全廠電表資訊' },
+        { id: 'ch13', name: '1F 集合式電錶' },
+        { id: 'ch14', name: '3F 集合式電錶' }
+      ]
+    };
+
     function initReportPage() {
       const now = new Date();
       const yr = now.getFullYear();
       const p = n => String(n).padStart(2, '0');
-      // 預設日期
       const todayStr = `${yr}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
-      document.getElementById('report-time-date').value = todayStr;
-      // 動態初始化庫別下拉
-      const selRoom = document.getElementById('report-room');
-      selRoom.innerHTML = '<option value="">-- 選擇庫別 --</option>';
-      ALL_CARDS.forEach(cardId => {
-        const card = CARD_CONFIG[cardId];
-        const opt = document.createElement('option');
-        opt.value = cardId;
-        opt.textContent = card.name;
-        selRoom.appendChild(opt);
-      });
-      // 增加全廠選項
-      const optAll = document.createElement('option');
-      optAll.value = 'all';
-      optAll.textContent = '全廠廠區';
-      selRoom.appendChild(optAll);
-      // 重設設備與資訊下拉
-      document.getElementById('report-device').innerHTML = '<option value="">-- 選擇設備 --</option>';
-      document.getElementById('report-device').disabled = true;
-      document.getElementById('report-info').innerHTML = '<option value="">-- 選擇資訊 --</option>';
-      document.getElementById('report-info').disabled = true;
+      
+      const df = document.getElementById('rep-date-from');
+      const dt = document.getElementById('rep-date-to');
+      if (df && !df.value) df.value = todayStr;
+      if (dt && !dt.value) dt.value = todayStr;
+
+      onReportCategoryChange();
+      generateReportPreview();
     }
-    function onReportRoomChange() {
-      const ch = document.getElementById('report-room').value;
-      const selDevice = document.getElementById('report-device');
-      const selInfo = document.getElementById('report-info');
-      selDevice.innerHTML = '<option value="">-- 選擇設備 --</option>';
-      selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
-      selDevice.disabled = !ch;
-      selInfo.disabled = true;
-      if (!ch) return;
-      if (ch === 'all') {
-        const opt = document.createElement('option');
-        opt.value = 'factory::1';
-        opt.textContent = '全廠區整體';
-        selDevice.appendChild(opt);
-        selDevice.value = 'factory::1';
-        selDevice.disabled = false;
-        onReportDeviceChange();
-        return;
-      }
-      // 1. 全庫摘要
-      const optSummary = document.createElement('option');
-      optSummary.value = 'room_summary::1';
-      optSummary.textContent = '全庫數據摘要';
-      selDevice.appendChild(optSummary);
-      // 2. 設備明細（卡片底下各 channel）
-      const card = CARD_CONFIG[ch];
-      if (card) {
-        card.channels.forEach(chId => {
-          const opt = document.createElement('option');
-          opt.value = `${card.type === 'power' ? 'S2-800MT' : 'iot627'}::${chId}`;
-          opt.textContent = CHANNEL_NAMES[chId] || chId;
-          selDevice.appendChild(opt);
-        });
-      }
-      selDevice.disabled = false;
+
+    function onReportCategoryChange() {
+      const cat = document.getElementById('rep-category-filter')?.value || 'temp';
+      const selTarget = document.getElementById('rep-target-filter');
+      if (!selTarget) return;
+
+      const targets = REPORT_TARGETS_MAP[cat] || REPORT_TARGETS_MAP.temp;
+      selTarget.innerHTML = targets.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
     }
-    function onReportDeviceChange() {
-      const val = document.getElementById('report-device').value;
-      const selInfo = document.getElementById('report-info');
-      selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
-      selInfo.disabled = !val;
-      if (!val) return;
-      const [deviceType, deviceIdx] = val.split('::');
-      if (deviceType === 'room_summary') {
-        const infos = [
-          { key: 'all_info', label: '全部資訊' },
-          { key: 'avg_temp', label: '平均庫溫' },
-          { key: 'kw', label: '即時耗電量' },
-          { key: 'kwh', label: '累積耗電量' }
-        ];
-        infos.forEach(info => {
-          const opt = document.createElement('option');
-          opt.value = info.key;
-          opt.textContent = info.label;
-          selInfo.appendChild(opt);
-        });
-      } else if (deviceType === 'iot627') {
-        const infos = [
-          { key: 'all_info', label: '全部資訊' },
-          { key: 'temp_control', label: '控制溫度' },
-          { key: 'running_hours', label: '主機運轉時數' }
-        ];
-        infos.forEach(info => {
-          const opt = document.createElement('option');
-          opt.value = info.key;
-          opt.textContent = info.label;
-          selInfo.appendChild(opt);
-        });
-      } else if (deviceType === 'S2-800MT') {
-        const infos = [
-          { key: 'all_info', label: '全部資訊' },
-          { key: 'kw', label: '即時耗電量' },
-          { key: 'kwh', label: '累積耗電量' }
-        ];
-        infos.forEach(info => {
-          const opt = document.createElement('option');
-          opt.value = info.key;
-          opt.textContent = info.label;
-          selInfo.appendChild(opt);
-        });
-      } else if (deviceType === 'factory') {
-        const infos = [
-          { key: 'all_info', label: '全部資訊' },
-          { key: 'total_kwh', label: '總累積耗電量' }
-        ];
-        infos.forEach(info => {
-          const opt = document.createElement('option');
-          opt.value = info.key;
-          opt.textContent = info.label;
-          selInfo.appendChild(opt);
-        });
+
+    function onReportPeriodChange() {
+      const period = document.getElementById('rep-period-filter')?.value || 'day';
+      const customWrap = document.getElementById('rep-custom-date-wrap');
+      if (customWrap) {
+        customWrap.style.display = (period === 'custom') ? 'flex' : 'none';
       }
-      selInfo.disabled = false;
     }
-    function downloadReport() {
-      const type = document.getElementById('report-type').value;
-      const room = document.getElementById('report-room').value;
-      const deviceVal = document.getElementById('report-device').value;
-      const infoKey = document.getElementById('report-info').value;
-      const msg = document.getElementById('report-msg');
-      const btn = document.getElementById('btn-download-report');
-      if (!room || !deviceVal || !infoKey) {
-        if (msg) { msg.textContent = '⚠ 請先選擇庫別、設備與資訊！'; msg.style.display = 'block'; }
-        return;
+
+    function getReportQueryParams() {
+      const cat = document.getElementById('rep-category-filter')?.value || 'temp';
+      const target = document.getElementById('rep-target-filter')?.value || (cat === 'temp' ? 'room1' : 'all');
+      const period = document.getElementById('rep-period-filter')?.value || 'day';
+      const interval = document.getElementById('rep-interval-filter')?.value || '5';
+      const dFrom = document.getElementById('rep-date-from')?.value || '';
+      const dTo = document.getElementById('rep-date-to')?.value || '';
+
+      return `category=${encodeURIComponent(cat)}&target=${encodeURIComponent(target)}&period=${encodeURIComponent(period)}&interval_min=${encodeURIComponent(interval)}&date_from=${encodeURIComponent(dFrom)}&date_to=${encodeURIComponent(dTo)}`;
+    }
+
+    async function generateReportPreview() {
+      const tbody = document.getElementById('rep-tbody');
+      const thead = document.getElementById('rep-thead');
+      const totalBadge = document.getElementById('rep-total-badge');
+      const metaEl = document.getElementById('rep-preview-meta');
+      const titleEl = document.getElementById('rep-preview-title');
+      
+      const cat = document.getElementById('rep-category-filter')?.value || 'temp';
+
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-3);">⏳ 正在產生報表預覽，請稍候...</td></tr>';
       }
-      const [deviceType, deviceIdx] = deviceVal.split('::');
-      let url = '';
-      const date = document.getElementById('report-time-date').value;
-      if (!date) {
-        if (msg) { msg.textContent = '⚠ 請選擇日期！'; msg.style.display = 'block'; }
-        return;
+
+      try {
+        const queryStr = getReportQueryParams();
+        const resp = await fetch(`/api/reports/query?${queryStr}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        if (data.status !== 'ok') throw new Error(data.message || '查詢失敗');
+
+        const summary = data.summary || {};
+        const records = data.records || [];
+
+        // 更新 KPI 卡片
+        if (cat === 'temp') {
+          document.getElementById('kpi-rep-title-1').textContent = '📊 全期平均庫溫';
+          document.getElementById('kpi-rep-val-1').textContent = summary.mean_temp !== null ? `${summary.mean_temp} °C` : '--';
+          
+          document.getElementById('kpi-rep-title-2').textContent = '🔴 區間最高溫';
+          document.getElementById('kpi-rep-val-2').textContent = summary.max_temp !== null ? `${summary.max_temp} °C` : '--';
+
+          document.getElementById('kpi-rep-title-3').textContent = '🔵 區間最低溫';
+          document.getElementById('kpi-rep-val-3').textContent = summary.min_temp !== null ? `${summary.min_temp} °C` : '--';
+
+          document.getElementById('kpi-rep-title-4').textContent = '🟢 溫度合格率';
+          document.getElementById('kpi-rep-val-4').textContent = `${summary.compliance_rate} %`;
+
+          if (titleEl) titleEl.textContent = `冷鏈庫溫歷程預覽 · ${summary.target_name}`;
+          if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  門檻：${summary.hi !== null ? '上限 ' + summary.hi + '°C / 下限 ' + summary.lo + '°C' : '未設定'}  │  超標次數：${summary.out_of_bounds_count} 次`;
+        } else {
+          document.getElementById('kpi-rep-title-1').textContent = '⚡ 區間總耗電量';
+          document.getElementById('kpi-rep-val-1').textContent = `${summary.consumed_kwh} kWh`;
+
+          document.getElementById('kpi-rep-title-2').textContent = '🔴 最大實功率';
+          document.getElementById('kpi-rep-val-2').textContent = `${summary.max_kw} kW`;
+
+          document.getElementById('kpi-rep-title-3').textContent = '🔵 平均實功率';
+          document.getElementById('kpi-rep-val-3').textContent = `${summary.avg_kw} kW`;
+
+          document.getElementById('kpi-rep-title-4').textContent = '🟢 平均功率因數';
+          document.getElementById('kpi-rep-val-4').textContent = `${summary.avg_pf}`;
+
+          if (titleEl) titleEl.textContent = `SPM-3 電表能源預覽 · ${summary.target_name}`;
+          if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  平均電壓：${summary.avg_v} V  │  平均電流：${summary.avg_a} A`;
+        }
+
+        if (totalBadge) totalBadge.textContent = `共 ${records.length} 筆資料 (每 ${data.interval_min} 分鐘)`;
+
+        // 更新表頭
+        if (thead) {
+          if (cat === 'temp') {
+            thead.innerHTML = `
+              <tr>
+                <th style="width:50px; text-align:center;">#</th>
+                <th style="width:160px; text-align:center;">採樣時間</th>
+                <th style="width:120px; text-align:right;">平均庫溫</th>
+                <th style="width:120px; text-align:right;">最低庫溫</th>
+                <th style="width:120px; text-align:right;">最高庫溫</th>
+                <th style="width:160px; text-align:center;">判定狀態</th>
+              </tr>
+            `;
+          } else {
+            const equipHdrs = summary.equip_headers || [];
+            let ths = `
+              <tr>
+                <th style="width:50px; text-align:center;">#</th>
+                <th style="width:150px; text-align:center;">採樣時間</th>
+                <th style="width:110px; text-align:right;">瞬時功率</th>
+                <th style="width:100px; text-align:right;">平均電壓</th>
+                <th style="width:100px; text-align:right;">總電流</th>
+                <th style="width:130px; text-align:right;">累積電量</th>
+            `;
+            equipHdrs.forEach(eh => {
+              ths += `<th style="width:110px; text-align:right; color:#0369a1; background:#f0f9ff;">${eh.name} (hr)</th>`;
+            });
+            ths += `</tr>`;
+            thead.innerHTML = ths;
+          }
+        }
+
+        // 更新表格內容
+        if (tbody) {
+          const colSpanCount = cat === 'temp' ? 6 : (6 + (summary.equip_headers ? summary.equip_headers.length : 0));
+          if (records.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${colSpanCount}" style="text-align:center; padding:30px; color:var(--text-3);">所選區間內尚無歷史紀錄</td></tr>`;
+            return;
+          }
+
+          let rowsHtml = '';
+          const equipHdrs = summary.equip_headers || [];
+          records.forEach((r, idx) => {
+            const isAlarm = (cat === 'temp' && r.status_type !== 'NORMAL');
+            const rowBg = isAlarm ? 'background:#fff1f2;' : (idx % 2 === 1 ? 'background:#f8fafc;' : '');
+            
+            if (cat === 'temp') {
+              const badgeStyle = isAlarm ? 'background:#fee2e2; color:#991b1b; border:1px solid #f87171;' : 'background:#dcfce7; color:#166534; border:1px solid #86efac;';
+              rowsHtml += `
+                <tr style="${rowBg}">
+                  <td style="text-align:center; font-weight:700; color:var(--text-3); font-size:11px;">${idx + 1}</td>
+                  <td style="text-align:center; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-1);">${r.time}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:${isAlarm ? '#b91c1c' : 'var(--text-1)'};">${r.avg_temp.toFixed(1)} °C</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.min_temp.toFixed(1)} °C</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.max_temp.toFixed(1)} °C</td>
+                  <td style="text-align:center;">
+                    <span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; ${badgeStyle}">${r.status}</span>
+                  </td>
+                </tr>
+              `;
+            } else {
+              let equipCells = '';
+              equipHdrs.forEach(eh => {
+                const rtVal = (r.equip_runtimes && r.equip_runtimes[eh.key] !== undefined) ? Number(r.equip_runtimes[eh.key]) : 0.0;
+                equipCells += `<td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:#0369a1; font-weight:600; background:#f0f9ff80;">${rtVal.toFixed(2)} hr</td>`;
+              });
+
+              rowsHtml += `
+                <tr style="${rowBg}">
+                  <td style="text-align:center; font-weight:700; color:var(--text-3); font-size:11px;">${idx + 1}</td>
+                  <td style="text-align:center; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-1);">${r.time}</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:var(--text-1);">${r.kw.toFixed(1)} kW</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.v.toFixed(1)} V</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.a.toFixed(1)} A</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; font-weight:700; color:var(--text-1);">${r.kwh.toFixed(1)} kWh</td>
+                  ${equipCells}
+                </tr>
+              `;
+            }
+          });
+          tbody.innerHTML = rowsHtml;
+        }
+
+      } catch (err) {
+        console.error('Report preview error:', err);
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--alarm);">⚠ 載入預覽失敗：${err.message}</td></tr>`;
+        }
       }
-      const samplingCheckbox = document.getElementById('report-sampling');
-      const sampling = samplingCheckbox ? samplingCheckbox.checked : false;
-      url = `/api/report/download?type=${type}&room=${room}&device_type=${deviceType}&device_idx=${deviceIdx}&info_key=${infoKey}&date=${date}&sampling=${sampling}`;
-      // Clear previous error
-      if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
-      // Set loading state
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ 產生中...'; }
-      fetch(url)
-        .then(resp => {
-          if (!resp.ok) {
-            return resp.text().then(t => { throw new Error(`伺服器錯誤 (${resp.status})：${t}`); });
-          }
-          // Get filename from Content-Disposition header
-          let filename = '溫度報表.xlsx';
-          const cd = resp.headers.get('Content-Disposition');
-          if (cd) {
-            // Try UTF-8 filename* first, then fallback to filename
-            const utf8Match = cd.match(/filename\*=UTF-8''([^;]+)/);
-            const asciiMatch = cd.match(/filename="?([^"]+)"?/);
-            if (utf8Match) filename = decodeURIComponent(utf8Match[1]);
-            else if (asciiMatch) filename = asciiMatch[1];
-          }
-          return resp.blob().then(blob => ({ blob, filename }));
-        })
-        .then(({ blob, filename }) => {
-          // Create a temporary <a> and trigger download
-          const objUrl = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = objUrl;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
-          if (msg) { msg.style.color = 'var(--ok)'; msg.textContent = '✓ 報表已下載！'; msg.style.display = 'block'; }
-        })
-        .catch(err => {
-          console.error('Report download error:', err);
-          if (msg) { msg.style.color = 'var(--alarm)'; msg.textContent = `⚠ 下載失敗：${err.message}`; msg.style.display = 'block'; }
-        })
-        .finally(() => {
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> 下載 Excel';
-          }
-        });
+    }
+
+    function exportReportExcel() {
+      const queryStr = getReportQueryParams();
+      window.open(`/api/reports/export?${queryStr}`, '_blank');
     }
     // ── 即時監控 ──
     let sseSource = null;
     let lastSseData = null;
     function startSSE() {
       if (sseSource) return;
-      sseSource = new EventSource('/api/temperature_stream');
-      sseSource.addEventListener('temperatures', e => {
-        try { lastSseData = JSON.parse(e.data); } catch (_) { }
-        update(lastSseData);
-      });
-      sseSource.onerror = () => {
-        sseSource.close(); sseSource = null;
-        setTimeout(startSSE, 5000);
-      };
+      try {
+        sseSource = new EventSource('/api/temperature_stream');
+        sseSource.addEventListener('temperatures', e => {
+          try {
+            const d = JSON.parse(e.data);
+            if (d && typeof d === 'object') {
+              lastSseData = d;
+              update(lastSseData);
+              if (document.getElementById('page-dashboard')?.classList.contains('fp-mode')) {
+                renderFloorplanPins(lastSseData, Date.now());
+              }
+              if (currentCardId) {
+                renderControlModal(currentCardId);
+              }
+            }
+          } catch (_) { }
+        });
+        sseSource.onerror = () => {
+          try { sseSource.close(); } catch(e) {}
+          sseSource = null;
+          setTimeout(startSSE, 5000);
+        };
+      } catch (err) {}
     }
     async function fetchTemperatures() {
       if (lastSseData) return lastSseData;
       try { return await (await fetch('/api/temperatures')).json(); } catch (e) { return null; }
     }
     let systemConfig = { push_cooldown_min: 10, buzzer_snooze_min: 10 };
+    let roomSettings = {};
     async function fetchSystemConfig() {
       try {
         const resp = await fetch('/api/system_config');
         if (resp.ok) systemConfig = await resp.json();
       } catch (e) { }
     }
+    async function fetchRoomSettings() {
+      try {
+        const resp = await fetch('/api/room_alarm_settings');
+        if (resp.ok) roomSettings = await resp.json();
+      } catch (e) { }
+    }
     async function fetchAlarmSettings() {
       try {
         alarmSettings = await (await fetch('/api/alarm_settings')).json();
+        await fetchRoomSettings();
         await fetchSystemConfig();
       } catch (e) { }
     }
     function populateChannelDropdowns() {
-      const alarmFilter = document.getElementById('alarm-ch-filter');
-      if (!alarmFilter) return;
-      let alarmHtml = '<option value="all">全部庫別</option>';
-      ALL_CHS.forEach(ch => {
-        const name = CHANNEL_NAMES[ch] || alarmSettings[ch]?.name || ch.toUpperCase();
-        alarmHtml += `<option value="${ch}">${name}</option>`;
-      });
-      alarmFilter.innerHTML = alarmHtml;
+      // 警報下拉已靜態以 optgroup 分組建置完成，此處保留供擴充
     }
     // ── 廠區用電資訊 Modal ─────────────────────────────────────────────
     async function openPowerModal() {
@@ -2429,24 +2628,42 @@
       const inAlarm = online && !!(d && d.in_alarm);
       return { d, online, value, inAlarm };
     }
-    // 聚合一張溫控卡片（可能包含多個 channel，例如 1F 冷凍庫 = ch01~ch05）
+    // 聚合一張溫控卡片（依庫別計算在線設備之平均庫溫，以庫別平均庫溫判定警報）
     function aggregateTempCard(cardId, data, nowTs) {
       const cfg = CARD_CONFIG[cardId];
-      let sum = 0, cnt = 0, anyAlarm = false, anyOnline = false;
+      const rDef = ROOM_LIST.find(r => r.cardId === cardId);
+      const roomId = rDef ? rDef.id : cardId;
+      const s = roomSettings[roomId] || {};
+
+      let sum = 0, cnt = 0, anyOnline = false;
       const dots = [];
       cfg.channels.forEach(ch => {
-        const { d, online, value, inAlarm } = getChannelState(data, ch, nowTs);
+        const { d, online, value } = getChannelState(data, ch, nowTs);
         if (online) {
           anyOnline = true;
           if (Number.isFinite(value)) { sum += value; cnt++; }
-          if (inAlarm) anyAlarm = true;
           dots.push({ ch, online: true, state: getRunState(d, ch) });
         } else {
           dots.push({ ch, online: false, state: 'stop' });
         }
       });
-      const avg = cnt > 0 ? sum / cnt : null;
-      const status = !anyOnline ? 'OFFLINE' : anyAlarm ? 'TRIGGERED' : 'NORMAL';
+      const avg = cnt > 0 ? (sum / cnt) : null;
+
+      // 警報判定完全依據庫別平均庫溫
+      let isAlarm = false;
+      if (anyOnline && Number.isFinite(avg) && s.alarm_enabled) {
+        if ((s.hi !== null && s.hi !== undefined && avg > s.hi) ||
+            (s.lo !== null && s.lo !== undefined && avg < s.lo)) {
+          isAlarm = true;
+        }
+      }
+      let backendAlarm = false;
+      cfg.channels.forEach(ch => {
+        const d = data[ch];
+        if (d && (d.in_alarm || d.status === 'TRIGGERED' || d.room_status === 'TRIGGERED')) backendAlarm = true;
+      });
+
+      const status = !anyOnline ? 'OFFLINE' : (isAlarm || backendAlarm) ? 'TRIGGERED' : 'NORMAL';
       return { online: anyOnline, value: avg, status, dots };
     }
     // 溫控卡片：頭部區域名稱(依警報變色) + 左上角設備燈號陣列 + 中央大號聚合溫度
@@ -2584,11 +2801,17 @@
       }
       let ok = 0, al = 0, off = 0, gridHtml = '';
       ALL_CHS.forEach(ch => {
-        const { online, inAlarm } = getChannelState(data, ch, nowTs);
-        if (!online) off++;
-        else if (inAlarm) al++;
-        else ok++;
+        const st = getChannelState(data, ch, nowTs);
+        if (!st.online) {
+          off++;
+        } else if (st.inAlarm) {
+          al++;
+        } else {
+          ok++;
+        }
       });
+      const onlineCount = ok + al;
+
       ALL_CARDS.forEach(cardId => {
         const cfg = CARD_CONFIG[cardId];
         gridHtml += (cfg.type === 'power') ? powerCardHtml(cardId, data, nowTs) : tempCardHtml(cardId, aggregateTempCard(cardId, data, nowTs));
@@ -2599,7 +2822,7 @@
       setText('cnt-ok', ok);
       setText('cnt-alarm', al);
       setText('cnt-off', off);
-      setText('cnt-total', ALL_CHS.length);
+      setText('cnt-total', `${onlineCount} / ${ALL_CHS.length}`);
       const gw1Online = checkGatewayStatus(GW1_CHS, data, nowTs);
       const gw2Online = checkGatewayStatus(GW2_CHS, data, nowTs);
       const gwOffCount = [gw1Online, gw2Online].filter(v => !v).length;
@@ -2996,34 +3219,38 @@
         });
       }
     }
-    // ── 系統設定 Modal：溫度通道的高低溫警報閥值 / 延遲 / 校正值，電表通道的滿載百分比 ──
-    // ── 系統設定 Modal：溫度通道的高低溫警報閥值 / 延遲 / 校正值 ──
+    // ── 系統設定 Modal：依「庫別平均庫溫」設定高低溫警報閥值 / 延遲 / 校正值 ──
     function openSettingsModal() {
       const content = document.getElementById('modal-content');
-      const tempChs = ALL_CHS.filter(ch => !METER_CHS.includes(ch));
       let rows = '';
-      tempChs.forEach(ch => {
-        const s = alarmSettings[ch] || {};
+      ROOM_LIST.forEach(r => {
+        const s = roomSettings[r.id] || {};
         rows += `
-        <tr data-ch="${ch}" style="border-bottom:1px solid var(--border);">
-          <td style="padding:6px 8px;font-weight:700;">${CHANNEL_NAMES[ch] || ch}</td>
-          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-hi" value="${s.hi ?? ''}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
-          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-lo" value="${s.lo ?? ''}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
-          <td style="padding:6px 8px;"><input type="number" step="1" class="set-delay" value="${s.delay ?? 0}" style="width:60px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
-          <td style="padding:6px 8px;text-align:center;"><input type="checkbox" class="set-enabled" ${s.alarm_enabled ? 'checked' : ''}></td>
-          <td style="padding:6px 8px;"><input type="number" step="0.1" class="set-offset" value="${s.temp_offset ?? 0}" style="width:70px;padding:4px;border:1px solid var(--border);border-radius:4px;"></td>
+        <tr data-room-id="${r.id}" style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px 8px;font-weight:700;">
+            <div style="color:var(--text-1); font-size:13px;">${r.name}</div>
+            <div style="font-size:11px; color:var(--text-3); font-weight:400; margin-top:2px;">涵蓋 ${r.desc}</div>
+          </td>
+          <td style="padding:10px 8px;"><input type="number" step="0.1" class="set-hi" value="${s.hi ?? ''}" style="width:70px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-weight:600;"></td>
+          <td style="padding:10px 8px;"><input type="number" step="0.1" class="set-lo" value="${s.lo ?? ''}" style="width:70px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-weight:600;"></td>
+          <td style="padding:10px 8px;"><input type="number" step="1" class="set-delay" value="${s.delay ?? 10}" style="width:60px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-weight:600;"></td>
+          <td style="padding:10px 8px;text-align:center;"><input type="checkbox" class="set-enabled" ${s.alarm_enabled ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;"></td>
+          <td style="padding:10px 8px;"><input type="number" step="0.1" class="set-offset" value="${s.temp_offset ?? 0}" style="width:70px;padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-weight:600;"></td>
         </tr>`;
       });
       content.innerHTML = `
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">🔔 溫度警報設定</div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px;">
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">🔔 庫別溫度警報設定</div>
+        <div style="margin-bottom:12px; font-size:11px; color:var(--text-3); line-height:1.5;">
+          系統依各「庫別」之在線主機平均庫溫進行警報判定與延遲累計，避免單一主機短暫除霜或控制跳動造成誤報。
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;">
           <thead><tr style="background:#f1f5f9;">
-            <th style="padding:6px 8px;text-align:left;">通道</th>
-            <th style="padding:6px 8px;text-align:left;">高溫警報 (°C)</th>
-            <th style="padding:6px 8px;text-align:left;">低溫警報 (°C)</th>
-            <th style="padding:6px 8px;text-align:left;">延遲 (分)</th>
-            <th style="padding:6px 8px;">啟用</th>
-            <th style="padding:6px 8px;text-align:left;">溫度校正 (°C)</th>
+            <th style="padding:8px 8px;text-align:left;">庫別名稱</th>
+            <th style="padding:8px 8px;text-align:left;">高溫警報 (°C)</th>
+            <th style="padding:8px 8px;text-align:left;">低溫警報 (°C)</th>
+            <th style="padding:8px 8px;text-align:left;">延遲 (分)</th>
+            <th style="padding:8px 8px;text-align:center;">啟用</th>
+            <th style="padding:8px 8px;text-align:left;">溫度校正 (°C)</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -3041,33 +3268,35 @@
     }
     async function saveSettings() {
       const payload = {};
-      document.querySelectorAll('#modal-content tr[data-ch]').forEach(tr => {
-        const ch = tr.dataset.ch;
+      document.querySelectorAll('#modal-content tr[data-room-id]').forEach(tr => {
+        const roomId = tr.dataset.roomId;
         const hiVal = tr.querySelector('.set-hi').value;
         const loVal = tr.querySelector('.set-lo').value;
-        const existing = alarmSettings[ch] || {};
-        payload[ch] = {
+        const rDef = ROOM_LIST.find(r => r.id === roomId) || {};
+        payload[roomId] = {
+          room_id: roomId,
+          name: rDef.name,
+          channels: rDef.channels,
           hi: hiVal !== '' ? Number(hiVal) : null,
           lo: loVal !== '' ? Number(loVal) : null,
           delay: Number(tr.querySelector('.set-delay').value) || 0,
           alarm_enabled: tr.querySelector('.set-enabled').checked ? 1 : 0,
-          temp_offset: Number(tr.querySelector('.set-offset').value) || 0,
-          current_threshold: existing.current_threshold ?? 0.5,
-          nfb_rated_current: existing.nfb_rated_current ?? null
+          temp_offset: Number(tr.querySelector('.set-offset').value) || 0
         };
       });
       try {
-        const resp = await fetch('/api/alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const resp = await fetch('/api/room_alarm_settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!resp.ok) throw new Error('伺服器回應錯誤');
+        await fetchRoomSettings();
         await fetchAlarmSettings();
         closeModal();
         update();
-        alert('系統設定已儲存');
+        alert('庫別系統設定已儲存');
       } catch (e) {
         alert('儲存失敗，請確認後端連線');
       }
     }
-    // ── 進階設定（密碼保護）：電表設定 (NFB額定電流) 與 主機運轉判定閾值 ──────────
+    // ── 進階設定（密碼保護）：電表設定、LINE 官方帳號推播、主機運轉判定閾值 ──
     const ADVANCED_SETTINGS_PASSWORD = '24436882';
     function openAdvancedSettings() {
       const pwd = prompt('請輸入進階設定密碼：');
@@ -3108,36 +3337,95 @@
           </tr></thead>
           <tbody>${meterRows}</tbody>
         </table>
-
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⏱️ 警報冷卻時間設定</div>
-        <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
-          設定警報觸發後的推播重複發報間隔與網頁蜂鳴音消音後的重響時間。
+        <!-- LINE Official Account Bot 推播設定 -->
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1); display:flex; align-items:center; gap:8px;">
+          <span>📱 LINE Official Account (Bot 推播設定)</span>
+          <span style="font-size:11px; font-weight:400; color:var(--text-3);">Messaging API</span>
         </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:24px;">
-          <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:24px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:10px; border-bottom:1px dashed var(--border);">
+            <div style="font-size:12px; font-weight:700; color:var(--text-1);">啟用 LINE 官方帳號即時推播</div>
+            <input type="checkbox" id="adv-line-enabled" ${systemConfig.line_bot_enabled ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="display:block; font-size:11px; font-weight:700; color:var(--text-2); margin-bottom:4px;">Channel Access Token (Long-Lived)</label>
+            <input type="text" id="adv-line-token" value="${systemConfig.line_channel_token || ''}" placeholder="請貼上 LINE Developers 後台核發之 Channel Access Token" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:11px; font-family:monospace;">
+          </div>
+          <div style="margin-bottom:12px;">
+            <label style="display:block; font-size:11px; font-weight:700; color:var(--text-2); margin-bottom:4px;">推播目標 ID (User ID 或 Group ID)</label>
+            <input type="text" id="adv-line-target" value="${systemConfig.line_target_id || ''}" placeholder="例如: U1234567890abcdef... 或 C1234567890abcdef..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:11px; font-family:monospace;">
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span id="line-test-msg" style="font-size:11px; font-weight:700; color:var(--text-3);"></span>
+            <button type="button" onclick="testLinePush()" style="padding:5px 14px; border:1px solid #1a73e8; background:#e8f0fe; color:#1a73e8; font-size:11px; font-weight:700; border-radius:4px; cursor:pointer;">🚀 測試發送 LINE 訊息</button>
+          </div>
+        </div>
+
+        <!-- 雙軌冷卻時間與消音重響設定 (通訊防抖已由後端固化寫死) -->
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⏱️ 警報/警告冷卻與消音重響設定</div>
+        <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
+          警報（緊急）與警告（通訊）採獨立冷卻時間，未解除時依設定週期再次發送通知；網頁消音後若超標仍未排除亦將自動重響。
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:24px;">
+          <div style="background:#fff5f5; border:1px solid #fed7d7; border-radius:6px; padding:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:700; color:var(--text-1);">📢 推播/紀錄重複發報冷卻</span>
+              <span style="font-size:12px; font-weight:700; color:var(--alarm);">🔴 警報冷卻再發報</span>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="adv-push-cooldown" value="${systemConfig.push_cooldown_min || 10}" min="1" max="1440" step="1" style="width:65px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
+                <input type="number" id="adv-alarm-cooldown" value="${systemConfig.alarm_cooldown_min || 30}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
                 <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
               </div>
             </div>
             <div style="font-size:11px; color:var(--text-3); line-height:1.4;">
-              同一通道持續超標時，每隔此時間再次發送 LINE/Pushover 推播並記錄於警報歷史。
+              庫溫超標或 L212/L216 異常未解除時，每隔此時間再次推播提醒。
+            </div>
+          </div>
+
+          <div style="background:#fffaf0; border:1px solid #feebc8; border-radius:6px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:12px; font-weight:700; color:#d97706;">🟡 警告冷卻再發報</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="adv-warning-cooldown" value="${systemConfig.warning_cooldown_min || 60}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
+                <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--text-3); line-height:1.4;">
+              RS-485 或網關斷線持續未排除時，每隔此時間低頻再次推播提醒。
             </div>
           </div>
 
           <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:700; color:var(--text-1);">🔕 網頁蜂鳴音靜音後重響</span>
+              <span style="font-size:12px; font-weight:700; color:var(--text-1);">🔕 網頁消音後重響</span>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="adv-buzzer-snooze" value="${systemConfig.buzzer_snooze_min || 10}" min="1" max="1440" step="1" style="width:65px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
+                <input type="number" id="adv-buzzer-snooze" value="${systemConfig.buzzer_snooze_min || 10}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
                 <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
               </div>
             </div>
             <div style="font-size:11px; color:var(--text-3); line-height:1.4;">
-              點擊「關閉警報聲」後若超標仍未排除，經過此時間後自動解除靜音並重新鳴叫。
+              點擊「關閉警報聲」後若超標仍未排除，經過此時間後自動重新鳴叫。
             </div>
+          </div>
+        </div>
+
+        <!-- 🖥️ 電視牆螢幕解析度滿版設定 -->
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1); display:flex; align-items:center; gap:8px;">
+          <span>🖥️ 電視牆螢幕解析度滿版設定</span>
+          <span style="font-size:11px; font-weight:400; color:var(--text-3);">Display Resolution & Scaling</span>
+        </div>
+        <div style="background:#f8fafc; border:1.5px solid var(--border); border-radius:8px; padding:14px; margin-bottom:24px;">
+          <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
+            依照案場電視牆或顯示螢幕之硬體規格選取，系統將自動調整「卡片視圖」與「平面圖視圖」之最佳縮放比例，確保 100% 滿版無裁切與零垂直滾軸。
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; margin-top:10px;">
+            <label style="font-size:12px; font-weight:700; color:var(--text-1); min-width:80px;">目標解析度</label>
+            <select id="adv-display-resolution" style="flex:1; padding:7px 10px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; background:#fff; cursor:pointer;">
+              <option value="auto" ${(systemConfig.display_resolution === 'auto' || !systemConfig.display_resolution) ? 'selected' : ''}>🖥️ 自動偵測 (預設自適應視窗大小)</option>
+              <option value="1920x1080" ${systemConfig.display_resolution === '1920x1080' ? 'selected' : ''}>📺 1920 × 1080 (1080p Full HD - 建議標準電視牆規格)</option>
+              <option value="3840x2160" ${systemConfig.display_resolution === '3840x2160' ? 'selected' : ''}>📺 3840 × 2160 (4K Ultra HD - 4K 超高畫質電視)</option>
+              <option value="2560x1440" ${systemConfig.display_resolution === '2560x1440' ? 'selected' : ''}>📺 2560 × 1440 (2K QHD - 高解析度螢幕)</option>
+              <option value="1366x768" ${systemConfig.display_resolution === '1366x768' ? 'selected' : ''}>📺 1366 × 768 (商用展示電視 / 筆記型電腦)</option>
+              <option value="1280x720" ${systemConfig.display_resolution === '1280x720' ? 'selected' : ''}>📺 1280 × 720 (720p HD - 傳統標準螢幕)</option>
+            </select>
           </div>
         </div>
 
@@ -3158,12 +3446,71 @@
         <button onclick="saveAdvancedSettings()" style="padding:8px 16px;border:none;border-radius:5px;background:var(--text-1);color:#fff;cursor:pointer;font-size:12px;font-weight:700;">儲存設定</button>`;
       document.getElementById('modal-overlay').style.display = 'flex';
     }
+
+    async function testLinePush() {
+      const token = document.getElementById('adv-line-token')?.value?.trim();
+      const targetId = document.getElementById('adv-line-target')?.value?.trim();
+      const msgEl = document.getElementById('line-test-msg');
+
+      if (!token || !targetId) {
+        alert('請先填寫 Channel Access Token 與 Target ID');
+        return;
+      }
+
+      if (msgEl) {
+        msgEl.style.color = 'var(--text-3)';
+        msgEl.textContent = '⏳ 正在測試推播至 LINE...';
+      }
+
+      try {
+        const resp = await fetch('/api/line_test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, target_id: targetId })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.status === 'ok') {
+          if (msgEl) {
+            msgEl.style.color = 'var(--ok)';
+            msgEl.textContent = '✅ 推播成功！請確認手機 LINE 訊息';
+          }
+          alert(res.message);
+        } else {
+          if (msgEl) {
+            msgEl.style.color = 'var(--alarm)';
+            msgEl.textContent = '❌ 發送失敗：' + (res.message || '未知錯誤');
+          }
+          alert('發送失敗：' + (res.message || '請確認 Token 與 Target ID 正確'));
+        }
+      } catch (e) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--alarm)';
+          msgEl.textContent = '❌ 連線錯誤，請確認後端伺服器運作';
+        }
+        alert('連線失敗：' + e.message);
+      }
+    }
+
+    function applyDisplayResolution(res) {
+      const targetRes = res || systemConfig.display_resolution || localStorage.getItem('yjh_display_res') || 'auto';
+      document.documentElement.setAttribute('data-resolution', targetRes);
+      systemConfig.display_resolution = targetRes;
+      localStorage.setItem('yjh_display_res', targetRes);
+      fitFpWrapper();
+    }
+
     async function saveAdvancedSettings() {
       const payload = {};
       let valid = true;
 
-      const pushCooldown = Number(document.getElementById('adv-push-cooldown')?.value) || 10;
+      const lineEnabled = document.getElementById('adv-line-enabled')?.checked ? 1 : 0;
+      const lineToken = document.getElementById('adv-line-token')?.value?.trim() || '';
+      const lineTarget = document.getElementById('adv-line-target')?.value?.trim() || '';
+
+      const alarmCooldown = Number(document.getElementById('adv-alarm-cooldown')?.value) || 30;
+      const warningCooldown = Number(document.getElementById('adv-warning-cooldown')?.value) || 60;
       const buzzerSnooze = Number(document.getElementById('adv-buzzer-snooze')?.value) || 10;
+      const displayRes = document.getElementById('adv-display-resolution')?.value || 'auto';
 
       document.querySelectorAll('#modal-content tr[data-ch]').forEach(tr => {
         const ch = tr.dataset.ch;
@@ -3203,84 +3550,173 @@
         await fetch('/api/system_config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ push_cooldown_min: pushCooldown, buzzer_snooze_min: buzzerSnooze })
+          body: JSON.stringify({
+            line_bot_enabled: lineEnabled,
+            line_channel_token: lineToken,
+            line_target_id: lineTarget,
+            alarm_cooldown_min: alarmCooldown,
+            warning_cooldown_min: warningCooldown,
+            buzzer_snooze_min: buzzerSnooze,
+            display_resolution: displayRes
+          })
         });
-        systemConfig.push_cooldown_min = pushCooldown;
+
+        systemConfig.line_bot_enabled = lineEnabled;
+        systemConfig.line_channel_token = lineToken;
+        systemConfig.line_target_id = lineTarget;
+        systemConfig.alarm_cooldown_min = alarmCooldown;
+        systemConfig.warning_cooldown_min = warningCooldown;
         systemConfig.buzzer_snooze_min = buzzerSnooze;
+        systemConfig.display_resolution = displayRes;
+
+        applyDisplayResolution(displayRes);
         await fetchAlarmSettings();
         closeModal();
         update();
-        alert('進階設定已儲存');
+        alert('進階設定與電視牆解析度配置已儲存');
       } catch (e) {
         alert('儲存失敗，請確認後端連線');
       }
     }
     // ── 警報查詢頁 ───────────────────────────────────────────────────
-    function resetAlarmQuery() {
-      document.getElementById('alarm-ch-filter').value = 'all';
-      document.getElementById('alarm-date-from').value = '';
-      document.getElementById('alarm-date-to').value = '';
-      document.getElementById('alarm-severity-filter').value = 'all';
-      document.getElementById('alarm-category-filter').value = 'all';
-      document.getElementById('alarm-status-filter').value = 'all';
+    function setAlarmTimePreset(preset) {
+      const now = new Date();
+      const p = n => String(n).padStart(2, '0');
+      const fmtDate = d => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+
+      const toStr = fmtDate(now);
+      let fromStr = toStr;
+
+      if (preset === 'today') {
+        fromStr = toStr;
+      } else if (preset === '7d') {
+        const past7 = new Date(now.getTime() - 6 * 24 * 3600 * 1000);
+        fromStr = fmtDate(past7);
+      } else if (preset === 'month') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        fromStr = fmtDate(monthStart);
+      }
+
+      document.getElementById('alarm-date-from').value = fromStr;
+      document.getElementById('alarm-date-to').value = toStr;
       loadAlarmHistory();
     }
+
+    function resetAlarmQuery() {
+      document.getElementById('alarm-ch-filter').value = 'all';
+      document.getElementById('alarm-category-filter').value = 'all';
+      document.getElementById('alarm-status-filter').value = 'all';
+      document.getElementById('alarm-date-from').value = '';
+      document.getElementById('alarm-date-to').value = '';
+      loadAlarmHistory();
+    }
+
     async function loadAlarmHistory() {
       const ch = document.getElementById('alarm-ch-filter').value;
+      const cat = document.getElementById('alarm-category-filter').value;
+      const st = document.getElementById('alarm-status-filter').value;
       const from = document.getElementById('alarm-date-from').value;
       const to = document.getElementById('alarm-date-to').value;
-      const params = new URLSearchParams({ channel: ch, limit: 200 });
+
+      const params = new URLSearchParams({ limit: 300 });
+      if (ch && ch !== 'all') params.set('channel', ch);
+      if (cat && cat !== 'all') params.set('alarm_type', cat);
+      if (st && st !== 'all') params.set('status', st);
       if (from) params.set('from', from);
       if (to) params.set('to', to);
+
       let json;
       try {
         json = await (await fetch('/api/alarm_history?' + params.toString())).json();
       } catch (e) {
-        document.getElementById('alarm-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-3);">查詢失敗，請確認後端連線</td></tr>';
+        document.getElementById('alarm-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-3);">查詢失敗，請確認後端連線</td></tr>';
         return;
       }
+
       const records = json.records || [];
-      const summary = json.summary || [];
-      const totalHigh = summary.reduce((s, r) => s + (r.high_cnt || 0), 0);
-      const totalLow = summary.reduce((s, r) => s + (r.low_cnt || 0), 0);
+      const stats = json.stats || {};
+
+      // 更新頂部 3 大精簡 KPI 卡片 (當前未解除、本月高溫警報、本月設備異常)
+      const actEl = document.getElementById('kpi-alarm-active');
+      const highEl = document.getElementById('kpi-alarm-month-high');
+      const equipEl = document.getElementById('kpi-alarm-month-equip');
+
+      if (actEl) {
+        actEl.textContent = stats.active_count ?? 0;
+        actEl.style.color = (stats.active_count > 0) ? 'var(--alarm)' : 'var(--text-1)';
+      }
+      if (highEl) highEl.textContent = stats.month_high_temp_count ?? 0;
+      if (equipEl) equipEl.textContent = stats.month_equip_err_count ?? 0;
+
       const totalBadge = document.getElementById('alarm-total-badge');
       if (totalBadge) totalBadge.textContent = `共 ${json.total ?? records.length} 筆`;
-      const summaryEl = document.getElementById('alarm-summary');
-      if (summaryEl) {
-        summaryEl.innerHTML = `
-          <div style="display:flex;gap:12px;">
-            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-              <div style="font-size:11px;color:var(--text-3);font-weight:700;">總筆數</div>
-              <div style="font-size:22px;font-weight:800;color:var(--text-1);">${records.length}</div>
-            </div>
-            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-              <div style="font-size:11px;color:var(--text-3);font-weight:700;">高溫警報</div>
-              <div style="font-size:22px;font-weight:800;color:var(--alarm);">${totalHigh}</div>
-            </div>
-            <div style="flex:1;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
-              <div style="font-size:11px;color:var(--text-3);font-weight:700;">低溫警報</div>
-              <div style="font-size:22px;font-weight:800;color:var(--delay);">${totalLow}</div>
-            </div>
-          </div>`;
-      }
+
       const tbody = document.getElementById('alarm-tbody');
       if (!tbody) return;
       if (records.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-3);">查無資料</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-3);font-weight:700;">目前無符合條件之警報記錄</td></tr>';
         return;
       }
-      tbody.innerHTML = records.map((r, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${r.triggered_at || ''}</td>
-          <td><span style="color:var(--alarm);font-weight:700;">異常</span></td>
-          <td>溫度警報</td>
-          <td>${CHANNEL_NAMES[r.channel] || r.name || r.channel}</td>
-          <td>${r.alarm_type === 'HIGH' ? '高溫警報' : '低溫警報'}（${Number(r.value).toFixed(1)}°C，閾值 ${r.alarm_type === 'HIGH' ? r.hi : r.lo}）</td>
-          <td><span style="color:var(--alarm);font-weight:700;">警報中</span></td>
-          <td>--</td>
-        </tr>
-      `).join('');
+
+      const getCatBadge = (r) => {
+        const at = r.alarm_type || '';
+        if (at === 'HIGH' || at === 'HIGH_TEMP') return `<span style="background:#fdecea;color:var(--alarm);font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🔴 高溫警報</span>`;
+        if (at === 'LOW' || at === 'LOW_TEMP') return `<span style="background:#e8f0fd;color:#1a73e8;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🔵 低溫警報</span>`;
+        if (at === 'EQUIP_STOP_L212' || at === 'L212') return `<span style="background:#fef3c7;color:#b45309;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🟠 L212設備異常</span>`;
+        if (at === 'EQUIP_ERR_L216' || at === 'L216' || at === 'EQUIP') return `<span style="background:#fef3c7;color:#d97706;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🟡 L216設備異常</span>`;
+        if (at === 'RS485_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">⚪ RS485 斷線</span>`;
+        if (at === 'GATEWAY_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">⚪ 網關離線</span>`;
+        return `<span style="background:#fee2e2;color:#ef4444;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">${r.category || '警報'}</span>`;
+      };
+
+      tbody.innerHTML = records.map((r, i) => {
+        const isAct = (r.status === 'ACTIVE' || !r.restored_at);
+        const statusHtml = isAct
+          ? `<span style="color:var(--alarm);font-weight:800;background:#fff0f0;padding:2px 6px;border-radius:4px;border:1px solid #fca5a5;">🚨 警報中</span>`
+          : `<span style="color:var(--ok);font-weight:800;background:#f0fdf4;padding:2px 6px;border-radius:4px;border:1px solid #86efac;">🟢 已復歸</span>`;
+
+        const valThresh = (r.alarm_type === 'HIGH' || r.alarm_type === 'LOW')
+          ? `${r.value !== null ? Number(r.value).toFixed(1) : '--'}°C / ${r.alarm_type==='HIGH' ? r.hi : r.lo}°C`
+          : (r.value !== null ? String(r.value) : '--');
+
+        const dur = r.duration_sec
+          ? `${Math.floor(r.duration_sec / 60)}分${r.duration_sec % 60}秒`
+          : (isAct ? '<span style="color:var(--alarm);font-weight:700;">發報中</span>' : '--');
+
+        const msg = r.alarm_message || ((r.alarm_type === 'HIGH' ? '高溫超標' : '低溫超標') + ` (${r.value}°C)`);
+        const loc = CHANNEL_NAMES[r.channel] || r.name || r.channel;
+
+        return `
+          <tr>
+            <td style="text-align:center;font-weight:700;color:var(--text-3);">${i + 1}</td>
+            <td style="font-variant-numeric:tabular-nums;font-weight:600;">${r.triggered_at || ''}</td>
+            <td>${getCatBadge(r)}</td>
+            <td style="font-weight:700;color:var(--text-1);">${loc}</td>
+            <td style="font-weight:600;color:var(--text-2);">${msg}</td>
+            <td style="text-align:center;font-variant-numeric:tabular-nums;font-weight:700;">${valThresh}</td>
+            <td style="text-align:center;">${statusHtml}</td>
+            <td style="font-variant-numeric:tabular-nums;color:var(--text-2);">${r.restored_at || '--'}</td>
+            <td style="text-align:center;font-variant-numeric:tabular-nums;font-weight:700;">${dur}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function exportAlarmHistory() {
+      const ch = document.getElementById('alarm-ch-filter').value;
+      const cat = document.getElementById('alarm-category-filter').value;
+      const st = document.getElementById('alarm-status-filter').value;
+      const from = document.getElementById('alarm-date-from').value;
+      const to = document.getElementById('alarm-date-to').value;
+
+      const params = new URLSearchParams();
+      if (ch && ch !== 'all') params.set('channel', ch);
+      if (cat && cat !== 'all') params.set('alarm_type', cat);
+      if (st && st !== 'all') params.set('status', st);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+
+      window.open('/api/alarm_history/export?' + params.toString(), '_blank');
     }
     // ── 總圖表頁：庫別→設備→資訊 下拉選單 + 多線疊加 + 統計表 ────────────────
     const CHART_PALETTE = ['#1a5fa8', '#c0392b', '#1a7a4a', '#e67e22', '#8e44ad', '#16a085', '#2980b9', '#d35400', '#27ae60', '#e74c3c', '#7f8c8d', '#2c3e50', '#9b59b6', '#f39c12'];
@@ -3747,13 +4183,18 @@
       tickClock();
       setInterval(tickClock, 1000);
       await fetchAlarmSettings();
+      await fetchSystemConfig();
+      applyDisplayResolution(systemConfig.display_resolution);
       populateChannelDropdowns();
       await update();
       startSSE();
       setInterval(update, 10000);
-      window.addEventListener('resize', fitFpWrapper);
+      window.addEventListener('resize', () => {
+        fitFpWrapper();
+        applyDisplayResolution();
+      });
       const fpContainerEl = document.getElementById('fp-container');
-      if (fpContainerEl && window.ResizeObserver) {
+      if (fpContainerEl && typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(() => {
           if (document.getElementById('fp-container')?.style.display !== 'none') {
             fitFpWrapper();

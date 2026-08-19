@@ -163,6 +163,141 @@ def tw_now():
     """取得台灣時間字串"""
     return datetime.now(TZ_TW).strftime('%Y-%m-%d %H:%M:%S')
 
+ROOM_CONFIG = {
+    'room1': {'name': '1F 冷凍庫', 'channels': ['ch01', 'ch02', 'ch03', 'ch04', 'ch05']},
+    'room2': {'name': '1F 緩衝庫', 'channels': ['ch06']},
+    'room3': {'name': '1F 碼頭區', 'channels': ['ch07']},
+    'room4': {'name': '3F 急速庫', 'channels': ['ch08', 'ch09']},
+    'room5': {'name': '3F 半成品冷凍庫', 'channels': ['ch10', 'ch11']},
+    'room6': {'name': '3F 冷藏庫', 'channels': ['ch12']},
+}
+
+def get_room_alarm_settings():
+    res = {}
+    try:
+        r = requests.get(f'{API_BASE}/api/room_alarm_settings', timeout=3)
+        if r.ok:
+            res = r.json()
+    except Exception as e:
+        logging.error(f"取得庫別警報設定失敗: {e}")
+    try:
+        rc = requests.get(f'{API_BASE}/api/system_config', timeout=3)
+        if rc.ok:
+            res['_config'] = rc.json()
+    except Exception:
+        pass
+    return res
+
+def check_and_log_room_alarms(data, room_settings):
+    """依「庫別平均庫溫」進行警報判定，避免單一機組除霜或短暫跳動造成誤報"""
+    now = time.time()
+    room_statuses = {}
+
+    for room_id, r_cfg in ROOM_CONFIG.items():
+        s = room_settings.get(room_id)
+        if not s:
+            room_statuses[room_id] = 'NORMAL'
+            continue
+
+        # 庫別溫度校正
+        offset = float(s.get('temp_offset', 0.0) or 0.0)
+
+        # 計算該庫別所有在線設備的有效溫度
+        valid_temps = []
+        for ch in r_cfg['channels']:
+            if ch in data and data[ch].get('value') is not None:
+                val = float(data[ch]['value'])
+                if offset != 0.0:
+                    val = round(val + offset, 1)
+                    data[ch]['value'] = val
+                valid_temps.append(val)
+
+        if not valid_temps:
+            room_statuses[room_id] = 'OFFLINE'
+            continue
+
+        # 庫別平均庫溫
+        room_avg = round(sum(valid_temps) / len(valid_temps), 1)
+
+        # 警報總開關
+        if not int(s.get('alarm_enabled', 1)):
+            if room_id in violation_start_time:
+                del violation_start_time[room_id]
+            room_statuses[room_id] = 'NORMAL'
+            continue
+
+        hi = s.get('hi')
+        lo = s.get('lo')
+        delay_minutes = int(s.get('delay', 0) or 0)
+        alarm_type = None
+
+        if hi is not None and room_avg > hi:
+            alarm_type = 'HIGH'
+        elif lo is not None and room_avg < lo:
+            alarm_type = 'LOW'
+
+        if not alarm_type:
+            if room_id in violation_start_time:
+                del violation_start_time[room_id]
+                for key in [f'{room_id}_HIGH', f'{room_id}_LOW']:
+                    if key in last_alarm_time:
+                        del last_alarm_time[key]
+                logging.info(f"{r_cfg['name']} 平均庫溫恢復正常 ({room_avg}°C)，警報狀態已重置")
+            room_statuses[room_id] = 'NORMAL'
+            continue
+
+        if room_id not in violation_start_time:
+            violation_start_time[room_id] = now
+
+        elapsed_minutes = (now - violation_start_time[room_id]) / 60.0
+        if elapsed_minutes < delay_minutes:
+            room_statuses[room_id] = 'DELAYING'
+            continue
+
+        key = f'{room_id}_{alarm_type}'
+        last_t = last_alarm_time.get(key, 0)
+        cooldown = ALARM_COOLDOWN
+        if isinstance(room_settings, dict) and '_config' in room_settings:
+            cooldown = int(room_settings['_config'].get('push_cooldown_min', 10)) * 60
+
+        room_statuses[room_id] = 'TRIGGERED'
+
+        if now - last_t < cooldown:
+            continue
+
+        try:
+            requests.post(f'{API_BASE}/api/alarm_history', json={
+                'channel':    room_id,
+                'name':       r_cfg['name'],
+                'value':      room_avg,
+                'alarm_type': alarm_type,
+                'hi':         hi,
+                'lo':         lo
+            }, timeout=3)
+            
+            # 發送 Pushover / LINE 推播通知
+            msg = f"庫別: {r_cfg['name']}\n目前平均庫溫: {room_avg}°C\n警報類型: {'🔴 高溫超標' if alarm_type=='HIGH' else '🔵 低溫超標'}\n設定門檻: {hi if alarm_type=='HIGH' else lo}°C (持續 > {delay_minutes}分)"
+            send_pushover("⚠️ 庫溫異常預警通知", msg)
+
+            last_alarm_time[key] = now
+            logging.warning(
+                f"警報發布! {r_cfg['name']} 平均庫溫: {room_avg}°C "
+                f"({'高溫 hi='+str(hi) if alarm_type=='HIGH' else '低溫 lo='+str(lo)})"
+            )
+        except Exception as e:
+            logging.error(f"發送警報歷史或推播失敗: {e}")
+
+    # 將庫別狀態同步標註到各機組通道上
+    for room_id, r_cfg in ROOM_CONFIG.items():
+        st = room_statuses.get(room_id, 'NORMAL')
+        for ch in r_cfg['channels']:
+            if ch in data:
+                data[ch]['status'] = st
+                data[ch]['in_alarm'] = (st == 'TRIGGERED')
+                data[ch]['room_status'] = st
+
+    return room_statuses
+
 def raw_to_temp(raw, cfg=None):
     cfg = cfg or {}
     data_type = str(cfg.get('data_type', 'int16')).lower()
@@ -176,94 +311,7 @@ def raw_to_temp(raw, cfg=None):
         return None
     return temp
 
-def get_alarm_settings():
-    res = {}
-    try:
-        r = requests.get(f'{API_BASE}/api/alarm_settings', timeout=3)
-        if r.ok:
-            res = r.json()
-    except Exception as e:
-        logging.error(f"取得警報設定失敗: {e}")
-    try:
-        rc = requests.get(f'{API_BASE}/api/system_config', timeout=3)
-        if rc.ok:
-            res['_config'] = rc.json()
-    except Exception:
-        pass
-    return res
 
-def check_and_log_alarm(ch, name, value, settings):
-    s = settings.get(ch)
-    if not s:
-        return 'NORMAL'
-
-    # 警報總開關：關閉時完全跳過，不發聲、不推播、不標紅
-    if not int(s.get('alarm_enabled', 1)):
-        if ch in violation_start_time:
-            del violation_start_time[ch]
-        return 'NORMAL'
-
-    hi = s.get('hi')
-    lo = s.get('lo')
-    delay_minutes = s.get('delay', 0)
-    alarm_type = None
-
-
-    if hi is not None and value > hi:
-        alarm_type = 'HIGH'
-    elif lo is not None and value < lo:
-        alarm_type = 'LOW'
-
-    if not alarm_type:
-        if ch in violation_start_time:
-            del violation_start_time[ch]
-            # 溫度回到正常，清除冷卻記錄，讓下次超標可以重新發報
-            for key in [f'{ch}_HIGH', f'{ch}_LOW']:
-                if key in last_alarm_time:
-                    del last_alarm_time[key]
-            logging.info(f"{ch} ({name}) 溫度恢復正常，警報狀態已重置")
-        return 'NORMAL'
-
-    now = time.time()
-    if ch not in violation_start_time:
-        violation_start_time[ch] = now
-
-    elapsed_minutes = (now - violation_start_time[ch]) / 60.0
-    if elapsed_minutes < delay_minutes:
-        return 'DELAYING'
-
-    key      = f'{ch}_{alarm_type}'
-    last_t   = last_alarm_time.get(key, 0)
-    cooldown = ALARM_COOLDOWN
-    if isinstance(settings, dict) and '_config' in settings:
-        cooldown = int(settings['_config'].get('push_cooldown_min', 10)) * 60
-
-    if now - last_t < cooldown:
-        return 'TRIGGERED'
-
-    try:
-        requests.post(f'{API_BASE}/api/alarm_history', json={
-            'channel':    ch,
-            'name':       name,
-            'value':      value,
-            'alarm_type': alarm_type,
-            'hi':         hi,
-            'lo':         lo
-        }, timeout=3)
-        
-        # 發送 Pushover 推播
-        msg = f"通道: {name} ({ch.upper()})\n目前溫度: {value}°C\n警報類型: {'🔴 高溫超標' if alarm_type=='HIGH' else '🔵 低溫超標'}"
-        send_pushover("⚠️ 溫度預警通知", msg)
-
-        last_alarm_time[key] = now
-        logging.warning(
-            f"警報記錄! {ch} {name}: {value}C "
-            f"({'超過上限 hi='+str(hi) if alarm_type=='HIGH' else '低於下限 lo='+str(lo)})"
-        )
-    except Exception as e:
-        logging.error(f"寫入警報歷史失敗: {e}")
-
-    return 'TRIGGERED'
 
 def read_all_channels():
     from collections import defaultdict
@@ -572,16 +620,10 @@ if __name__ == '__main__':
     last_saved_minute = None
 
     while True:
-        alarm_settings = get_alarm_settings()
+        room_settings = get_room_alarm_settings()
         data = read_all_channels()
         if data:
-            for ch, info in data.items():
-                offset = float(alarm_settings.get(ch, {}).get('temp_offset') or 0)
-                if offset != 0:
-                    info['value'] = round(info['value'] + offset, 1)
-                status = check_and_log_alarm(ch, info['name'], info['value'], alarm_settings)
-                info['status'] = status
-
+            check_and_log_room_alarms(data, room_settings)
             publish_to_backend(data)
 
             # 每分鐘只寫入 DB 一次
