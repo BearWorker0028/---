@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>裕珍皇 智慧冷鏈監控與能源管理系統 - 產品介紹與提案書</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 16mm 14mm 16mm;
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+      }
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+      color: #1e293b;
+      background: #ffffff;
+      line-height: 1.55;
+      font-size: 13px;
+      margin: 0;
+      padding: 0;
+    }
+    
+    /* 封面 / 頂部 Header */
+    .header-box {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(30, 58, 138, 0.15);
+      position: relative;
+    }
+    .header-badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .header-title {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      margin: 0 0 6px 0;
+      color: #ffffff;
+    }
+    .header-sub {
+      font-size: 13px;
+      color: #bfdbfe;
+      margin: 0 0 14px 0;
+      font-weight: 500;
+    }
+    .header-meta {
+      display: flex;
+      gap: 20px;
+      font-size: 11px;
+      color: #e2e8f0;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding-top: 10px;
+    }
+    .header-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* 章節標題 */
+    .section-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+      border-left: 4px solid #2563eb;
+      padding-left: 10px;
+      margin: 22px 0 12px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title .tag {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* 核心理念摘要 Callout */
+    .callout-box {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-left: 4px solid #3b82f6;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+    .callout-box strong {
+      color: #1e3a8a;
+    }
+
+    /* 四大核心價值卡片網格 */
+    .grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+      page-break-inside: avoid;
+    }
+    .feature-card.primary { border-top: 3px solid #2563eb; }
+    .feature-card.success { border-top: 3px solid #059669; }
+    .feature-card.warning { border-top: 3px solid #d97706; }
+    .feature-card.danger  { border-top: 3px solid #dc2626; }
+    
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    .card-head .icon {
+      font-size: 16px;
+    }
+    .card-body {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .card-body ul {
+      margin: 6px 0 0 0;
+      padding-left: 18px;
+    }
+    .card-body li {
+      margin-bottom: 4px;
+    }
+
+    /* 表格設計 */
+    table.custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-bottom: 18px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      page-break-inside: avoid;
+    }
+    table.custom-table th {
+      background: #1e3a8a;
+      color: #ffffff;
+      font-weight: 700;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    table.custom-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    table.custom-table tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    table.custom-table tr:last-child td {
+      border-bottom: none;
+    }
+    .badge-ok {
+      background: #dcfce7;
+      color: #15803d;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .badge-warn {
+      background: #fee2e2;
+      color: #b91c1c;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    /* Demo 步驟流 */
+    .step-flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+      page-break-inside: avoid;
+    }
+    .step-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .step-no {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      line-height: 22px;
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 800;
+      border-radius: 50%;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .step-title {
+      font-weight: 800;
+      font-size: 12px;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font-size: 10.5px;
+      color: #64748b;
+      line-height: 1.35;
+    }
+
+    /* FAQ 與 Q&A 卡片 */
+    .faq-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      page-break-inside: avoid;
+    }
+    .faq-q {
+      font-weight: 800;
+      color: #1e3a8a;
+      font-size: 12.5px;
+      margin-bottom: 3px;
+    }
+    .faq-a {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8px;
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部橫幅 -->
+  <div class="header-box">
+    <div class="header-badge">HACCP / ISO 22000 認證 ＆ 智慧能源管理專用</div>
+    <h1 class="header-title">裕珍皇 智慧冷鏈監控與能源管理系統</h1>
+    <div class="header-sub">全天候 24hr 食材溫控守護 · 專利級平均庫溫防誤報預警 · 台電夏月時間電價分析 · 設備預防性健康診斷</div>
+    <div class="header-meta">
+      <span>🏢 <strong>場域</strong>：裕珍皇 1F / 3F 冷凍冷藏廠區</span>
+      <span>⚡ <strong>涵蓋範圍</strong>：6 大庫別（12組主機）+ 2台 SPM-3 集合式電錶</span>
+      <span>📅 <strong>版本</strong>：2026 最新正式版</span>
+    </div>
+  </div>
+
+  <!-- 執行摘要 -->
+  <div class="callout-box">
+    <strong>💡 系統定位與核心價值：</strong><br>
+    本系統專為食品冷鏈廠區量身打造，將傳統分散的人工抄表與被動維修，升級為<strong>「食安合規數位化、精準零誤報預警、電費避峰最佳化、主機健康預警」</strong>的四合一智慧中控平台。現場配置大螢幕電視牆與平面圖，遠端支援手機 LINE / Pushover 即時推播，為企業守護食材資產並實質節省營運成本。
+  </div>
+
+  <!-- 四大核心價值 -->
+  <div class="section-title">
+    <span>🎯 四大核心價值（直擊業主管理痛點）</span>
+    <span class="tag">Core Value Pillars</span>
+  </div>
+
+  <div class="grid-2x2">
+    <!-- 1. 食安合規 -->
+    <div class="feature-card primary">
+      <div class="card-head">
+        <span class="icon">📋</span>
+        <span>1. HACCP / ISO 22000 稽核無痛合規</span>
+      </div>
+      <div class="card-body">
+        <strong>痛點：</strong>人工每日抄表耗工費時、易漏抄，衛生局或客戶查廠時常手忙腳亂。
+        <ul>
+          <li><strong>秒級擷取、每分鐘自動歸檔</strong>：數據真實且防篡改。</li>
+          <li><strong>一鍵匯出 Excel / 報表</strong>：依自選區間 10 秒輸出完整報表，大幅減輕品保工作負擔。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 2. 智慧預警 -->
+    <div class="feature-card danger">
+      <div class="card-head">
+        <span class="icon">🛡️</span>
+        <span>2. 庫溫聚合判定 ＆ 雙層預警防護</span>
+      </div>
+      <div class="card-body">
+        <strong>痛點：</strong>單機除霜就引發假警報（狼來了效應）；真正故障時卻無人知曉導致整庫食材報廢。
+        <ul>
+          <li><strong>庫別平均庫溫判定</strong>：單機除霜絕不誤報，全庫失溫立即發報。</li>
+          <li><strong>手機 LINE / Pushover 秒級推播</strong>：隨時隨地知曉異常。</li>
+          <li><strong>消音貪睡防呆機制</strong>：現場消音後若 10 分鐘仍未排除，蜂鳴音自動重響，確保問題被徹底解決。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 3. 節能降本 -->
+    <div class="feature-card success">
+      <div class="card-head">
+        <span class="icon">⚡</span>
+        <span>3. 能源管理與台電時間電價分析</span>
+      </div>
+      <div class="card-body">
+        <strong>痛點：</strong>夏季夜尖峰電價高昂（16:00~22:00），冷凍庫用電佔比極高，電費難以掌控。
+        <ul>
+          <li><strong>整合 SPM-3 集合式電錶</strong>：即時監控本日/當月累積度數（kWh）、功率（kW）、三相電流與 NFB 滿載跳脫預警。</li>
+          <li><strong>尖離峰自動分類分析</strong>：呈現「🔴 尖峰用電」與「🟢 離峰/半尖峰」佔比，協助落實「離峰蓄冷、尖峰避峰」，月省數萬電費。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 4. 設備健診 -->
+    <div class="feature-card warning">
+      <div class="card-head">
+        <span class="icon">🔧</span>
+        <span>4. 機組底層深度診斷與預防保養</span>
+      </div>
+      <div class="card-body">
+        <strong>痛點：</strong>冷媒洩漏、壓縮機老化往往等到完全不冷才發現，維修昂貴且影響生產。
+        <ul>
+          <li><strong>全方位運轉參數監測</strong>：盤管溫度、壓縮機運轉電流、高壓壓力、低壓壓力（bar/psi 雙制式）。</li>
+          <li><strong>累積運轉時數統計</strong>：實現預防性維護，延長壓縮機壽命。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- 效益對比表 -->
+  <div class="section-title">
+    <span>📊 傳統管理模式 vs. 本系統效益對比</span>
+    <span class="tag">ROI & Comparison</span>
+  </div>
+
+  <table class="custom-table">
+    <thead>
+      <tr>
+        <th style="width: 22%;">評比項目</th>
+        <th style="width: 38%;">傳統人工 / 獨立溫控器</th>
+        <th style="width: 40%;">本智慧監控與能源管理系統</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>抄表與數據記錄</strong></td>
+        <td><span class="badge-warn">劣</span> 人工紙本抄表（耗工、易漏抄、易受潮遺失）</td>
+        <td><span class="badge-ok">優</span> <strong>全自動每分鐘持久化儲存、一鍵匯出 Excel</strong></td>
+      </tr>
+      <tr>
+        <td><strong>稽核查廠準備</strong></td>
+        <td><span class="badge-warn">劣</span> 查廠前翻箱倒櫃趕工補單，合規風險高</td>
+        <td><span class="badge-ok">優</span> <strong>100% 符合 HACCP / ISO 22000 稽查標準</strong></td>
+      </tr>
+      <tr>
+        <td><strong>警報通報效率</strong></td>
+        <td><span class="badge-warn">劣</span> 僅現場微弱蜂鳴，下班或半夜無人知曉</td>
+        <td><span class="badge-ok">優</span> <strong>手機 LINE / Pushover 即時推播 + 貪睡防呆重響</strong></td>
+      </tr>
+      <tr>
+        <td><strong>警報誤報率</strong></td>
+        <td><span class="badge-warn">劣</span> 單台主機除霜就亂響，造成狼來了疲乏</td>
+        <td><span class="badge-ok">優</span> <strong>專利庫別平均庫溫判定，精準零誤報</strong></td>
+      </tr>
+      <tr>
+        <td><strong>電費與能耗管理</strong></td>
+        <td><span class="badge-warn">劣</span> 收到台電帳單才知道金額，無法優化</td>
+        <td><span class="badge-ok">優</span> <strong>即時尖離峰電量佔比分析，助攻製冷排程節能</strong></td>
+      </tr>
+      <tr>
+        <td><strong>設備預防保養</strong></td>
+        <td><span class="badge-warn">劣</span> 壞了才修（停產損失 ＋ 昂貴緊急更換）</td>
+        <td><span class="badge-ok">優</span> <strong>監控壓縮機電流與高低壓，故障前預警保養</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 現場 Demo 展示流程 -->
+  <div class="section-title">
+    <span>🖥️ 現場 5 分鐘 Demo 展示流程指南</span>
+    <span class="tag">Demonstration Flow</span>
+  </div>
+
+  <div class="step-flow">
+    <div class="step-item">
+      <div class="step-no">1</div>
+      <div class="step-title">即時監控儀表板</div>
+      <div class="step-desc">展示 6 大庫別即時溫度、主機運轉燈號（製冷/送風/除霜）與頂部狀態統計。</div>
+    </div>
+    <div class="step-item">
+      <div class="step-no">2</div>
+      <div class="step-title">廠區平面圖視圖</div>
+      <div class="step-desc">切換 1F/3F 廠區平面透視圖，大螢幕展示立體定位與動態氣泡，提升企業形象。</div>
+    </div>
+    <div class="step-item">
+      <div class="step-no">3</div>
+      <div class="step-title">能源管理專區</div>
+      <div class="step-desc">點開電表資訊，展示本日/當月度數、功率因數與台電夜尖峰/離峰用電比例。</div>
+    </div>
+    <div class="step-item">
+      <div class="step-no">4</div>
+      <div class="step-title">庫別控制面板</div>
+      <div class="step-desc">深入查看單庫 5 台主機之盤管溫度、電流、高低壓壓力與目標溫度設定。</div>
+    </div>
+    <div class="step-item">
+      <div class="step-no">5</div>
+      <div class="step-title">一鍵報表下載</div>
+      <div class="step-desc">示範選取日期範圍，秒級下載 HACCP 標準溫度歷史報表。</div>
+    </div>
+  </div>
+
+  <!-- 業主常見 Q&A -->
+  <div class="section-title">
+    <span>🗣️ 業主常見問題與專業應對（Q&A）</span>
+    <span class="tag">FAQ</span>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Q1：如果廠區外網（網際網路）斷線，系統還能正常運作嗎？</div>
+    <div class="faq-a"><strong>A：完全不受影響！</strong> 系統採用「邊緣運算（Edge Computing）」架構，本地主機具備獨立資料庫。即使外網中斷，現場依然 24 小時正常採集、記錄、警報與蜂鳴，待網路恢復後自動同步備份，資料零遺失。</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Q2：現場人員會不會覺得介面操作很複雜？</div>
+    <div class="faq-a"><strong>A：極度直覺！</strong> 介面採用國際標準圖形化設計：綠燈正常、藍燈製冷、橘燈除霜、紅燈警報。並具備全廠平面圖，現場人員不需繁瑣培訓，一眼就能看懂全廠冷鏈狀態。</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Q3：如果有主機在正常除霜，會不會導致警報一直亂響？</div>
+    <div class="faq-a"><strong>A：絕對不會！</strong> 本系統導入「庫別平均庫溫判定機制」，只有在整個庫別在線主機的平均溫度真正超標並持續超過設定延遲時才會警報；單台主機除霜時僅點亮橘色除霜燈，絕不引發假警報。</div>
+  </div>
+
+  <div class="footer">
+    <span>裕珍皇 食品冷鏈監控與能源管理專案</span>
+    <span>冷鏈科技股份有限公司 規劃建置 · 版權所有</span>
+  </div>
+
+</body>
+</html>
