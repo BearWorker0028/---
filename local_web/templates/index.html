@@ -2763,37 +2763,37 @@
         });
       } else if (isBar) {
         if (meter === 'all') {
-          // 全廠模式下：1F + 3F 雙色堆疊柱狀圖
-          const tMap = {};
-          chKeys.forEach(ch => {
-            (series[ch] || []).forEach(pt => {
-              if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
-              tMap[pt.t][ch] = Number(pt.v || 0);
-            });
-          });
-          const sortedTs = Object.keys(tMap).sort();
+          // 全廠模式下：1F + 3F 雙色堆疊柱狀圖 (實心飽滿柱體)
+          const s13 = series['ch13'] || [];
+          const s14 = series['ch14'] || [];
           datasets.push({
             label: '1F 集合式電錶 用電量 (kWh)',
-            data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
+            data: s13.map(p => p.v),
             backgroundColor: '#1a5fa8',
             stack: 'kwh_stack',
-            borderRadius: { topLeft: 0, topRight: 0 }
+            borderRadius: { topLeft: 0, topRight: 0 },
+            barPercentage: 0.65,
+            categoryPercentage: 0.8
           });
           datasets.push({
             label: '3F 集合式電錶 用電量 (kWh)',
-            data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
+            data: s14.map(p => p.v),
             backgroundColor: '#d97706',
             stack: 'kwh_stack',
-            borderRadius: { topLeft: 4, topRight: 4 }
+            borderRadius: { topLeft: 4, topRight: 4 },
+            barPercentage: 0.65,
+            categoryPercentage: 0.8
           });
         } else {
           chKeys.forEach(ch => {
-            const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
+            const s = series[ch] || [];
             datasets.push({
               label: `${chNames[ch] || ch} · 用電量 (kWh)`,
-              data: pts,
+              data: s.map(p => p.v),
               backgroundColor: chColors[ch] || '#1a5fa8',
-              borderRadius: 4
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.8
             });
           });
         }
@@ -2820,13 +2820,25 @@
 
       powerTrendChartInstance = new Chart(ctx, {
         type: chartType,
-        data: { datasets: datasets },
+        data: {
+          labels: isBar ? (res.labels || []) : undefined,
+          datasets: datasets
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           scales: {
-            x: {
+            x: isBar ? {
+              type: 'category',
+              grid: { display: false },
+              ticks: {
+                font: { size: 11, weight: '700' },
+                color: '#475569',
+                maxRotation: 0,
+                autoSkip: false
+              }
+            } : {
               type: 'time',
               time: {
                 tooltipFormat: 'yyyy/MM/dd HH:mm:ss',

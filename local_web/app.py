@@ -2005,22 +2005,39 @@ def power_chart_data():
         dt_to   = now_tw
 
     total_seconds = (dt_to - dt_from).total_seconds()
-    if field in ('daily_kwh', 'delta_kwh', 'kwh_bar', 'energy'):
-        if total_seconds <= 6 * 3600:
-            bucket_sec = 1800      # 30 分鐘一根柱
-        elif total_seconds <= 24 * 3600:
-            bucket_sec = 3600      # 1 小時一根柱 (24 根)
+    is_discrete = field in ('daily_kwh', 'delta_kwh', 'kwh_bar', 'energy')
+    discrete_labels = []
+    bucket_intervals = []
+    
+    if is_discrete:
+        weekday_names = ['(一)', '(二)', '(三)', '(四)', '(五)', '(六)', '(日)']
+        if range_type == '6h' or (range_type == 'custom' and total_seconds <= 6 * 3600):
+            curr = dt_from.replace(minute=0, second=0, microsecond=0)
+            while curr < dt_to:
+                next_t = curr + timedelta(hours=1)
+                bucket_intervals.append((curr.strftime('%H:00'), curr, next_t))
+                curr = next_t
+        elif range_type in ('1d', '24h', 'day') or (range_type == 'custom' and total_seconds <= 24 * 3600):
+            curr = dt_from.replace(minute=0, second=0, microsecond=0)
+            while curr < dt_to:
+                next_t = curr + timedelta(hours=1)
+                bucket_intervals.append((curr.strftime('%H:00'), curr, next_t))
+                curr = next_t
+        elif range_type in ('7d', 'week') or (range_type == 'custom' and total_seconds <= 7 * 86400):
+            curr = (dt_to - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+            while curr <= dt_to:
+                next_t = curr + timedelta(days=1)
+                w_str = weekday_names[curr.weekday()]
+                m_str = curr.strftime('%m/%d')
+                bucket_intervals.append((f"{m_str} {w_str}", curr, next_t))
+                curr = next_t
         else:
-            bucket_sec = 86400     # 1 天一根柱 (每日耗電)
-    else:
-        if total_seconds <= 6 * 3600:
-            bucket_sec = 300       # 5 分鐘
-        elif total_seconds <= 24 * 3600:
-            bucket_sec = 900       # 15 分鐘
-        elif total_seconds <= 7 * 86400:
-            bucket_sec = 3600      # 1 小時
-        else:
-            bucket_sec = 86400     # 1 天
+            curr = dt_from.replace(hour=0, minute=0, second=0, microsecond=0)
+            while curr <= dt_to:
+                next_t = curr + timedelta(days=1)
+                bucket_intervals.append((curr.strftime('%m/%d'), curr, next_t))
+                curr = next_t
+        discrete_labels = [b[0] for b in bucket_intervals]
 
     series = {}
     with get_pg() as conn:
@@ -2028,44 +2045,34 @@ def power_chart_data():
             rows = conn.execute(
                 "SELECT timestamp, kw, kwh, v, a, pf FROM power_readings "
                 "WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp ASC",
-                (ch, dt_from, dt_to)
+                (ch, dt_from - timedelta(days=1) if is_discrete else dt_from, dt_to)
             ).fetchall()
 
-            if field in ('daily_kwh', 'delta_kwh', 'kwh_bar', 'energy'):
-                # 計算各時間切片的實質用電量 (kWh)
-                buckets = {}
-                for r in rows:
-                    ts = r['timestamp']
-                    if not ts.tzinfo:
-                        ts = ts.replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP)
-                    else:
-                        ts = ts.astimezone(TZ_TW_APP)
-                    epoch = int(ts.timestamp())
-                    b_epoch = (epoch // bucket_sec) * bucket_sec
-                    if b_epoch not in buckets:
-                        buckets[b_epoch] = {'min_kwh': r['kwh'], 'max_kwh': r['kwh'], 'ts': datetime.fromtimestamp(b_epoch, TZ_TW_APP)}
-                    b = buckets[b_epoch]
-                    if r['kwh'] is not None:
-                        if b['min_kwh'] is None or r['kwh'] < b['min_kwh']:
-                            b['min_kwh'] = r['kwh']
-                        if b['max_kwh'] is None or r['kwh'] > b['max_kwh']:
-                            b['max_kwh'] = r['kwh']
-
-                sorted_epochs = sorted(buckets.keys())
+            if is_discrete:
                 data_pts = []
-                for idx, ep in enumerate(sorted_epochs):
-                    b = buckets[ep]
+                for label, t_start, t_end in bucket_intervals:
+                    b_rows = []
+                    for r in rows:
+                        if not r['timestamp']:
+                            continue
+                        r_ts = r['timestamp'].replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP) if not r['timestamp'].tzinfo else r['timestamp'].astimezone(TZ_TW_APP)
+                        if t_start <= r_ts < t_end:
+                            b_rows.append(r)
+                    
+                    kwh_vals = [r['kwh'] for r in b_rows if r['kwh'] is not None]
                     delta = 0.0
-                    if b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
-                        delta = float(b['max_kwh'] - b['min_kwh'])
-                    if delta == 0.0 and idx > 0:
-                        prev_b = buckets[sorted_epochs[idx - 1]]
-                        if b['max_kwh'] is not None and prev_b['max_kwh'] is not None:
-                            diff = float(b['max_kwh'] - prev_b['max_kwh'])
-                            if 0 <= diff < 500:
-                                delta = diff
+                    if kwh_vals:
+                        max_k = max(kwh_vals)
+                        min_k = min(kwh_vals)
+                        delta = float(max_k - min_k)
+                        if delta == 0.0 and len(data_pts) > 0 and len(b_rows) > 0:
+                            prev_rows = [r for r in rows if r['timestamp'] and (r['timestamp'].replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP) if not r['timestamp'].tzinfo else r['timestamp'].astimezone(TZ_TW_APP)) < t_start]
+                            if prev_rows and prev_rows[-1]['kwh'] is not None:
+                                diff = float(max_k - prev_rows[-1]['kwh'])
+                                if 0 <= diff < 500:
+                                    delta = diff
                     data_pts.append({
-                        't': b['ts'].strftime('%Y-%m-%d %H:%M:%S'),
+                        't': label,
                         'v': round(delta, 2)
                     })
                 series[ch] = data_pts
@@ -2083,7 +2090,12 @@ def power_chart_data():
                     'v': round(float(r[c_name]), 2) if r[c_name] is not None else None
                 } for r in rows]
 
-    return jsonify({'series': series, 'field': field, 'bucket_sec': bucket_sec})
+    return jsonify({
+        'series': series,
+        'labels': discrete_labels,
+        'is_discrete': is_discrete,
+        'field': field
+    })
 
 # ── 台電時間電價尖離峰時段判斷（依台電官方標準時間電價三段式契約規範） ──
 OFF_PEAK_HOLIDAYS = [
