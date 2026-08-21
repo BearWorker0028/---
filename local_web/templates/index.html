@@ -67,7 +67,7 @@
       --main-pad: 12px;
     }
 
-    /* 📺 1080p Full HD (1920x1080) 建議標準電視牆滿版優化 */
+    /* 1080p Full HD (1920x1080) 建議標準電視牆滿版優化 */
     html[data-resolution="1920x1080"] {
       --card-h: clamp(130px, calc((100vh - 195px) / 2), 175px);
       --card-gap: 12px;
@@ -80,7 +80,7 @@
       --main-pad: 12px;
     }
 
-    /* 📺 4K Ultra HD (3840x2160) 超高解析度大電視放大優化 */
+    /* 4K Ultra HD (3840x2160) 超高解析度大電視放大優化 */
     html[data-resolution="3840x2160"] {
       --card-h: clamp(180px, calc((100vh - 250px) / 2), 260px);
       --card-gap: 18px;
@@ -93,7 +93,7 @@
       --main-pad: 18px;
     }
 
-    /* 📺 2K QHD (2560x1440) 高解析度螢幕優化 */
+    /* 2K QHD (2560x1440) 高解析度螢幕優化 */
     html[data-resolution="2560x1440"] {
       --card-h: clamp(150px, calc((100vh - 210px) / 2), 200px);
       --card-gap: 14px;
@@ -106,7 +106,7 @@
       --main-pad: 14px;
     }
 
-    /* 📺 1366x768 / 1280x720 緊湊版型優化 (零滾軸) */
+    /* 1366x768 / 1280x720 緊湊版型優化 (零滾軸) */
     html[data-resolution="1366x768"],
     html[data-resolution="1280x720"] {
       --card-h: clamp(105px, calc((100vh - 170px) / 2), 125px);
@@ -1546,11 +1546,77 @@
   <div id="modal-power-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1001;align-items:center;justify-content:center;">
     <div style="background:var(--bg-body);border-radius:12px;width:1150px;max-width:96vw;max-height:90vh;box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
       <div style="background:var(--accent-secondary);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
-        <h3 style="color:#fff;margin:0;font-size:16px;letter-spacing:1px;">⚡ 廠區用電資訊</h3>
+        <h3 style="color:#fff;margin:0;font-size:16px;letter-spacing:1px;">廠區電表資訊</h3>
         <button onclick="closePowerModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>
       </div>
       <div id="power-modal-content" style="padding:20px;overflow-y:auto;">
         <!-- dynamically filled by openPowerModal() -->
+      </div>
+    </div>
+  </div>
+  <!-- ── 台電三段式時間電價時段標準說明 Modal ── -->
+  <div id="modal-tariff-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1002;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:12px;width:740px;max-width:95vw;max-height:88vh;box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="background:var(--accent);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="color:#fff;margin:0;font-size:15px;letter-spacing:1px;">台電三段式時間電價時段標準說明</h3>
+        <button onclick="closeTariffModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;font-size:12px;color:var(--text-1);line-height:1.6;">
+        <div style="background:#f0f9ff;border-left:4px solid var(--accent);padding:10px 14px;border-radius:4px;margin-bottom:14px;">
+          <b>台電時間電價計費原則：</b><br>
+          台電時間電價依負載特性劃分計費時段，將高載尖峰集中於 <b>16:00 ~ 22:00（夜尖峰）</b>，各時段按實際累計用電量（kWh）依台電公告費率分段計價。
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;">
+          <thead>
+            <tr style="background:#f1f5f9;border-bottom:2px solid var(--border);">
+              <th style="padding:8px;text-align:left;">時段分類</th>
+              <th style="padding:8px;text-align:left;">包含時間定義</th>
+              <th style="padding:8px;text-align:center;">夏月流動費率</th>
+              <th style="padding:8px;text-align:center;">非夏月流動費率</th>
+              <th style="padding:8px;text-align:left;">計費屬性</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px;font-weight:700;color:var(--alarm);">尖峰時段 (Peak)</td>
+              <td style="padding:8px;">平日 <b>16:00 ~ 22:00</b> (夜尖峰)</td>
+              <td style="padding:8px;text-align:center;font-weight:800;color:var(--alarm);">8.12 元/度</td>
+              <td style="padding:8px;text-align:center;color:var(--text-3);">— (併入半尖峰)</td>
+              <td style="padding:8px;color:var(--alarm);font-weight:700;">高載計量時段</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px;font-weight:700;color:#ea580c;">半尖峰 (Semi-Peak)</td>
+              <td style="padding:8px;">平日 09:00~16:00, 22:00~24:00<br>週六 09:00~24:00</td>
+              <td style="padding:8px;text-align:center;font-weight:700;color:#ea580c;">5.02 元/度<br><span style="font-size:10px;color:var(--text-3);">(週六 2.50)</span></td>
+              <td style="padding:8px;text-align:center;font-weight:700;color:#ea580c;">4.86 元/度<br><span style="font-size:10px;color:var(--text-3);">(週六 2.40)</span></td>
+              <td style="padding:8px;">常規營運計量時段</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;font-weight:700;color:var(--ok);">離峰時段 (Off-Peak)</td>
+              <td style="padding:8px;">每日深夜 <b>00:00 ~ 09:00</b><br>週日及離峰日全天</td>
+              <td style="padding:8px;text-align:center;font-weight:800;color:var(--ok);">2.23 元/度</td>
+              <td style="padding:8px;text-align:center;font-weight:800;color:var(--ok);">2.12 元/度</td>
+              <td style="padding:8px;color:var(--ok);font-weight:700;">低載計量時段 (價差達3.64倍)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 補充說明與法規來源（中性淺色系，資訊層級與法規同級） -->
+        <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px 16px;">
+          <div style="font-size:11px; color:var(--text-2); line-height:1.6; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
+            <b style="color:var(--text-1);">2,000 度以上超額加價說明：</b>
+            每月用電度數超過 2,000 度以上之部分，每度另加收超額流動電費（夏月 <b>+0.96 元/度</b>、非夏月 <b>+0.93 元/度</b>）。
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div style="font-size:11px; color:var(--text-2); line-height:1.5;">
+              <b style="color:var(--text-1);">法規來源：</b>台灣電力公司《各類電價表及計算範例》— 時間電價（三段式）最新公告標準
+            </div>
+            <a href="https://www.taipower.com.tw/media/wzicn04w/%E5%90%84%E9%A1%9E%E9%9B%BB%E5%83%B9%E8%A1%A8%E5%8F%8A%E8%A8%88%E7%AE%97%E7%AF%84%E4%BE%8B.pdf?mediaDL=true" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; background:var(--accent); color:#fff; text-decoration:none; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.06);">
+              下載台電電價表 (PDF) ↗
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1579,7 +1645,7 @@
     <div id="audio-unlock-banner"
       style="display:none;background:#ffecd6;color:#e67e22;padding:8px 16px;font-size:12px;font-weight:700;text-align:center;border-bottom:1px solid #ffd8b0;cursor:pointer;"
       onclick="unlockAudio()">
-      ⚠️ 瀏覽器目前阻擋了警報音效，請點擊此處解鎖播放！
+      瀏覽器目前阻擋了警報音效，請點擊此處解鎖播放！
     </div>
     <div class="statusbar">
       <div class="si">
@@ -1604,14 +1670,15 @@
           <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="gw-cnt-off">--</span>
         </div>
         <button id="btn-silence" onclick="silenceAlarm()"
-          style="display:none;padding:4px 12px;border:1px solid var(--alarm);border-radius:4px;background:#fff0f0;color:var(--alarm);font-size:11px;font-weight:700;cursor:pointer;animation:blink 1s step-start infinite;">🔔
+          style="display:none;padding:4px 12px;border:1px solid var(--alarm);border-radius:4px;background:#fff0f0;color:var(--alarm);font-size:11px;font-weight:700;cursor:pointer;animation:blink 1s step-start infinite;">
           關閉警報聲</button>
       </div>
     </div>
     <div class="body">
       <div class="sidebar">
         <div class="menu-btn active" id="btn-dashboard">即時監控</div>
-        <div class="menu-btn" id="btn-chart">總圖表</div>
+        <div class="menu-btn" id="btn-energy">能源管理</div>
+        <div class="menu-btn" id="btn-chart">庫溫圖表</div>
         <div class="menu-btn" id="btn-alarm">警報查詢</div>
         <div class="menu-btn" id="btn-report">報表下載</div>
         <div class="menu-btn" id="btn-settings">系統設定</div>
@@ -1644,6 +1711,200 @@
             </div>
           </div>
         </div>
+
+        <!-- ── 能源管理分頁 ── -->
+        <div id="page-energy" style="display:none;">
+          <!-- 頂部頁籤與電價說明 -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+            <div class="view-toggle-row" style="margin-bottom:0;">
+              <button class="view-btn active" id="btn-subtab-energy-overview" onclick="switchEnergySubTab('overview')">能源總覽與設備分析</button>
+              <button class="view-btn" id="btn-subtab-energy-trends" onclick="switchEnergySubTab('trends')">電力趨勢走勢圖</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button onclick="openTariffModal()" style="padding:5px 12px; border:1px solid var(--accent); background:#e8f0fe; color:var(--accent); font-size:11px; font-weight:700; border-radius:5px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:background .15s;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>電價時段說明</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 子頁籤 1：能源總覽與設備分析 -->
+          <div id="energy-subtab-overview">
+            <!-- 第 1 排：頂部 3 大即時電力卡片 -->
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:12px;">
+              <div style="background:var(--accent); border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">即時總耗電</div>
+                <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-kw">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">kW</span></div>
+              </div>
+              <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">平均線電壓</div>
+                <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-v">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">V</span></div>
+              </div>
+              <div style="background:#1e40af; border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">總平均電流</div>
+                <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-a">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">A</span></div>
+              </div>
+            </div>
+
+            <!-- 第 2 排：單一大卡片「累積用電量」（高度與第 1 排嚴格等高 68px，數值字級一致為 26px） -->
+            <div style="background:var(--accent); border-radius:8px; padding:12px 22px; min-height:68px; box-sizing:border-box; margin-bottom:12px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+              <div style="font-size:13px; font-weight:800; opacity:0.95; letter-spacing:0.5px;">累積用電量</div>
+              <div style="display:flex; align-items:center; gap:28px; flex-wrap:wrap;">
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+                  <span id="kpi-energy-today" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/day</span>
+                </div>
+                <div style="width:1px; height:24px; background:rgba(255,255,255,0.22);"></div>
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+                  <span id="kpi-energy-week" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/week</span>
+                </div>
+                <div style="width:1px; height:24px; background:rgba(255,255,255,0.22);"></div>
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+                  <span id="kpi-energy-month" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/month</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 第 3 排：統一週期切換器 -->
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:8px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <span class="tb-label" style="font-size:12px; font-weight:700; color:var(--text-2);">統計週期</span>
+              <div class="range-btns">
+                <button class="rbtn" id="btn-energy-period-day" onclick="setEnergyPeriod('day')">當日</button>
+                <button class="rbtn" id="btn-energy-period-week" onclick="setEnergyPeriod('week')">當週</button>
+                <button class="rbtn active" id="btn-energy-period-month" onclick="setEnergyPeriod('month')">當月</button>
+                <button class="rbtn" id="btn-energy-period-custom" onclick="setEnergyPeriod('custom')">自訂區間</button>
+              </div>
+              <div id="energy-custom-picker" style="display:none; align-items:center; gap:6px; margin-left:8px;">
+                <input type="date" id="energy-date-from" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
+                <span style="color:var(--text-3); font-size:11px;">～</span>
+                <input type="date" id="energy-date-to" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
+                <button class="qbtn qbtn-search" onclick="applyEnergyCustomPeriod()" style="padding:3px 10px; font-size:11px;">查詢</button>
+              </div>
+              <span id="lbl-energy-period-range" style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;"></span>
+            </div>
+
+            <!-- 第 4 排：所選週期 時間電價分項能耗、佔比與進度橫條 (高度 68px 對齊，字體高度同步調大) -->
+            <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:10px 18px; min-height:68px; box-sizing:border-box; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:baseline;">
+                  <span style="color:var(--alarm); font-size:13px; font-weight:700;">尖峰用電: <b id="kpi-tariff-peak" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-peak-pct">--%</span>)</span></span>
+                  <span style="color:#ea580c; font-size:13px; font-weight:700;">半尖峰用電: <b id="kpi-tariff-semi" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-semi-pct">--%</span>)</span></span>
+                  <span style="color:var(--ok); font-size:13px; font-weight:700;">離峰用電: <b id="kpi-tariff-off" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-off-pct">--%</span>)</span></span>
+                </div>
+                <div style="color:var(--text-1); font-size:13px; font-weight:700; background:#f1f5f9; padding:4px 12px; border-radius:6px; display:flex; align-items:baseline; gap:4px;">
+                  <span>當期總計:</span> <b id="kpi-tariff-period-total" style="font-size:17px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums;">--</b>
+                </div>
+              </div>
+              <div style="display:flex; height:8px; gap:8px; background:transparent; margin-top:4px;">
+                <div id="bar-peak-pct" style="width:0%; background:var(--alarm); border-radius:4px; transition:width .3s;" title="尖峰時段佔比"></div>
+                <div id="bar-semi-pct" style="width:0%; background:#ea580c; border-radius:4px; transition:width .3s;" title="半尖峰時段佔比"></div>
+                <div id="bar-off-pct" style="width:0%; background:var(--ok); border-radius:4px; transition:width .3s;" title="離峰時段佔比"></div>
+              </div>
+            </div>
+
+            <!-- 雙欄版面：左側各庫能耗圓餅圖 (38%) + 右側 12台設備時數列表 (62%) -->
+            <div style="display:grid; grid-template-columns: 38% 62%; gap:14px; align-items:start;">
+              <!-- 左側圓餅圖 -->
+              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                  <span>各庫用電量佔比</span>
+                  <span id="lbl-pie-total-kwh" style="font-size:11px; color:var(--text-3); font-weight:600;"></span>
+                </div>
+                <div style="position:relative; height:180px; display:flex; justify-content:center; align-items:center;">
+                  <canvas id="roomEnergyPieChart"></canvas>
+                </div>
+                <div id="room-energy-legend" style="margin-top:10px; display:flex; flex-direction:column; gap:4px; max-height:160px; overflow-y:auto;">
+                  <!-- dynamically filled -->
+                </div>
+              </div>
+
+              <!-- 右側 12 台主機運轉時數列表 (無稼動率) -->
+              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                  <span>冷鏈主機運轉狀態與時數</span>
+                  <span style="font-size:11px; color:var(--text-3);">時數隨所選週期連動</span>
+                </div>
+                <div style="max-height:360px; overflow-y:auto;">
+                  <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead>
+                      <tr style="background:#f8fafc; border-bottom:1.5px solid var(--border); color:var(--text-2); position:sticky; top:0;">
+                        <th style="padding:6px 4px; text-align:center; width:28px;">#</th>
+                        <th style="padding:6px 6px; text-align:left;">所屬庫別</th>
+                        <th style="padding:6px 6px; text-align:left;">設備名稱</th>
+                        <th style="padding:6px 6px; text-align:center;">即時狀態</th>
+                        <th style="padding:6px 6px; text-align:right;">運轉電流</th>
+                        <th style="padding:6px 8px; text-align:right;">區間運轉時數</th>
+                      </tr>
+                    </thead>
+                    <tbody id="device-runtime-tbody">
+                      <!-- dynamically filled -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子頁籤 2：電力趨勢走勢圖 -->
+          <div id="energy-subtab-trends" style="display:none;">
+            <div class="chart-toolbar">
+              <div class="tb-row">
+                <span class="tb-label">時間範圍</span>
+                <div class="range-btns">
+                  <button class="rbtn active" id="btn-ptrend-6h" onclick="setPowerTrendRange('6h')">6小時</button>
+                  <button class="rbtn" id="btn-ptrend-1d" onclick="setPowerTrendRange('1d')">1日 (24h)</button>
+                  <button class="rbtn" id="btn-ptrend-7d" onclick="setPowerTrendRange('7d')">7日 (週)</button>
+                  <button class="rbtn" id="btn-ptrend-custom" onclick="setPowerTrendRange('custom')">自訂區間</button>
+                </div>
+                <div id="ptrend-custom-picker" style="display:none; align-items:center; gap:6px; margin-left:8px;">
+                  <input type="datetime-local" id="ptrend-date-from" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
+                  <span style="color:var(--text-3); font-size:11px;">～</span>
+                  <input type="datetime-local" id="ptrend-date-to" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
+                  <button class="qbtn qbtn-search" onclick="loadPowerTrendChart()" style="padding:3px 10px; font-size:11px;">查詢</button>
+                </div>
+              </div>
+              <div class="tb-row" style="flex-wrap:wrap; gap:10px; align-items:center;">
+                <span class="tb-label">電錶對象</span>
+                <select id="sel-ptrend-meter" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer;">
+                  <option value="all">全廠電錶 (1F + 3F 合併)</option>
+                  <option value="ch13">1F 集合式電錶</option>
+                  <option value="ch14">3F 集合式電錶</option>
+                </select>
+                <span class="tb-label">分析指標</span>
+                <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:200px;">
+                  <option value="delta_kwh">區間用電增量 (ΔkWh - 柱狀圖)</option>
+                  <option value="kw">即時總耗電 (kW - 折線走勢)</option>
+                  <option value="v">平均線電壓 (V)</option>
+                  <option value="a">總平均電流 (A)</option>
+                  <option value="pf">功率因數 (PF)</option>
+                  <option value="kwh">電錶累積總底度 (kWh)</option>
+                </select>
+              </div>
+            </div>
+            <div class="chart-wrap" style="height:360px;"><canvas id="powerTrendChart"></canvas></div>
+            <div class="stats-wrap" id="power-stats-wrap" style="display:none; margin-top:14px;">
+              <div class="stats-hdr"><span>電力統計數據</span></div>
+              <table class="stats-tbl">
+                <thead>
+                  <tr>
+                    <th>電錶</th>
+                    <th>分析指標</th>
+                    <th>最大值</th>
+                    <th>最大值時間</th>
+                    <th>最小值</th>
+                    <th>最小值時間</th>
+                    <th>平均值 / 總計</th>
+                    <th>採樣筆數</th>
+                  </tr>
+                </thead>
+                <tbody id="power-stats-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
         <div id="page-chart">
           <div class="chart-toolbar">
             <div class="tb-row">
@@ -1665,19 +1926,19 @@
             </div>
             <div class="tb-row" style="flex-wrap:wrap;gap:10px;align-items:center;">
               <span class="tb-label">庫別</span>
-              <select id="sel-room" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:100px;">
+              <select id="sel-room" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:120px;">
                 <option value="">-- 選擇庫別 --</option>
               </select>
               <span class="tb-label">設備</span>
-              <select id="sel-device" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:160px;" disabled>
+              <select id="sel-device" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:170px;" disabled>
                 <option value="">-- 選擇設備 --</option>
               </select>
               <span class="tb-label">資訊</span>
-              <select id="sel-info" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:160px;" disabled>
+              <select id="sel-info" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-1);background:#fff;cursor:pointer;min-width:190px;" disabled>
                 <option value="">-- 選擇資訊 --</option>
               </select>
               <button class="rbtn" id="btn-chart-add" disabled style="padding:5px 14px;font-size:11px;">加入圖表</button>
-              <button class="rbtn" id="btn-chart-add-all" style="padding:5px 14px;font-size:11px;">加入全庫溫度</button>
+              <button class="rbtn" id="btn-chart-add-room" style="padding:5px 14px;font-size:11px;">加入該庫全部溫度</button>
               <button class="rbtn" id="btn-chart-clear" style="padding:5px 14px;font-size:11px;">清除全部</button>
             </div>
             <div id="chart-selected-tags" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 2px 0;"></div>
@@ -1707,15 +1968,15 @@
           <!-- 頂部 3 大精簡 KPI 摘要卡片 (本月統計，去冗詞) -->
           <div style="display:flex; gap:16px; margin-bottom:18px;">
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">🚨 當前未解除</div>
+              <div style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">當前未解除</div>
               <div id="kpi-alarm-active" style="font-size:28px; font-weight:800; color:var(--text-1); line-height:1;">0</div>
             </div>
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">🔴 本月高溫警報</div>
+              <div style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">本月高溫警報</div>
               <div id="kpi-alarm-month-high" style="font-size:28px; font-weight:800; color:var(--alarm); line-height:1;">0</div>
             </div>
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div style="font-size:12px; font-weight:700; color:#d97706; margin-bottom:4px;">🟠 本月設備異常</div>
+              <div style="font-size:12px; font-weight:700; color:#d97706; margin-bottom:4px;">本月設備異常</div>
               <div id="kpi-alarm-month-equip" style="font-size:28px; font-weight:800; color:#d97706; line-height:1;">0</div>
             </div>
           </div>
@@ -1727,10 +1988,10 @@
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; gap:10px;">
               <span class="tb-label">來源位置</span>
               <select id="alarm-ch-filter" style="max-width:240px;">
-                <option value="all">🌐 全部來源</option>
+                <option value="all">全部來源</option>
                 
                 <optgroup label="── 1F 冷凍庫 ──">
-                  <option value="room1">📍 1F 冷凍庫</option>
+                  <option value="room1">1F 冷凍庫</option>
                   <option value="ch01">　└ 1F 冷凍庫 A</option>
                   <option value="ch02">　└ 1F 冷凍庫 B</option>
                   <option value="ch03">　└ 1F 冷凍庫 C</option>
@@ -1739,50 +2000,50 @@
                 </optgroup>
                 
                 <optgroup label="── 1F 其他庫別 ──">
-                  <option value="ch06">📍 1F 緩衝庫 A</option>
-                  <option value="ch07">📍 1F 碼頭區 A</option>
+                  <option value="ch06">1F 緩衝庫 A</option>
+                  <option value="ch07">1F 碼頭區 A</option>
                 </optgroup>
                 
                 <optgroup label="── 3F 急速庫 ──">
-                  <option value="room4">📍 3F 急速庫</option>
+                  <option value="room4">3F 急速庫</option>
                   <option value="ch08">　└ 3F 急速庫 20HP</option>
                   <option value="ch09">　└ 3F 急速庫 10HP</option>
                 </optgroup>
                 
                 <optgroup label="── 3F 半成品冷凍庫 ──">
-                  <option value="room5">📍 3F 半成品冷凍庫</option>
+                  <option value="room5">3F 半成品冷凍庫</option>
                   <option value="ch10">　└ 3F 半成品冷凍 A</option>
                   <option value="ch11">　└ 3F 半成品冷凍 B</option>
                 </optgroup>
                 
                 <optgroup label="── 3F 冷藏庫 ──">
-                  <option value="ch12">📍 3F 冷藏庫 A</option>
+                  <option value="ch12">3F 冷藏庫 A</option>
                 </optgroup>
                 
                 <optgroup label="── 電錶與通訊網關 ──">
-                  <option value="ch13">⚡ 1F 集合式電錶</option>
-                  <option value="ch14">⚡ 3F 集合式電錶</option>
-                  <option value="GW1">🌐 1F 閘道器</option>
-                  <option value="GW2">🌐 3F 閘道器</option>
+                  <option value="ch13">1F 集合式電錶</option>
+                  <option value="ch14">3F 集合式電錶</option>
+                  <option value="GW1">1F 閘道器</option>
+                  <option value="GW2">3F 閘道器</option>
                 </optgroup>
               </select>
 
               <span class="tb-label">警報分類</span>
               <select id="alarm-category-filter">
                 <option value="all">全部分類</option>
-                <option value="HIGH">🔴 庫溫高溫警報</option>
-                <option value="LOW">🔵 庫溫低溫警報</option>
-                <option value="EQUIP_STOP_L212">🟠 L212設備異常</option>
-                <option value="EQUIP_ERR_L216">🟡 L216設備異常</option>
-                <option value="RS485_ERR">⚪ RS-485 通訊異常</option>
-                <option value="GATEWAY_ERR">⚪ 網關乙太網斷線</option>
+                <option value="HIGH">庫溫高溫警報</option>
+                <option value="LOW">庫溫低溫警報</option>
+                <option value="EQUIP_STOP_L212">L212設備異常</option>
+                <option value="EQUIP_ERR_L216">L216設備異常</option>
+                <option value="RS485_ERR">RS-485 通訊異常</option>
+                <option value="GATEWAY_ERR">網關乙太網斷線</option>
               </select>
 
               <span class="tb-label">事件狀態</span>
               <select id="alarm-status-filter">
                 <option value="all">全部狀態</option>
-                <option value="active">🚨 警報中</option>
-                <option value="cleared">🟢 已復歸</option>
+                <option value="active">警報中</option>
+                <option value="cleared">已復歸</option>
               </select>
             </div>
 
@@ -1799,9 +2060,9 @@
               <span style="font-size:11px; color:var(--text-3);">～</span>
               <input type="date" id="alarm-date-to">
 
-              <button class="qbtn qbtn-search" onclick="loadAlarmHistory()">🔍 查詢</button>
-              <button class="qbtn qbtn-reset" onclick="resetAlarmQuery()">🔄 重置</button>
-              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportAlarmHistory()">📥 匯出 Excel</button>
+              <button class="qbtn qbtn-search" onclick="loadAlarmHistory()">查詢</button>
+              <button class="qbtn qbtn-reset" onclick="resetAlarmQuery()">重置</button>
+              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportAlarmHistory()">匯出 Excel</button>
 
               <span style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;" id="alarm-total-badge">共 0 筆</span>
             </div>
@@ -1832,19 +2093,19 @@
           <!-- 頂部 4 大報表 KPI 統計摘要小卡 (動態隨查詢更新) -->
           <div style="display:flex; gap:16px; margin-bottom:18px;">
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div id="kpi-rep-title-1" style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">📊 統計區間均值</div>
+              <div id="kpi-rep-title-1" style="font-size:12px; font-weight:700; color:var(--text-3); margin-bottom:4px;">統計區間均值</div>
               <div id="kpi-rep-val-1" style="font-size:26px; font-weight:800; color:var(--text-1); line-height:1;">--</div>
             </div>
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div id="kpi-rep-title-2" style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">🔴 區間極大值</div>
+              <div id="kpi-rep-title-2" style="font-size:12px; font-weight:700; color:var(--alarm); margin-bottom:4px;">區間極大值</div>
               <div id="kpi-rep-val-2" style="font-size:26px; font-weight:800; color:var(--alarm); line-height:1;">--</div>
             </div>
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div id="kpi-rep-title-3" style="font-size:12px; font-weight:700; color:#0284c7; margin-bottom:4px;">🔵 區間極小值</div>
+              <div id="kpi-rep-title-3" style="font-size:12px; font-weight:700; color:#0284c7; margin-bottom:4px;">區間極小值</div>
               <div id="kpi-rep-val-3" style="font-size:26px; font-weight:800; color:#0284c7; line-height:1;">--</div>
             </div>
             <div style="flex:1; background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <div id="kpi-rep-title-4" style="font-size:12px; font-weight:700; color:var(--ok); margin-bottom:4px;">🟢 溫度合格率</div>
+              <div id="kpi-rep-title-4" style="font-size:12px; font-weight:700; color:var(--ok); margin-bottom:4px;">溫度合格率</div>
               <div id="kpi-rep-val-4" style="font-size:26px; font-weight:800; color:var(--ok); line-height:1;">--</div>
             </div>
           </div>
@@ -1855,8 +2116,8 @@
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; gap:10px; flex-wrap:wrap;">
               <span class="tb-label">報表類型</span>
               <select id="rep-category-filter" onchange="onReportCategoryChange()" style="min-width:180px;">
-                <option value="temp">🌡️ 冷鏈庫溫歷程紀錄表</option>
-                <option value="energy">⚡ SPM-3 電表能源統計報表</option>
+                <option value="temp">冷鏈庫溫歷程紀錄表</option>
+                <option value="energy">SPM-3 電表能源統計報表</option>
               </select>
 
               <span class="tb-label">監控對象</span>
@@ -1864,38 +2125,38 @@
 
               <span class="tb-label">查詢週期</span>
               <select id="rep-period-filter" onchange="onReportPeriodChange()" style="min-width:130px;">
-                <option value="day">日報表 (前一日)</option>
-                <option value="week">週報表 (前一週)</option>
-                <option value="month">月報表 (前一月)</option>
+                <option value="day">日報表</option>
+                <option value="week">週報表</option>
+                <option value="month">月報表</option>
                 <option value="custom">自訂日期區間</option>
               </select>
 
               <span class="tb-label">採樣頻率</span>
               <select id="rep-interval-filter" style="min-width:110px;">
-                <option value="5">5 分鐘</option>
-                <option value="10">10 分鐘</option>
-                <option value="15">15 分鐘</option>
-                <option value="30">30 分鐘</option>
-                <option value="60">1 小時</option>
                 <option value="1">1 分鐘</option>
+                <option value="5" selected>5 分鐘</option>
+                <option value="15">15 分鐘</option>
               </select>
 
-              <!-- 自訂區間日期選擇器 (自訂時顯示) -->
-              <div id="rep-custom-date-wrap" style="display:none; align-items:center; gap:6px;">
+              <!-- 日期選擇器 (預設支援單日/週/月基準日，自訂時展開迄日) -->
+              <span class="tb-label" id="rep-date-from-label">基準日期</span>
+              <div style="display:inline-flex; align-items:center; gap:6px;">
                 <input type="date" id="rep-date-from" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-size:12px;">
-                <span style="font-size:12px; color:var(--text-3);">～</span>
-                <input type="date" id="rep-date-to" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-size:12px;">
+                <div id="rep-date-to-wrap" style="display:none; align-items:center; gap:6px;">
+                  <span style="font-size:12px; color:var(--text-3);">～</span>
+                  <input type="date" id="rep-date-to" style="padding:4px 8px; border:1px solid var(--border); border-radius:5px; font-size:12px;">
+                </div>
               </div>
 
-              <button class="qbtn qbtn-search" onclick="generateReportPreview()">🔍 產生預覽</button>
-              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportReportExcel()">📥 匯出 Excel</button>
+              <button class="qbtn qbtn-search" onclick="generateReportPreview()">產生預覽</button>
+              <button class="qbtn" style="background:#0c3b82; color:#fff;" onclick="exportReportExcel()">匯出 Excel</button>
 
               <span style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;" id="rep-total-badge">共 0 筆</span>
             </div>
 
             <!-- 第二行：採樣資料量技術標註 -->
             <div style="font-size:11px; color:var(--text-2); font-weight:600; padding:2px 0 0 2px;">
-              📌 採樣資料量參考：日報表 5分鐘 (288筆) │ 週報表 10分鐘 (1,008筆) │ 月報表 30分鐘 (1,440筆) │ 1分鐘 (1,440筆/日)
+              採樣資料量參考：日報表 5分鐘 (288筆) │ 週報表 10分鐘 (1,008筆) │ 月報表 30分鐘 (1,440筆) │ 1分鐘 (1,440筆/日)
             </div>
           </div>
 
@@ -1910,7 +2171,7 @@
                 <!-- 動態注入欄位 -->
               </thead>
               <tbody id="rep-tbody">
-                <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-3);">請點擊「🔍 產生預覽」載入報表數據</td></tr>
+                <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-3);">請點擊「產生預覽」載入報表數據</td></tr>
               </tbody>
             </table>
           </div>
@@ -1936,15 +2197,15 @@
         </div>
       </div>
       <div class="pop-info-row">
-        <span class="pop-icon">📞</span>
+        
         <span>02-22928308 #202</span>
       </div>
       <div class="pop-info-row">
-        <span class="pop-icon">📍</span>
+        
         <span>新北市五股區成泰路3段2巷8號</span>
       </div>
       <div class="pop-info-row">
-        <span class="pop-icon">🏢</span>
+        
         <span>統編：24436882</span>
       </div>
       <div class="pop-divider"></div>
@@ -1955,8 +2216,8 @@
     </div>
     <div class="pop-footer">冷鏈温控技術服務 &middot; COLD CHAIN TEMPERATURE MONITORING</div>
   </div>
-  <div class="fp-menu-item" id="fp-menu-alarm">⚙️ 設定警報</div>
-  <div class="fp-menu-item" id="fp-menu-chart">📊 查看 6 小時趨勢</div>
+  <div class="fp-menu-item" id="fp-menu-alarm">設定警報</div>
+  <div class="fp-menu-item" id="fp-menu-chart">查看 6 小時趨勢</div>
   </div>
   <script>
     const ICONS = {
@@ -2064,24 +2325,438 @@
     let realtimeTimer = null;
     let filtersBuilt = false;
     let previousDelayingChannels = [];
+    let currentEnergyPeriod = 'month';
+    let currentEnergySubTab = 'overview';
+    let roomEnergyPieChartInstance = null;
+    let powerTrendChartInstance = null;
+    let currentPowerTrendRange = '6h';
+
+    function openTariffModal() {
+      const modal = document.getElementById('modal-tariff-overlay');
+      if (modal) modal.style.display = 'flex';
+    }
+    function closeTariffModal() {
+      const modal = document.getElementById('modal-tariff-overlay');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function switchEnergySubTab(tab) {
+      currentEnergySubTab = tab;
+      document.getElementById('btn-subtab-energy-overview')?.classList.toggle('active', tab === 'overview');
+      document.getElementById('btn-subtab-energy-trends')?.classList.toggle('active', tab === 'trends');
+      const overEl = document.getElementById('energy-subtab-overview');
+      const trendEl = document.getElementById('energy-subtab-trends');
+      if (overEl) overEl.style.display = tab === 'overview' ? 'block' : 'none';
+      if (trendEl) trendEl.style.display = tab === 'trends' ? 'block' : 'none';
+
+      if (tab === 'overview') {
+        loadEnergyOverview();
+      } else {
+        loadPowerTrendChart();
+      }
+    }
+
+    function setEnergyPeriod(period) {
+      currentEnergyPeriod = period;
+      ['day', 'week', 'month', 'custom'].forEach(p => {
+        const btn = document.getElementById('btn-energy-period-' + p);
+        if (btn) btn.classList.toggle('active', p === period);
+      });
+      const customPicker = document.getElementById('energy-custom-picker');
+      if (customPicker) {
+        customPicker.style.display = period === 'custom' ? 'flex' : 'none';
+      }
+      if (period !== 'custom') {
+        loadEnergyOverview();
+      }
+    }
+
+    function applyEnergyCustomPeriod() {
+      const from = document.getElementById('energy-date-from')?.value;
+      const to = document.getElementById('energy-date-to')?.value;
+      if (!from || !to) {
+        alert('請選取完整的起始與結束日期');
+        return;
+      }
+      loadEnergyOverview();
+    }
+
+    async function loadEnergyOverview() {
+      // 1. 即時總耗電 (kW)、電壓 (V)、電流 (A)
+      const data = lastSseData || await fetchTemperatures() || {};
+      let realtimeKw = 0.0, realtimeV = 0.0, realtimeA = 0.0, countV = 0;
+      ['ch13', 'ch14'].forEach(ch => {
+        const d = data[ch];
+        if (d && d.power) {
+          const p = d.power;
+          const kw = Number(p.kw !== undefined && p.kw !== null ? p.kw : (p.power_total ? p.power_total / 1000.0 : 0)) || 0;
+          const a = Number(p.current_avg !== undefined && p.current_avg !== null ? p.current_avg : (p.a || 0)) || 0;
+          const v = Number(p.voltage_ll_avg !== undefined && p.voltage_ll_avg !== null ? p.voltage_ll_avg : (p.v || 0)) || 0;
+          realtimeKw += kw;
+          realtimeA += a;
+          if (v > 0) { realtimeV += v; countV++; }
+        }
+      });
+      const avgV = countV > 0 ? (realtimeV / countV) : 220.0;
+
+      const kwEl = document.getElementById('kpi-energy-kw');
+      const vEl = document.getElementById('kpi-energy-v');
+      const aEl = document.getElementById('kpi-energy-a');
+      if (kwEl) kwEl.textContent = realtimeKw > 0 ? realtimeKw.toFixed(1) : '--';
+      if (vEl) vEl.textContent = avgV > 0 ? avgV.toFixed(1) : '--';
+      if (aEl) aEl.textContent = realtimeA > 0 ? realtimeA.toFixed(1) : '--';
+
+      // 2. 呼叫 /api/power_energy_stats
+      const params = new URLSearchParams({ period: currentEnergyPeriod });
+      if (currentEnergyPeriod === 'custom') {
+        const from = document.getElementById('energy-date-from')?.value;
+        const to = document.getElementById('energy-date-to')?.value;
+        if (from) params.set('from', from);
+        if (to) params.set('to', to);
+      }
+
+      let res;
+      try {
+        const resp = await fetch('/api/power_energy_stats?' + params.toString());
+        if (resp.ok) res = await resp.json();
+      } catch (e) {
+        console.error('Failed to fetch energy stats:', e);
+      }
+
+      if (!res || res.status !== 'ok') return;
+
+      // 3. 更新 KPI 卡片
+      const todayEl = document.getElementById('kpi-energy-today');
+      const weekEl = document.getElementById('kpi-energy-week');
+      const monthEl = document.getElementById('kpi-energy-month');
+      const pPeakEl = document.getElementById('kpi-tariff-peak');
+      const pSemiEl = document.getElementById('kpi-tariff-semi');
+      const pOffEl = document.getElementById('kpi-tariff-off');
+      const pTotEl = document.getElementById('kpi-tariff-period-total');
+
+      if (todayEl) todayEl.textContent = (res.today_kwh !== undefined) ? res.today_kwh : '--';
+      if (weekEl) weekEl.textContent = (res.week_kwh !== undefined) ? res.week_kwh : '--';
+      if (monthEl) monthEl.textContent = (res.month_kwh !== undefined) ? res.month_kwh : '--';
+      if (pPeakEl) pPeakEl.textContent = (res.period_peak_kwh !== undefined) ? res.period_peak_kwh : '--';
+      if (pSemiEl) pSemiEl.textContent = (res.period_semi_peak_kwh !== undefined) ? res.period_semi_peak_kwh : '--';
+      if (pOffEl) pOffEl.textContent = (res.period_off_peak_kwh !== undefined) ? res.period_off_peak_kwh : '--';
+      if (pTotEl) pTotEl.textContent = ((res.period_total_kwh !== undefined) ? res.period_total_kwh : '--') + ' kWh';
+
+      // 4. 三色進度條 (紅/橘/綠)
+      const pPeakPct = res.peak_ratio ?? 0;
+      const pSemiPct = res.semi_peak_ratio ?? 0;
+      const pOffPct = res.off_peak_ratio ?? 0;
+
+      const lblPeak = document.getElementById('lbl-peak-pct');
+      const lblSemi = document.getElementById('lbl-semi-pct');
+      const lblOff = document.getElementById('lbl-off-pct');
+      if (lblPeak) lblPeak.textContent = pPeakPct + '%';
+      if (lblSemi) lblSemi.textContent = pSemiPct + '%';
+      if (lblOff) lblOff.textContent = pOffPct + '%';
+
+      const barPeak = document.getElementById('bar-peak-pct');
+      const barSemi = document.getElementById('bar-semi-pct');
+      const barOff = document.getElementById('bar-off-pct');
+      if (barPeak) barPeak.style.width = pPeakPct + '%';
+      if (barSemi) barSemi.style.width = pSemiPct + '%';
+      if (barOff) barOff.style.width = pOffPct + '%';
+
+      const rangeEl = document.getElementById('lbl-energy-period-range');
+      if (rangeEl && res.dt_from && res.dt_to) {
+        rangeEl.textContent = `${res.dt_from} ～ ${res.dt_to}`;
+      }
+
+      // 5. 渲染各庫圓餅圖與圖例
+      renderRoomEnergyPieChart(res.room_distribution || [], res.period_total_kwh || 0);
+
+      // 6. 渲染 12 台主機運轉工況與時數列表
+      renderDeviceRuntimeTable(res.device_runtimes || []);
+    }
+
+    function renderRoomEnergyPieChart(dist, totalKwh) {
+      const lblTotal = document.getElementById('lbl-pie-total-kwh');
+      if (lblTotal) lblTotal.textContent = `總耗電量: ${totalKwh} kWh`;
+
+      const canvas = document.getElementById('roomEnergyPieChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const labels = dist.map(d => d.name);
+      const data = dist.map(d => d.kwh);
+      const colors = dist.map(d => d.color);
+
+      if (roomEnergyPieChartInstance) {
+        roomEnergyPieChartInstance.destroy();
+      }
+
+      roomEnergyPieChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const item = dist[ctx.dataIndex];
+                  return ` ${item.name}: ${item.kwh} kWh (${item.pct}%)`;
+                }
+              }
+            }
+          },
+          cutout: '58%'
+        }
+      });
+
+      // 圖例清單
+      const legendWrap = document.getElementById('room-energy-legend');
+      if (legendWrap) {
+        legendWrap.innerHTML = dist.map(d => `
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding:2px 0;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="width:10px; height:10px; border-radius:2px; background:${d.color}; display:inline-block;"></span>
+              <span style="font-weight:600; color:var(--text-1);">${d.name}</span>
+            </div>
+            <div style="font-weight:700; color:var(--text-2);">
+              <span>${d.kwh} kWh</span>
+              <span style="color:var(--text-3); font-weight:600; margin-left:4px;">(${d.pct}%)</span>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderDeviceRuntimeTable(devices) {
+      const tbody = document.getElementById('device-runtime-tbody');
+      if (!tbody) return;
+
+      const statusBadge = (s, curr) => {
+        if (s === 'cooling') {
+          return `<span style="color:#1a73e8; font-weight:700; background:#e8f0fe; padding:2px 6px; border-radius:4px;">製冷中</span>`;
+        } else if (s === 'defrost') {
+          return `<span style="color:#e67e22; font-weight:700; background:#fff7ed; padding:2px 6px; border-radius:4px;">除霜中</span>`;
+        } else if (s === 'error') {
+          return `<span style="color:#e74c3c; font-weight:700; background:#fef2f2; padding:2px 6px; border-radius:4px;">設備異常</span>`;
+        }
+        return `<span style="color:#64748b; font-weight:600; background:#f1f5f9; padding:2px 6px; border-radius:4px;">停止</span>`;
+      };
+
+      tbody.innerHTML = devices.map((d, i) => `
+        <tr style="border-bottom:1px solid var(--border); transition:background .1s;">
+          <td style="padding:6px 4px; text-align:center; color:var(--text-3); font-weight:700;">${i + 1}</td>
+          <td style="padding:6px 6px; font-weight:600; color:var(--text-2);">${d.room_name}</td>
+          <td style="padding:6px 6px; font-weight:700; color:var(--text-1);">${d.name}</td>
+          <td style="padding:6px 6px; text-align:center;">${statusBadge(d.status, d.current)}</td>
+          <td style="padding:6px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:${d.current > 0 ? 'var(--accent)' : 'var(--text-3)'};">${Number(d.current || 0).toFixed(1)} A</td>
+          <td style="padding:6px 8px; text-align:right; font-variant-numeric:tabular-nums; font-weight:800; color:var(--text-1);">${Number(d.runtime_hours || 0).toFixed(1)} <span style="font-size:10px; color:var(--text-3); font-weight:500;">hr</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function setPowerTrendRange(r) {
+      currentPowerTrendRange = r;
+      ['6h', '1d', '7d', 'custom'].forEach(opt => {
+        const btn = document.getElementById('btn-ptrend-' + opt);
+        if (btn) btn.classList.toggle('active', opt === r);
+      });
+      const picker = document.getElementById('ptrend-custom-picker');
+      if (picker) picker.style.display = r === 'custom' ? 'flex' : 'none';
+      if (r !== 'custom') {
+        loadPowerTrendChart();
+      }
+    }
+
+    async function loadPowerTrendChart() {
+      const meter = document.getElementById('sel-ptrend-meter')?.value || 'all';
+      const metric = document.getElementById('sel-ptrend-metric')?.value || 'delta_kwh';
+      const params = new URLSearchParams({
+        field: metric,
+        range: currentPowerTrendRange
+      });
+      if (meter === 'all') {
+        params.append('ch', 'ch13');
+        params.append('ch', 'ch14');
+      } else {
+        params.append('ch', meter);
+      }
+      if (currentPowerTrendRange === 'custom') {
+        const df = document.getElementById('ptrend-date-from')?.value;
+        const dt = document.getElementById('ptrend-date-to')?.value;
+        if (df) params.set('from', df);
+        if (dt) params.set('to', dt);
+      }
+
+      let res;
+      try {
+        res = await (await fetch('/api/power_chart_data?' + params.toString())).json();
+      } catch (e) {
+        console.error('Failed to load power chart data:', e);
+        return;
+      }
+
+      const series = res?.series || {};
+      const chKeys = Object.keys(series);
+      if (chKeys.length === 0) return;
+
+      const isDeltaKwh = metric === 'delta_kwh';
+      const canvas = document.getElementById('powerTrendChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (powerTrendChartInstance) {
+        powerTrendChartInstance.destroy();
+      }
+
+      let chartType = isDeltaKwh ? 'bar' : 'line';
+      let datasets = [];
+
+      const chNames = { ch13: '1F 集合式電錶', ch14: '3F 集合式電錶' };
+      const chColors = { ch13: '#1a5fa8', ch14: '#d97706' };
+
+      if (meter === 'all' && isDeltaKwh) {
+        // 合併兩電錶之堆疊柱狀圖
+        const tMap = {};
+        chKeys.forEach(ch => {
+          (series[ch] || []).forEach(pt => {
+            if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
+            tMap[pt.t][ch] = pt.v || 0;
+          });
+        });
+        const sortedTs = Object.keys(tMap).sort();
+        datasets.push({
+          label: '1F 集合式電錶 (ΔkWh)',
+          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
+          backgroundColor: '#1a5fa8',
+          stack: 'power'
+        });
+        datasets.push({
+          label: '3F 集合式電錶 (ΔkWh)',
+          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
+          backgroundColor: '#d97706',
+          stack: 'power'
+        });
+      } else {
+        chKeys.forEach(ch => {
+          const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
+          datasets.push({
+            label: `${chNames[ch] || ch} - ${document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric}`,
+            data: pts,
+            borderColor: chColors[ch] || '#1a5fa8',
+            backgroundColor: isDeltaKwh ? (chColors[ch] || '#1a5fa8') : 'rgba(26,95,168,0.08)',
+            fill: !isDeltaKwh,
+            tension: 0.2,
+            pointRadius: isDeltaKwh ? 0 : 2
+          });
+        });
+      }
+
+      powerTrendChartInstance = new Chart(ctx, {
+        type: chartType,
+        data: { datasets: datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'yyyy-MM-dd HH:mm',
+                displayFormats: {
+                  minute: 'HH:mm',
+                  hour: 'MM/dd HH:mm',
+                  day: 'MM/dd'
+                }
+              },
+              grid: { color: 'rgba(0,0,0,0.05)' }
+            },
+            y: {
+              beginAtZero: isDeltaKwh,
+              grid: { color: 'rgba(0,0,0,0.05)' }
+            }
+          },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          }
+        }
+      });
+
+      // 統計表
+      const statsWrap = document.getElementById('power-stats-wrap');
+      const statsBody = document.getElementById('power-stats-body');
+      if (statsWrap && statsBody) {
+        statsWrap.style.display = 'block';
+        let statsRows = '';
+        chKeys.forEach(ch => {
+          const pts = (series[ch] || []).filter(p => p.v !== null);
+          if (pts.length === 0) return;
+          const vals = pts.map(p => p.v);
+          const maxVal = Math.max(...vals);
+          const minVal = Math.min(...vals);
+          const maxPt = pts.find(p => p.v === maxVal);
+          const minPt = pts.find(p => p.v === minVal);
+          const sumVal = vals.reduce((a, b) => a + b, 0);
+          const avgVal = sumVal / vals.length;
+          const sumOrAvg = isDeltaKwh ? `總計: ${sumVal.toFixed(1)} kWh` : `平均: ${avgVal.toFixed(1)}`;
+
+          statsRows += `
+            <tr>
+              <td style="font-weight:700;">${chNames[ch] || ch}</td>
+              <td>${document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric}</td>
+              <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(1)}</td>
+              <td style="font-size:11px; color:var(--text-3);">${maxPt?.t || '--'}</td>
+              <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)}</td>
+              <td style="font-size:11px; color:var(--text-3);">${minPt?.t || '--'}</td>
+              <td style="font-weight:800; color:var(--accent);">${sumOrAvg}</td>
+              <td>${vals.length} 筆</td>
+            </tr>
+          `;
+        });
+        statsBody.innerHTML = statsRows;
+      }
+    }
+
     function showPage(page) {
-      ['dashboard', 'chart', 'alarm', 'report'].forEach(p =>
-        document.getElementById('page-' + p).style.display = page === p ? 'block' : 'none'
-      );
-      ['btn-dashboard', 'btn-chart', 'btn-alarm', 'btn-report'].forEach(id =>
-        document.getElementById(id).classList.toggle('active', id === 'btn-' + page)
-      );
+      ['dashboard', 'energy', 'chart', 'alarm', 'report'].forEach(p => {
+        const el = document.getElementById('page-' + p);
+        if (el) el.style.display = page === p ? 'block' : 'none';
+      });
+      ['btn-dashboard', 'btn-energy', 'btn-chart', 'btn-alarm', 'btn-report'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === 'btn-' + page);
+      });
       const isFpActive = page === 'dashboard' && document.getElementById('btn-view-fp')?.classList.contains('active');
       document.querySelector('.dash')?.classList.toggle('fp-active', !!isFpActive);
       const T = {
         dashboard: ['即時溫度監控', 'REAL-TIME TEMPERATURE DASHBOARD'],
-        chart: ['總圖表', 'TEMPERATURE TREND CHART'],
-        alarm: ['警報查詢', 'ALARM HISTORY QUERY'],
-        report: ['報表下載', 'REPORT DOWNLOAD']
+        energy:    ['能源管理', 'ENERGY MANAGEMENT & POWER ANALYTICS'],
+        chart:     ['庫溫圖表', 'COLD ROOM TEMPERATURE TREND CHART'],
+        alarm:     ['警報查詢', 'ALARM HISTORY QUERY'],
+        report:    ['報表下載', 'REPORT DOWNLOAD']
       };
-      document.getElementById('page-title').textContent = T[page][0];
-      document.getElementById('page-sub').textContent = T[page][1];
-      if (page === 'chart') {
+      if (T[page]) {
+        document.getElementById('page-title').textContent = T[page][0];
+        document.getElementById('page-sub').textContent = T[page][1];
+      }
+      if (page === 'energy') {
+        stopRealtimeChart();
+        loadEnergyOverview();
+      } else if (page === 'chart') {
         if (!filtersBuilt) buildChannelFilters();
         if (chartSeries.length === 0) {
           chartSeries.push({
@@ -2148,17 +2823,41 @@
     function onReportCategoryChange() {
       const cat = document.getElementById('rep-category-filter')?.value || 'temp';
       const selTarget = document.getElementById('rep-target-filter');
-      if (!selTarget) return;
-
-      const targets = REPORT_TARGETS_MAP[cat] || REPORT_TARGETS_MAP.temp;
-      selTarget.innerHTML = targets.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      const selInterval = document.getElementById('rep-interval-filter');
+      if (selTarget) {
+        const targets = REPORT_TARGETS_MAP[cat] || REPORT_TARGETS_MAP.temp;
+        selTarget.innerHTML = targets.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      }
+      if (selInterval) {
+        if (cat === 'energy') {
+          selInterval.value = '15'; // 嚴格對齊台電 15 分鐘計費週期標準
+          selInterval.disabled = true; // 鎖死不可變更
+          selInterval.style.background = '#f1f5f9';
+          selInterval.style.borderColor = '#cbd5e1';
+          selInterval.style.color = '#64748b';
+          selInterval.style.cursor = 'not-allowed';
+          selInterval.title = '台電時間電價計費標準固定為 15 分鐘積分週期';
+        } else {
+          selInterval.disabled = false;
+          if (selInterval.value === '15') selInterval.value = '5';
+          selInterval.style.background = '#ffffff';
+          selInterval.style.borderColor = 'var(--border)';
+          selInterval.style.color = 'var(--text-1)';
+          selInterval.style.cursor = 'default';
+          selInterval.title = '';
+        }
+      }
     }
 
     function onReportPeriodChange() {
       const period = document.getElementById('rep-period-filter')?.value || 'day';
-      const customWrap = document.getElementById('rep-custom-date-wrap');
-      if (customWrap) {
-        customWrap.style.display = (period === 'custom') ? 'flex' : 'none';
+      const toWrap = document.getElementById('rep-date-to-wrap');
+      const fromLabel = document.getElementById('rep-date-from-label');
+      if (fromLabel) {
+        fromLabel.textContent = (period === 'custom') ? '起訖日期' : '基準日期';
+      }
+      if (toWrap) {
+        toWrap.style.display = (period === 'custom') ? 'inline-flex' : 'none';
       }
     }
 
@@ -2166,7 +2865,7 @@
       const cat = document.getElementById('rep-category-filter')?.value || 'temp';
       const target = document.getElementById('rep-target-filter')?.value || (cat === 'temp' ? 'room1' : 'all');
       const period = document.getElementById('rep-period-filter')?.value || 'day';
-      const interval = document.getElementById('rep-interval-filter')?.value || '5';
+      const interval = (cat === 'energy') ? '15' : (document.getElementById('rep-interval-filter')?.value || '5');
       const dFrom = document.getElementById('rep-date-from')?.value || '';
       const dTo = document.getElementById('rep-date-to')?.value || '';
 
@@ -2199,35 +2898,35 @@
 
         // 更新 KPI 卡片
         if (cat === 'temp') {
-          document.getElementById('kpi-rep-title-1').textContent = '📊 全期平均庫溫';
+          document.getElementById('kpi-rep-title-1').textContent = '全期平均庫溫';
           document.getElementById('kpi-rep-val-1').textContent = summary.mean_temp !== null ? `${summary.mean_temp} °C` : '--';
           
-          document.getElementById('kpi-rep-title-2').textContent = '🔴 區間最高溫';
+          document.getElementById('kpi-rep-title-2').textContent = '區間最高溫';
           document.getElementById('kpi-rep-val-2').textContent = summary.max_temp !== null ? `${summary.max_temp} °C` : '--';
 
-          document.getElementById('kpi-rep-title-3').textContent = '🔵 區間最低溫';
+          document.getElementById('kpi-rep-title-3').textContent = '區間最低溫';
           document.getElementById('kpi-rep-val-3').textContent = summary.min_temp !== null ? `${summary.min_temp} °C` : '--';
 
-          document.getElementById('kpi-rep-title-4').textContent = '🟢 溫度合格率';
+          document.getElementById('kpi-rep-title-4').textContent = '溫度合格率';
           document.getElementById('kpi-rep-val-4').textContent = `${summary.compliance_rate} %`;
 
           if (titleEl) titleEl.textContent = `冷鏈庫溫歷程預覽 · ${summary.target_name}`;
           if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  門檻：${summary.hi !== null ? '上限 ' + summary.hi + '°C / 下限 ' + summary.lo + '°C' : '未設定'}  │  超標次數：${summary.out_of_bounds_count} 次`;
         } else {
-          document.getElementById('kpi-rep-title-1').textContent = '⚡ 區間總耗電量';
+          document.getElementById('kpi-rep-title-1').textContent = '區間總耗電量';
           document.getElementById('kpi-rep-val-1').textContent = `${summary.consumed_kwh} kWh`;
 
-          document.getElementById('kpi-rep-title-2').textContent = '🔴 最大實功率';
+          document.getElementById('kpi-rep-title-2').textContent = '最高用電量';
           document.getElementById('kpi-rep-val-2').textContent = `${summary.max_kw} kW`;
 
-          document.getElementById('kpi-rep-title-3').textContent = '🔵 平均實功率';
+          document.getElementById('kpi-rep-title-3').textContent = '平均用電量';
           document.getElementById('kpi-rep-val-3').textContent = `${summary.avg_kw} kW`;
 
-          document.getElementById('kpi-rep-title-4').textContent = '🟢 平均功率因數';
+          document.getElementById('kpi-rep-title-4').textContent = '平均功率因數';
           document.getElementById('kpi-rep-val-4').textContent = `${summary.avg_pf}`;
 
           if (titleEl) titleEl.textContent = `SPM-3 電表能源預覽 · ${summary.target_name}`;
-          if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  平均電壓：${summary.avg_v} V  │  平均電流：${summary.avg_a} A`;
+          if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  平均電壓：${summary.avg_v} V  │  總平均電流：${summary.avg_a} A`;
         }
 
         if (totalBadge) totalBadge.textContent = `共 ${records.length} 筆資料 (每 ${data.interval_min} 分鐘)`;
@@ -2246,34 +2945,30 @@
               </tr>
             `;
           } else {
-            const equipHdrs = summary.equip_headers || [];
-            let ths = `
+            thead.innerHTML = `
               <tr>
                 <th style="width:50px; text-align:center;">#</th>
                 <th style="width:150px; text-align:center;">採樣時間</th>
-                <th style="width:110px; text-align:right;">瞬時功率</th>
-                <th style="width:100px; text-align:right;">平均電壓</th>
-                <th style="width:100px; text-align:right;">總電流</th>
-                <th style="width:130px; text-align:right;">累積電量</th>
+                <th style="width:90px; text-align:center;">電費時段</th>
+                <th style="width:130px; text-align:right;">即時用電量 (平均)</th>
+                <th style="width:110px; text-align:right;">平均電壓</th>
+                <th style="width:120px; text-align:right;">總平均電流</th>
+                <th style="width:140px; text-align:right;">累計用電 (kWh)</th>
+                <th style="width:180px; text-align:right; color:#0369a1; background:#f0f9ff;">廠區設備運轉總時數 (hr)</th>
+              </tr>
             `;
-            equipHdrs.forEach(eh => {
-              ths += `<th style="width:110px; text-align:right; color:#0369a1; background:#f0f9ff;">${eh.name} (hr)</th>`;
-            });
-            ths += `</tr>`;
-            thead.innerHTML = ths;
           }
         }
 
         // 更新表格內容
         if (tbody) {
-          const colSpanCount = cat === 'temp' ? 6 : (6 + (summary.equip_headers ? summary.equip_headers.length : 0));
+          const colSpanCount = cat === 'temp' ? 6 : 8;
           if (records.length === 0) {
             tbody.innerHTML = `<tr><td colspan="${colSpanCount}" style="text-align:center; padding:30px; color:var(--text-3);">所選區間內尚無歷史紀錄</td></tr>`;
             return;
           }
 
           let rowsHtml = '';
-          const equipHdrs = summary.equip_headers || [];
           records.forEach((r, idx) => {
             const isAlarm = (cat === 'temp' && r.status_type !== 'NORMAL');
             const rowBg = isAlarm ? 'background:#fff1f2;' : (idx % 2 === 1 ? 'background:#f8fafc;' : '');
@@ -2293,21 +2988,29 @@
                 </tr>
               `;
             } else {
-              let equipCells = '';
-              equipHdrs.forEach(eh => {
-                const rtVal = (r.equip_runtimes && r.equip_runtimes[eh.key] !== undefined) ? Number(r.equip_runtimes[eh.key]) : 0.0;
-                equipCells += `<td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:#0369a1; font-weight:600; background:#f0f9ff80;">${rtVal.toFixed(2)} hr</td>`;
-              });
+              const rtVal = (r.total_equip_runtime !== undefined) ? Number(r.total_equip_runtime) : 0.0;
+              const accumVal = (r.accum_kwh !== undefined) ? Number(r.accum_kwh) : 0.0;
+              const deltaVal = (r.delta_kwh !== undefined) ? Number(r.delta_kwh) : 0.0;
+              const tType = r.tariff_type || '離峰';
+              let tariffBadge = '';
+              if (tType === '尖峰') {
+                tariffBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; background:#fee2e2; color:#991b1b; border:1px solid #f87171;">尖峰</span>';
+              } else if (tType === '半尖峰') {
+                tariffBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; background:#fff7ed; color:#c2410c; border:1px solid #fdba74;">半尖峰</span>';
+              } else {
+                tariffBadge = '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; background:#f0fdf4; color:#166534; border:1px solid #86efac;">離峰</span>';
+              }
 
               rowsHtml += `
                 <tr style="${rowBg}">
                   <td style="text-align:center; font-weight:700; color:var(--text-3); font-size:11px;">${idx + 1}</td>
                   <td style="text-align:center; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-1);">${r.time}</td>
+                  <td style="text-align:center;">${tariffBadge}</td>
                   <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:var(--text-1);">${r.kw.toFixed(1)} kW</td>
                   <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.v.toFixed(1)} V</td>
                   <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; color:var(--text-2);">${r.a.toFixed(1)} A</td>
-                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:12px; font-weight:700; color:var(--text-1);">${r.kwh.toFixed(1)} kWh</td>
-                  ${equipCells}
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:13px; font-weight:800; color:var(--text-1);">${accumVal.toFixed(1)} kWh</td>
+                  <td style="text-align:right; font-variant-numeric:tabular-nums; font-size:13px; color:#0369a1; font-weight:700; background:#f0f9ff80;">${rtVal.toFixed(2)} hr</td>
                 </tr>
               `;
             }
@@ -2318,7 +3021,7 @@
       } catch (err) {
         console.error('Report preview error:', err);
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--alarm);">⚠ 載入預覽失敗：${err.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--alarm);">載入預覽失敗：${err.message}</td></tr>`;
         }
       }
     }
@@ -2384,19 +3087,39 @@
     function populateChannelDropdowns() {
       // 警報下拉已靜態以 optgroup 分組建置完成，此處保留供擴充
     }
-    // ── 廠區用電資訊 Modal ─────────────────────────────────────────────
-    async function openPowerModal() {
+    // ── 廠區電表資訊 Modal（Modbus RTU 13 欄位即時數值表與合計欄）──
+    function openPowerModal() {
       const overlay = document.getElementById('modal-power-overlay');
       const content = document.getElementById('power-modal-content');
+      if (!overlay || !content) return;
+
       const data = lastSseData || {};
+      const nowTs = Date.now();
       let totalKw = 0, totalKwh = 0, sumV = 0, countV = 0, totalA = 0;
+
+      const FIELDS = [
+        { label: 'RS電壓',   unit: 'V',   key: 'v_rs' },
+        { label: 'ST電壓',   unit: 'V',   key: 'v_st' },
+        { label: 'TR電壓',   unit: 'V',   key: 'v_tr' },
+        { label: '平均電壓', unit: 'V',   key: 'v_avg', accent: true },
+        { label: 'R相電流',  unit: 'A',   key: 'a_r' },
+        { label: 'S相電流',  unit: 'A',   key: 'a_s' },
+        { label: 'T相電流',  unit: 'A',   key: 'a_t' },
+        { label: '平均電流', unit: 'A',   key: 'a_avg', accent: true },
+        { label: '即時用電量', unit: 'kW',  key: 'kw', bold: true },
+        { label: '累積功率', unit: 'kWh', key: 'kwh' },
+        { label: '功率因數', unit: '',    key: 'pf' },
+        { label: '滿載率',   unit: '',    key: 'loadPctHtml', html: true },
+        { label: '連線',     unit: '',    key: 'statusHtml', html: true }
+      ];
+
+      const meterChs = ['ch13', 'ch14'];
       const meters = [];
-      METER_CHS.forEach((ch) => {
+      meterChs.forEach((ch) => {
         const d = data[ch];
-        const name = CHANNEL_NAMES[ch] || d?.name || alarmSettings[ch]?.name || ch.toUpperCase();
+        const name = CHANNEL_NAMES[ch] || d?.name || ch.toUpperCase();
         let isOnline = false;
         if (d && d.timestamp) {
-          const nowTs = new Date().getTime();
           const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
           if (nowTs - dTs < 30000) {
             isOnline = true;
@@ -2413,8 +3136,7 @@
           statusHtml: `<span style="color:var(--text-3); font-weight:700;">斷線</span>`
         };
         const rawV = hasPower ? Number((d.power.voltage_ll_avg !== undefined && d.power.voltage_ll_avg !== null) ? d.power.voltage_ll_avg : 0) : 0;
-        const hasRealReading = hasPower && rawV > 0;
-        if (hasRealReading) {
+        if (hasPower && rawV > 0) {
           const rawA = Number((d.power.current_avg !== undefined && d.power.current_avg !== null) ? d.power.current_avg : (d.power.a || 0));
           let rawKw = 0;
           if (d.power.power_total !== undefined && d.power.power_total !== null) {
@@ -2446,7 +3168,7 @@
           totalA += rawA;
           sumV += rawV;
           countV++;
-          const nfbRated = Number(alarmSettings[ch]?.nfb_rated_current || 0);
+          const nfbRated = Number(alarmSettings?.[ch]?.nfb_rated_current || 0);
           if (nfbRated > 0) {
             const phaseCurrents = [
               Number(d.power.current_r), Number(d.power.current_s), Number(d.power.current_t)
@@ -2454,61 +3176,24 @@
             const maxPhaseCurrent = phaseCurrents.length > 0 ? Math.max(...phaseCurrents) : rawA;
             const loadPct = (maxPhaseCurrent / nfbRated) * 100;
             const loadColor = loadPct >= 95 ? 'var(--alarm)' : loadPct >= 80 ? 'var(--delay)' : 'var(--ok)';
-            m.loadPctHtml = `<span style="color:${loadColor};" title="以三相最大電流 ${maxPhaseCurrent.toFixed(1)}A 計算（非平均電流）">${loadPct.toFixed(1)}%</span>`;
+            m.loadPctHtml = `<span style="color:${loadColor};" title="以三相最大電流 ${maxPhaseCurrent.toFixed(1)}A 計算">${loadPct.toFixed(1)}%</span>`;
           } else {
-            m.loadPctHtml = `<span style="color:var(--text-3);">未設定NFB</span>`;
+            m.loadPctHtml = `<span style="color:var(--text-3);">--</span>`;
           }
         }
         meters.push(m);
       });
 
-      // 抓取能源統計 API
-      let stats = {
-        today_kwh: 0,
-        month_kwh: totalKwh,
-        last_week_daily_avg_kwh: 0,
-        month_peak_kwh: 0,
-        month_semi_peak_kwh: 0,
-        month_off_peak_kwh: 0,
-        month_non_peak_kwh: 0,
-        peak_ratio: 0,
-        non_peak_ratio: 0,
-        anomaly_threshold_pct: 15,
-        is_today_abnormal: false,
-        daily_records: []
-      };
-      try {
-        const resp = await fetch('/api/power_energy_stats');
-        if (resp.ok) {
-          const sJson = await resp.json();
-          if (sJson.status === 'ok') stats = sJson;
-        }
-      } catch (e) { }
+      const headerCells = FIELDS.map(f =>
+        `<th style="padding:8px 4px;text-align:center;letter-spacing:0.5px;white-space:nowrap;font-size:11px;font-weight:700;">${f.label}</th>`
+      ).join('');
 
-      const FIELDS = [
-        { label: 'RS電壓',   unit: 'V',   key: 'v_rs' },
-        { label: 'ST電壓',   unit: 'V',   key: 'v_st' },
-        { label: 'TR電壓',   unit: 'V',   key: 'v_tr' },
-        { label: '平均電壓', unit: 'V',   key: 'v_avg', accent: true },
-        { label: 'R相電流',  unit: 'A',   key: 'a_r' },
-        { label: 'S相電流',  unit: 'A',   key: 'a_s' },
-        { label: 'T相電流',  unit: 'A',   key: 'a_t' },
-        { label: '平均電流', unit: 'A',   key: 'a_avg', accent: true },
-        { label: '瞬時功率', unit: 'kW',  key: 'kw' },
-        { label: '累積功率', unit: 'kWh', key: 'kwh' },
-        { label: '功率因數', unit: '',    key: 'pf' },
-        { label: '滿載率',   unit: '',    key: 'loadPctHtml', html: true },
-        { label: '連線',     unit: '',    key: 'statusHtml', html: true }
-      ];
       const meterTables = meters.map(m => {
-        const headerCells = FIELDS.map(f =>
-          `<th style="padding:8px 4px;text-align:center;letter-spacing:0.5px;white-space:nowrap;">${f.label}</th>`
-        ).join('');
         const valueCells = FIELDS.map(f => {
           const raw = m[f.key];
           const display = f.html ? raw : `${raw}${raw !== '--' && f.unit ? ' ' + f.unit : ''}`;
-          const color = f.accent ? 'var(--accent-secondary)' : 'var(--text-1)';
-          return `<td style="padding:10px 4px;text-align:center;font-variant-numeric:tabular-nums;color:${color};">${display}</td>`;
+          const color = f.accent ? 'var(--accent-secondary)' : (f.bold ? 'var(--text-1); font-weight:800;' : 'var(--text-1)');
+          return `<td style="padding:10px 4px;text-align:center;font-variant-numeric:tabular-nums;color:${color};font-size:12px;font-weight:700;">${display}</td>`;
         }).join('');
         return `
         <div style="margin-bottom:14px;">
@@ -2516,81 +3201,20 @@
             ${m.name}
             <span title="${m.isOnline ? '連線中' : '斷線'}" style="width:8px;height:8px;border-radius:50%;background:${m.isOnline ? 'var(--ok)' : 'var(--alarm)'};display:inline-block;"></span>
           </div>
-          <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--border);font-size:12px;font-weight:700;table-layout:fixed;">
-            <thead><tr style="background:var(--accent-secondary);color:#fff;font-size:11px;">${headerCells}</tr></thead>
+          <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid var(--border);table-layout:fixed;">
+            <thead><tr style="background:var(--accent-secondary);color:#fff;">${headerCells}</tr></thead>
             <tbody><tr style="background:#f7f9fd;">${valueCells}</tr></tbody>
           </table>
         </div>`;
       }).join('');
 
       content.innerHTML = `
-        <!-- 能源管理專區 (整合即時電氣總覽 + 每日/當月用電累計 + 尖離峰分析) -->
-        <div style="background:#ffffff; border:1.5px solid var(--border); border-radius:10px; padding:16px; margin-bottom:18px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <div style="font-size:15px; font-weight:800; color:var(--text-1); display:flex; align-items:center; gap:6px;">
-              <span>📊</span><span>能源管理</span>
-            </div>
-            <div style="font-size:11px; font-weight:700; color:var(--text-3); background:#f1f5f9; padding:3px 8px; border-radius:4px;">
-              夏月標準 (5/16~10/15) · 夜尖峰 16:00~22:00
-            </div>
-          </div>
-
-          <!-- 電氣即時總覽 (3 大核心總覽指標) -->
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:14px;">
-            <div style="background:var(--accent-primary); border-radius:8px; padding:12px 16px; color:#fff;">
-              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">⚡ 即時總用電</div>
-              <div style="font-size:24px; font-weight:800; margin-top:2px;">${totalKw.toFixed(1)}<span style="font-size:12px; font-weight:400; margin-left:4px;">kW</span></div>
-            </div>
-            <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 16px; color:#fff;">
-              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">🔌 平均線電壓</div>
-              <div style="font-size:24px; font-weight:800; margin-top:2px;">${countV > 0 ? (sumV / countV).toFixed(1) : '--'}<span style="font-size:12px; font-weight:400; margin-left:4px;">V</span></div>
-            </div>
-            <div style="background:var(--accent-primary); border-radius:8px; padding:12px 16px; color:#fff;">
-              <div style="font-size:11px; font-weight:600; opacity:0.85; letter-spacing:1px;">⚡ 總平均電流</div>
-              <div style="font-size:24px; font-weight:800; margin-top:2px;">${totalA.toFixed(1)}<span style="font-size:12px; font-weight:400; margin-left:4px;">A</span></div>
-            </div>
-          </div>
-
-          <!-- 4 大用電累計指標 -->
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:14px;">
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
-              <div style="font-size:11px; color:var(--text-3); font-weight:700;">☀️ 本日累積用電量</div>
-              <div style="font-size:20px; font-weight:800; color:var(--text-1); margin-top:2px;">${stats.today_kwh.toFixed(1)}<span style="font-size:11px; color:var(--text-3); margin-left:3px;">kWh</span></div>
-            </div>
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
-              <div style="font-size:11px; color:var(--text-3); font-weight:700;">🗓️ 當月累積用電量</div>
-              <div style="font-size:20px; font-weight:800; color:var(--accent-secondary); margin-top:2px;">${stats.month_kwh.toFixed(1)}<span style="font-size:11px; color:var(--text-3); margin-left:3px;">kWh</span></div>
-            </div>
-            <div style="background:#fff5f5; border:1px solid #fed7d7; border-radius:8px; padding:12px 14px;">
-              <div style="font-size:11px; color:#c53030; font-weight:700;">🔴 當月尖峰累積用電</div>
-              <div style="font-size:20px; font-weight:800; color:#e53e3e; margin-top:2px;">${stats.month_peak_kwh.toFixed(1)}<span style="font-size:11px; color:#c53030; margin-left:3px;">kWh</span><span style="font-size:12px; font-weight:800; color:#e53e3e; margin-left:6px;">(${stats.peak_ratio}%)</span></div>
-            </div>
-            <div style="background:#f0fff4; border:1px solid #c6f6d5; border-radius:8px; padding:12px 14px;">
-              <div style="font-size:11px; color:#276749; font-weight:700;">🟢 當月離峰/半尖峰用電</div>
-              <div style="font-size:20px; font-weight:800; color:#38a169; margin-top:2px;">${stats.month_non_peak_kwh.toFixed(1)}<span style="font-size:11px; color:#276749; margin-left:3px;">kWh</span><span style="font-size:12px; font-weight:800; color:#38a169; margin-left:6px;">(${stats.non_peak_ratio}%)</span></div>
-            </div>
-          </div>
-
-          <!-- 尖離峰比例進度條 -->
-          <div>
-            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; margin-bottom:6px;">
-              <span style="color:#e53e3e;">🔴 尖峰時段佔比：${stats.peak_ratio}%</span>
-              <span style="color:#38a169;">🟢 離峰/半尖峰佔比：${stats.non_peak_ratio}%</span>
-            </div>
-            <div style="width:100%; height:10px; background:#e2e8f0; border-radius:5px; overflow:hidden; display:flex;">
-              <div style="width:${stats.peak_ratio}%; background:#ef4444; transition:width .3s;"></div>
-              <div style="width:${stats.non_peak_ratio}%; background:#10b981; transition:width .3s;"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 各電表詳細數據 -->
         ${meterTables}
-        <div style="background:#e8f0fe; border-radius:8px; padding:10px 16px; margin-top:4px; display:flex; gap:20px; flex-wrap:wrap; align-items:center; font-size:12px; font-weight:800;">
+        <div style="background:#e8f0fe; border-radius:8px; padding:10px 16px; margin-top:8px; display:flex; gap:24px; flex-wrap:wrap; align-items:center; font-size:12.5px; font-weight:800;">
           <span style="color:var(--accent);">合計</span>
           <span style="color:var(--accent);">平均電壓：${countV > 0 ? (sumV / countV).toFixed(1) : '--'} V</span>
-          <span style="color:var(--accent);">總電流：${totalA.toFixed(1)} A</span>
-          <span style="color:var(--accent);">瞬時功率：${totalKw.toFixed(1)} kW</span>
+          <span style="color:var(--accent);">總平均電流：${totalA.toFixed(1)} A</span>
+          <span style="color:var(--accent);">即時用電量：${totalKw.toFixed(1)} kW</span>
           <span style="color:var(--accent);">總累積功率：${totalKwh.toFixed(1)} kWh</span>
         </div>`;
       overlay.style.display = 'flex';
@@ -2706,7 +3330,7 @@
     }
     fetchEnergyStats();
 
-    // 電表卡片（方案B）：卡片只顯示4個聚合數字，點擊開 Modal 看 ch13/ch14 明細
+    // ── 廠區電表資訊卡片（首頁卡片視圖：4 欄大字體精簡摘要卡，點擊彈出 Modbus RTU 13 欄位詳細數據）──
     function powerCardHtml(cardId, data, nowTs) {
       const cfg = CARD_CONFIG[cardId];
       let totalKw = 0, totalKwh = 0, totalA = 0, sumV = 0, countV = 0, anyOnline = false;
@@ -2722,16 +3346,17 @@
         if (v > 0) { sumV += v; countV++; }
       });
       const avgV = countV > 0 ? (sumV / countV) : null;
+      const cardTitle = cfg.name.replace(/[⚡🌡️🚨📊📈]/g, '').trim();
       const monthKwhDisplay = (lastEnergyStats && lastEnergyStats.month_kwh !== undefined && lastEnergyStats.month_kwh > 0)
         ? lastEnergyStats.month_kwh.toFixed(1)
         : (anyOnline ? totalKwh.toFixed(1) : '--');
 
       return `
-      <div class="sc power-card${!anyOnline ? ' offline' : ''}" onclick="openPowerModal()" style="grid-column: 1 / -1; height:auto;">
-        <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px;">⚡ ${cfg.name}</div>
+      <div class="sc power-card${!anyOnline ? ' offline' : ''}" onclick="openPowerModal()" style="grid-column: 1 / -1; height:auto; cursor:pointer;" title="點擊查看詳細電錶數據">
+        <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px;">${cardTitle}</div>
         <div style="display:flex; padding:14px 20px; gap:12px;">
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">即時耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kW</span></div></div>
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">當月累積用電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">當月累積耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電流總和</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">A</span></div></div>
           <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電壓</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">V</span></div></div>
         </div>
@@ -2854,7 +3479,7 @@
           : (anyOnline ? totalKwh.toFixed(1) : '--');
 
         fpPowerCard.innerHTML = `
-          <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:6px 12px; color:#ffffff; font-size:13px; font-weight:800; letter-spacing:1px;">⚡ 廠區電錶資訊</div>
+          <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:6px 12px; color:#ffffff; font-size:13px; font-weight:800; letter-spacing:1px;">廠區電表資訊</div>
           <div style="display:flex; padding:8px 12px; gap:8px; align-items:center; background:#ffffff;">
             <div style="flex:1; text-align:center;">
               <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">即時耗電量</div>
@@ -2876,6 +3501,9 @@
               <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">V</span></div>
             </div>
           </div>`;
+      }
+      if (document.getElementById('page-energy')?.style.display !== 'none') {
+        loadEnergyOverview();
       }
     }
     let currentCardId = null;
@@ -2902,6 +3530,86 @@
       contentEl.style.alignItems = 'stretch';
       const data = lastSseData || {};
       const nowTs = new Date().getTime();
+
+      // 若已經建立過該卡片的 DOM 結構，採用原地增量更新 (In-Place Update)，防止洗掉使用者正在輸入的數值與焦點
+      const isAlreadyRendered = (contentEl.dataset.renderedCardId === cardId);
+
+      if (isAlreadyRendered) {
+        cfg.channels.forEach(ch => {
+          const u = data[ch] || {};
+          const uOnline = isRoomOnline(u, nowTs);
+          const vCtrl = Number((u.control_temperature ?? u.value) || 0);
+          const vCoil = Number(u.coil_temperature || 0);
+          const vAmp = Number(u.compressor_current || 0);
+          const vHp = mpaToPsi(u.high_pressure);
+          const vLp = mpaToPsi(u.low_pressure);
+          const vSet = Number(u.control_temperature_set || 0);
+          const isRunning = !!(u.running_status ?? u.flags?.running);
+          const runState = uOnline ? getRunState(u, ch) : 'stop';
+          const ledColor = RUNSTATE_COLORS[runState];
+          const ledText = RUNSTATE_LABEL[runState];
+          const ledGlow = runState === 'stop' ? 'none' : `0 0 10px ${ledColor}`;
+          const runtimeHours = Number(u.runtime_hours || 0);
+
+          const elVctrl = document.getElementById(`ctrl-vctrl-${ch}`);
+          if (elVctrl) elVctrl.textContent = `${vCtrl.toFixed(1)} °C`;
+          const elVcoil = document.getElementById(`ctrl-vcoil-${ch}`);
+          if (elVcoil) elVcoil.textContent = `${vCoil.toFixed(1)} °C`;
+          const elVamp = document.getElementById(`ctrl-vamp-${ch}`);
+          if (elVamp) elVamp.textContent = `${vAmp.toFixed(1)} A`;
+          const elVhp = document.getElementById(`ctrl-vhp-${ch}`);
+          if (elVhp) elVhp.textContent = `${vHp.toFixed(1)} psi`;
+          const elVlp = document.getElementById(`ctrl-vlp-${ch}`);
+          if (elVlp) elVlp.textContent = `${vLp.toFixed(1)} psi`;
+          const elRt = document.getElementById(`ctrl-rt-${ch}`);
+          if (elRt) elRt.textContent = `${runtimeHours.toFixed(1)} hr`;
+
+          const elOnline = document.getElementById(`ctrl-online-${ch}`);
+          if (elOnline) {
+            elOnline.title = uOnline ? '連線中' : '斷線';
+            elOnline.style.background = uOnline ? 'var(--ok)' : 'var(--alarm)';
+            elOnline.style.animation = uOnline ? 'pls 2s infinite' : 'blink 1.5s step-start infinite';
+          }
+
+          const elLed = document.getElementById(`ctrl-led-${ch}`);
+          if (elLed) {
+            elLed.style.background = ledColor;
+            elLed.style.boxShadow = ledGlow;
+            elLed.style.animation = runState === 'error' ? 'blink 1.5s step-start infinite' : 'none';
+          }
+          const elLedText = document.getElementById(`ctrl-led-text-${ch}`);
+          if (elLedText) elLedText.textContent = ledText;
+
+          // 設定溫度輸入框：若使用者正在輸入 (Focus) 或已修改數值 (Dirty) 或指令傳輸中，絕不可覆蓋！
+          const inputEl = document.getElementById(`tempset-input-${ch}`);
+          if (inputEl) {
+            const isFocused = (document.activeElement === inputEl);
+            const isModified = (Number(inputEl.value) !== Number(inputEl.dataset.baseline));
+            const isLocked = inputEl.disabled;
+            if (!isFocused && !isModified && !isLocked) {
+              if (Number(inputEl.dataset.baseline) !== vSet) {
+                inputEl.value = vSet.toFixed(1);
+                inputEl.dataset.baseline = vSet.toFixed(1);
+                setTempBtnState(ch, false);
+              }
+            }
+          }
+
+          // 設備起停開關：若指令未被鎖定，且無尚未送出的手動變更，則同步狀態
+          const toggleEl = document.getElementById(`power-toggle-${ch}`);
+          if (toggleEl && !toggleEl.disabled) {
+            if (toggleEl.checked !== isRunning) {
+              toggleEl.checked = isRunning;
+              toggleEl.dataset.baseline = isRunning ? '1' : '0';
+              setPowerToggleVisual(ch, isRunning);
+            }
+          }
+        });
+        return;
+      }
+
+      // 首次打開或切換庫別：建立完整 DOM 結構
+      contentEl.dataset.renderedCardId = cardId;
       let html = '';
       cfg.channels.forEach(ch => {
         const u = data[ch] || {};
@@ -2925,28 +3633,28 @@
            <div>
               <div style="background:var(--accent); text-align:center; padding:8px 34px 8px 10px; font-size:14px; font-weight:700; color:#ffffff; letter-spacing:1px; position:relative;">
                   ${cardTitle}
-                 <span title="${uOnline ? '連線中' : '斷線'}" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:9px; height:9px; border-radius:50%; background:${uOnline ? 'var(--ok)' : 'var(--alarm)'}; display:inline-block; box-shadow:0 0 0 2px rgba(255,255,255,0.18); animation:${uOnline ? 'pls 2s infinite' : 'blink 1.5s step-start infinite'};"></span>
+                 <span id="ctrl-online-${ch}" title="${uOnline ? '連線中' : '斷線'}" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); width:9px; height:9px; border-radius:50%; background:${uOnline ? 'var(--ok)' : 'var(--alarm)'}; display:inline-block; box-shadow:0 0 0 2px rgba(255,255,255,0.18); animation:${uOnline ? 'pls 2s infinite' : 'blink 1.5s step-start infinite'};"></span>
               </div>
               <div style="display:flex; flex-direction:column; gap:8px; padding:12px 14px 8px 14px; font-size:13px; font-weight:700;">
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">控制溫度</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCtrl.toFixed(1)} °C</span>
+                    <span id="ctrl-vctrl-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCtrl.toFixed(1)} °C</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">盤管溫度</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCoil.toFixed(1)} °C</span>
+                    <span id="ctrl-vcoil-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vCoil.toFixed(1)} °C</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">運轉電流</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vAmp.toFixed(1)} A</span>
+                    <span id="ctrl-vamp-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vAmp.toFixed(1)} A</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">高壓壓力</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vHp.toFixed(1)} psi</span>
+                    <span id="ctrl-vhp-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vHp.toFixed(1)} psi</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">低壓壓力</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vLp.toFixed(1)} psi</span>
+                    <span id="ctrl-vlp-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${vLp.toFixed(1)} psi</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; gap:8px;">
                     <span style="color:var(--text-2); white-space:nowrap;">設定溫度</span>
@@ -2970,13 +3678,13 @@
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px;">
                     <span style="color:var(--text-2);">主機運轉時數</span>
-                    <span style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${runtimeHours.toFixed(1)} hr</span>
+                    <span id="ctrl-rt-${ch}" style="font-variant-numeric:tabular-nums; color:var(--text-1); font-size:14px;">${runtimeHours.toFixed(1)} hr</span>
                  </div>
                  <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:2px;">
                     <span style="color:var(--text-2);">設備狀態</span>
                     <span style="display:flex; align-items:center; gap:8px;">
-                       <span style="width:12px; height:12px; border-radius:50%; background:${ledColor}; display:inline-block; box-shadow:${ledGlow}; ${ledAnim}"></span>
-                       <span style="font-size:13px; font-weight:700; color:var(--text-1);">${ledText}</span>
+                       <span id="ctrl-led-${ch}" style="width:12px; height:12px; border-radius:50%; background:${ledColor}; display:inline-block; box-shadow:${ledGlow}; ${ledAnim}"></span>
+                       <span id="ctrl-led-text-${ch}" style="font-size:13px; font-weight:700; color:var(--text-1);">${ledText}</span>
                     </span>
                  </div>
               </div>
@@ -2988,6 +3696,8 @@
     }
     function closeControlModal() {
       document.getElementById('modal-control-overlay').style.display = 'none';
+      const contentEl = document.getElementById('ctrl-dynamic-content');
+      if (contentEl) contentEl.dataset.renderedCardId = '';
       currentCardId = null;
     }
     function setTempBtnState(ch, enabled) {
@@ -3239,7 +3949,7 @@
         </tr>`;
       });
       content.innerHTML = `
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">🔔 庫別溫度警報設定</div>
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">庫別溫度警報設定</div>
         <div style="margin-bottom:12px; font-size:11px; color:var(--text-3); line-height:1.5;">
           系統依各「庫別」之在線主機平均庫溫進行警報判定與延遲累計，避免單一主機短暫除霜或控制跳動造成誤報。
         </div>
@@ -3255,7 +3965,7 @@
           <tbody>${rows}</tbody>
         </table>
         <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-          <button onclick="openAdvancedSettings()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#f8fafc;color:var(--text-1);cursor:pointer;font-size:12px;font-weight:700;">🔐 進階設定</button>
+          <button onclick="openAdvancedSettings()" style="padding:8px 16px;border:1px solid var(--border);border-radius:5px;background:#f8fafc;color:var(--text-1);cursor:pointer;font-size:12px;font-weight:700;">進階設定</button>
         </div>`;
       document.getElementById('modal-title').textContent = '系統設定';
       document.getElementById('modal-buttons').innerHTML = `
@@ -3326,7 +4036,7 @@
         </tr>`;
       }).join('');
       content.innerHTML = `
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚡ 電表設定 (NFB 額定電流)</div>
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">電表設定 (NFB 額定電流)</div>
         <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
           設定各集合式電錶 NFB 額定跳脫電流（單位：A），用於計算滿載百分比與用電跳脫風險預警。
         </div>
@@ -3339,7 +4049,7 @@
         </table>
         <!-- LINE Official Account Bot 推播設定 -->
         <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1); display:flex; align-items:center; gap:8px;">
-          <span>📱 LINE Official Account (Bot 推播設定)</span>
+          <span>LINE Official Account (Bot 推播設定)</span>
           <span style="font-size:11px; font-weight:400; color:var(--text-3);">Messaging API</span>
         </div>
         <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:24px;">
@@ -3357,7 +4067,7 @@
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span id="line-test-msg" style="font-size:11px; font-weight:700; color:var(--text-3);"></span>
-            <button type="button" onclick="testLinePush()" style="padding:5px 14px; border:1px solid #1a73e8; background:#e8f0fe; color:#1a73e8; font-size:11px; font-weight:700; border-radius:4px; cursor:pointer;">🚀 測試發送 LINE 訊息</button>
+            <button type="button" onclick="testLinePush()" style="padding:5px 14px; border:1px solid #1a73e8; background:#e8f0fe; color:#1a73e8; font-size:11px; font-weight:700; border-radius:4px; cursor:pointer;">測試發送 LINE 訊息</button>
           </div>
         </div>
 
@@ -3369,7 +4079,7 @@
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:24px;">
           <div style="background:#fff5f5; border:1px solid #fed7d7; border-radius:6px; padding:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:700; color:var(--alarm);">🔴 警報冷卻再發報</span>
+              <span style="font-size:12px; font-weight:700; color:var(--alarm);">警報冷卻再發報</span>
               <div style="display:flex; align-items:center; gap:4px;">
                 <input type="number" id="adv-alarm-cooldown" value="${systemConfig.alarm_cooldown_min || 30}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
                 <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
@@ -3382,7 +4092,7 @@
 
           <div style="background:#fffaf0; border:1px solid #feebc8; border-radius:6px; padding:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:700; color:#d97706;">🟡 警告冷卻再發報</span>
+              <span style="font-size:12px; font-weight:700; color:#d97706;">警告冷卻再發報</span>
               <div style="display:flex; align-items:center; gap:4px;">
                 <input type="number" id="adv-warning-cooldown" value="${systemConfig.warning_cooldown_min || 60}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
                 <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
@@ -3395,7 +4105,7 @@
 
           <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:700; color:var(--text-1);">🔕 網頁消音後重響</span>
+              <span style="font-size:12px; font-weight:700; color:var(--text-1);">網頁消音後重響</span>
               <div style="display:flex; align-items:center; gap:4px;">
                 <input type="number" id="adv-buzzer-snooze" value="${systemConfig.buzzer_snooze_min || 10}" min="1" max="1440" step="1" style="width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; text-align:right;">
                 <span style="font-size:12px; font-weight:700; color:var(--text-2);">分</span>
@@ -3407,9 +4117,9 @@
           </div>
         </div>
 
-        <!-- 🖥️ 電視牆螢幕解析度滿版設定 -->
+        <!-- 電視牆螢幕解析度滿版設定 -->
         <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1); display:flex; align-items:center; gap:8px;">
-          <span>🖥️ 電視牆螢幕解析度滿版設定</span>
+          <span>電視牆螢幕解析度滿版設定</span>
           <span style="font-size:11px; font-weight:400; color:var(--text-3);">Display Resolution & Scaling</span>
         </div>
         <div style="background:#f8fafc; border:1.5px solid var(--border); border-radius:8px; padding:14px; margin-bottom:24px;">
@@ -3419,17 +4129,17 @@
           <div style="display:flex; align-items:center; gap:12px; margin-top:10px;">
             <label style="font-size:12px; font-weight:700; color:var(--text-1); min-width:80px;">目標解析度</label>
             <select id="adv-display-resolution" style="flex:1; padding:7px 10px; border:1px solid var(--border); border-radius:4px; font-size:12px; font-weight:700; background:#fff; cursor:pointer;">
-              <option value="auto" ${(systemConfig.display_resolution === 'auto' || !systemConfig.display_resolution) ? 'selected' : ''}>🖥️ 自動偵測 (預設自適應視窗大小)</option>
-              <option value="1920x1080" ${systemConfig.display_resolution === '1920x1080' ? 'selected' : ''}>📺 1920 × 1080 (1080p Full HD - 建議標準電視牆規格)</option>
-              <option value="3840x2160" ${systemConfig.display_resolution === '3840x2160' ? 'selected' : ''}>📺 3840 × 2160 (4K Ultra HD - 4K 超高畫質電視)</option>
-              <option value="2560x1440" ${systemConfig.display_resolution === '2560x1440' ? 'selected' : ''}>📺 2560 × 1440 (2K QHD - 高解析度螢幕)</option>
-              <option value="1366x768" ${systemConfig.display_resolution === '1366x768' ? 'selected' : ''}>📺 1366 × 768 (商用展示電視 / 筆記型電腦)</option>
-              <option value="1280x720" ${systemConfig.display_resolution === '1280x720' ? 'selected' : ''}>📺 1280 × 720 (720p HD - 傳統標準螢幕)</option>
+              <option value="auto" ${(systemConfig.display_resolution === 'auto' || !systemConfig.display_resolution) ? 'selected' : ''}>自動偵測 (預設自適應視窗大小)</option>
+              <option value="1920x1080" ${systemConfig.display_resolution === '1920x1080' ? 'selected' : ''}>1920 × 1080 (1080p Full HD - 建議標準電視牆規格)</option>
+              <option value="3840x2160" ${systemConfig.display_resolution === '3840x2160' ? 'selected' : ''}>3840 × 2160 (4K Ultra HD - 4K 超高畫質電視)</option>
+              <option value="2560x1440" ${systemConfig.display_resolution === '2560x1440' ? 'selected' : ''}>2560 × 1440 (2K QHD - 高解析度螢幕)</option>
+              <option value="1366x768" ${systemConfig.display_resolution === '1366x768' ? 'selected' : ''}>1366 × 768 (商用展示電視 / 筆記型電腦)</option>
+              <option value="1280x720" ${systemConfig.display_resolution === '1280x720' ? 'selected' : ''}>1280 × 720 (720p HD - 傳統標準螢幕)</option>
             </select>
           </div>
         </div>
 
-        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">⚙️ 主機運轉判定閾值</div>
+        <div style="margin-bottom:10px; font-weight:700; font-size:13px; color:var(--text-1);">主機運轉判定閾值</div>
         <div style="margin-bottom:8px; font-size:11px; color:var(--text-3); line-height:1.5;">
           運轉電流 ≤ 此通道的閾值時，判定為現場控制開關未開啟：卡片與控制面板的設備狀態燈顯示灰燈（停止），「主機運轉時數」不計入累積時間。各通道可依設備規格獨立設定。
         </div>
@@ -3472,20 +4182,20 @@
         if (resp.ok && res.status === 'ok') {
           if (msgEl) {
             msgEl.style.color = 'var(--ok)';
-            msgEl.textContent = '✅ 推播成功！請確認手機 LINE 訊息';
+            msgEl.textContent = '推播成功！請確認手機 LINE 訊息';
           }
           alert(res.message);
         } else {
           if (msgEl) {
             msgEl.style.color = 'var(--alarm)';
-            msgEl.textContent = '❌ 發送失敗：' + (res.message || '未知錯誤');
+            msgEl.textContent = '發送失敗：' + (res.message || '未知錯誤');
           }
           alert('發送失敗：' + (res.message || '請確認 Token 與 Target ID 正確'));
         }
       } catch (e) {
         if (msgEl) {
           msgEl.style.color = 'var(--alarm)';
-          msgEl.textContent = '❌ 連線錯誤，請確認後端伺服器運作';
+          msgEl.textContent = '連線錯誤，請確認後端伺服器運作';
         }
         alert('連線失敗：' + e.message);
       }
@@ -3660,20 +4370,20 @@
 
       const getCatBadge = (r) => {
         const at = r.alarm_type || '';
-        if (at === 'HIGH' || at === 'HIGH_TEMP') return `<span style="background:#fdecea;color:var(--alarm);font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🔴 高溫警報</span>`;
-        if (at === 'LOW' || at === 'LOW_TEMP') return `<span style="background:#e8f0fd;color:#1a73e8;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🔵 低溫警報</span>`;
-        if (at === 'EQUIP_STOP_L212' || at === 'L212') return `<span style="background:#fef3c7;color:#b45309;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🟠 L212設備異常</span>`;
-        if (at === 'EQUIP_ERR_L216' || at === 'L216' || at === 'EQUIP') return `<span style="background:#fef3c7;color:#d97706;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">🟡 L216設備異常</span>`;
-        if (at === 'RS485_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">⚪ RS485 斷線</span>`;
-        if (at === 'GATEWAY_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">⚪ 網關離線</span>`;
+        if (at === 'HIGH' || at === 'HIGH_TEMP') return `<span style="background:#fdecea;color:var(--alarm);font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">高溫警報</span>`;
+        if (at === 'LOW' || at === 'LOW_TEMP') return `<span style="background:#e8f0fd;color:#1a73e8;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">低溫警報</span>`;
+        if (at === 'EQUIP_STOP_L212' || at === 'L212') return `<span style="background:#fef3c7;color:#b45309;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">L212設備異常</span>`;
+        if (at === 'EQUIP_ERR_L216' || at === 'L216' || at === 'EQUIP') return `<span style="background:#fef3c7;color:#d97706;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">L216設備異常</span>`;
+        if (at === 'RS485_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">RS485 斷線</span>`;
+        if (at === 'GATEWAY_ERR') return `<span style="background:#f1f5f9;color:#64748b;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">網關離線</span>`;
         return `<span style="background:#fee2e2;color:#ef4444;font-weight:800;padding:2px 8px;border-radius:4px;font-size:11px;">${r.category || '警報'}</span>`;
       };
 
       tbody.innerHTML = records.map((r, i) => {
         const isAct = (r.status === 'ACTIVE' || !r.restored_at);
         const statusHtml = isAct
-          ? `<span style="color:var(--alarm);font-weight:800;background:#fff0f0;padding:2px 6px;border-radius:4px;border:1px solid #fca5a5;">🚨 警報中</span>`
-          : `<span style="color:var(--ok);font-weight:800;background:#f0fdf4;padding:2px 6px;border-radius:4px;border:1px solid #86efac;">🟢 已復歸</span>`;
+          ? `<span style="color:var(--alarm);font-weight:800;background:#fff0f0;padding:2px 6px;border-radius:4px;border:1px solid #fca5a5;">警報中</span>`
+          : `<span style="color:var(--ok);font-weight:800;background:#f0fdf4;padding:2px 6px;border-radius:4px;border:1px solid #86efac;">已復歸</span>`;
 
         const valThresh = (r.alarm_type === 'HIGH' || r.alarm_type === 'LOW')
           ? `${r.value !== null ? Number(r.value).toFixed(1) : '--'}°C / ${r.alarm_type==='HIGH' ? r.hi : r.lo}°C`
@@ -3741,7 +4451,7 @@
       filtersBuilt = true;
       const selRoom = document.getElementById('sel-room');
       selRoom.innerHTML = '<option value="">-- 選擇庫別 --</option>';
-      ALL_CARDS.forEach(cardId => {
+      ALL_CARDS.filter(cid => CARD_CONFIG[cid].type === 'temp').forEach(cardId => {
         const opt = document.createElement('option');
         opt.value = cardId;
         opt.textContent = CARD_CONFIG[cardId].name;
@@ -3759,7 +4469,14 @@
         selDevice.disabled = !cardId;
         if (!cardId) return;
 
-        CARD_CONFIG[cardId].channels.forEach(ch => {
+        const chs = CARD_CONFIG[cardId].channels || [];
+        if (chs.length > 1) {
+          const allOpt = document.createElement('option');
+          allOpt.value = 'all_room';
+          allOpt.textContent = `該庫全部設備 (${chs.length} 台)`;
+          selDevice.appendChild(allOpt);
+        }
+        chs.forEach(ch => {
           const opt = document.createElement('option');
           opt.value = ch;
           opt.textContent = CHANNEL_NAMES[ch] || ch;
@@ -3768,37 +4485,28 @@
       });
 
       document.getElementById('sel-device').addEventListener('change', () => {
-        const ch = document.getElementById('sel-device').value;
+        const devVal = document.getElementById('sel-device').value;
         const selInfo = document.getElementById('sel-info');
-        const cardId = document.getElementById('sel-room').value;
-        const isPower = CARD_CONFIG[cardId]?.type === 'power';
-
-        if (!ch) {
+        if (!devVal) {
           selInfo.innerHTML = '<option value="">-- 選擇資訊 --</option>';
           selInfo.disabled = true;
           document.getElementById('btn-chart-add').disabled = true;
           return;
         }
 
-        if (isPower) {
+        if (devVal === 'all_room') {
           selInfo.innerHTML = `
             <option value="">-- 選擇資訊 --</option>
-            <option value="energy_total">累積用電量 (kWh)</option>
-            <option value="power_total">總有效功率 (kW)</option>
-            <option value="voltage_ll_avg">平均線電壓 (V)</option>
-            <option value="current_avg">平均電流 (A)</option>
-            <option value="power_factor">功率因數</option>
+            <option value="control_temp">控制溫度 (°C)</option>
+            <option value="coil_temp">盤管溫度 (°C)</option>
+            <option value="all_temps">設備全溫度 (控制溫 + 盤管溫)</option>
           `;
         } else {
           selInfo.innerHTML = `
             <option value="">-- 選擇資訊 --</option>
             <option value="control_temp">控制溫度 (°C)</option>
             <option value="coil_temp">盤管溫度 (°C)</option>
-            <option value="compressor_current">運轉電流 (A)</option>
-            <option value="high_pressure">高壓壓力 (MPa)</option>
-            <option value="low_pressure">低壓壓力 (MPa)</option>
-            <option value="set_temp">設定溫度 (°C)</option>
-            <option value="runtime_hours">運轉時數 (小時)</option>
+            <option value="all_temps">該設備全溫度 (控制溫 + 盤管溫)</option>
           `;
         }
         selInfo.disabled = false;
@@ -3810,17 +4518,12 @@
         document.getElementById('btn-chart-add').disabled = !val;
       });
 
-      document.getElementById('btn-chart-add').addEventListener('click', () => {
-        const ch = document.getElementById('sel-device').value;
-        const field = document.getElementById('sel-info').value;
-        if (!ch || !field) return;
+      function addSingleSeries(ch, field) {
         const sid = `${ch}_${field}`;
         if (chartSeries.some(s => s.id === sid)) return;
-
         const info = INFO_CONFIG[field] || { label: field, unit: '' };
         const devName = CHANNEL_NAMES[ch] || ch;
         const color = CHART_PALETTE[chartSeries.length % CHART_PALETTE.length];
-
         chartSeries.push({
           id: sid,
           ch: ch,
@@ -3829,27 +4532,46 @@
           unit: info.unit,
           color: color
         });
+      }
+
+      document.getElementById('btn-chart-add').addEventListener('click', () => {
+        const cardId = document.getElementById('sel-room').value;
+        const devVal = document.getElementById('sel-device').value;
+        const fieldVal = document.getElementById('sel-info').value;
+        if (!cardId || !devVal || !fieldVal) return;
+
+        const targetChannels = (devVal === 'all_room') ? (CARD_CONFIG[cardId]?.channels || []) : [devVal];
+        targetChannels.forEach(ch => {
+          if (fieldVal === 'all_temps') {
+            addSingleSeries(ch, 'control_temp');
+            addSingleSeries(ch, 'coil_temp');
+          } else {
+            addSingleSeries(ch, fieldVal);
+          }
+        });
 
         renderChartTags();
         loadChartData();
       });
 
-      document.getElementById('btn-chart-add-all')?.addEventListener('click', () => {
-        const tempChannels = ['ch01', 'ch02', 'ch03', 'ch04', 'ch05', 'ch06', 'ch07', 'ch08', 'ch09', 'ch10', 'ch11', 'ch12'];
-        tempChannels.forEach(ch => {
-          const sid = `${ch}_control_temp`;
-          if (!chartSeries.some(s => s.id === sid)) {
-            const devName = CHANNEL_NAMES[ch] || ch;
-            chartSeries.push({
-              id: sid,
-              ch: ch,
-              field: 'control_temp',
-              name: `${devName} - 控制溫度`,
-              unit: '°C',
-              color: CHART_PALETTE[chartSeries.length % CHART_PALETTE.length]
-            });
+      document.getElementById('btn-chart-add-room')?.addEventListener('click', () => {
+        let cardId = document.getElementById('sel-room').value;
+        if (!cardId) {
+          cardId = 'card1';
+          document.getElementById('sel-room').value = cardId;
+        }
+        const chs = CARD_CONFIG[cardId]?.channels || [];
+        const isPower = CARD_CONFIG[cardId]?.type === 'power';
+
+        chs.forEach(ch => {
+          if (isPower) {
+            addSingleSeries(ch, 'power_total');
+          } else {
+            addSingleSeries(ch, 'control_temp');
+            addSingleSeries(ch, 'coil_temp');
           }
         });
+
         renderChartTags();
         loadChartData();
       });
@@ -4127,13 +4849,13 @@
           btn.style.display = 'inline-block';
           if (alarmSilenced) {
             const remMin = Math.max(1, Math.ceil((snoozeMin * 60 - (Date.now() - buzzerSilenceTime) / 1000) / 60));
-            btn.innerHTML = `🔕 已靜音 (${remMin}分後重響)`;
+            btn.innerHTML = `已靜音 (${remMin}分後重響)`;
             btn.style.background = '#64748b';
             btn.style.borderColor = '#64748b';
             btn.style.color = '#ffffff';
             btn.style.animation = 'none';
           } else {
-            btn.innerHTML = `🔔 關閉警報聲`;
+            btn.innerHTML = `關閉警報聲`;
             btn.style.background = '#fff0f0';
             btn.style.borderColor = 'var(--alarm)';
             btn.style.color = 'var(--alarm)';
@@ -4176,6 +4898,7 @@
     }
     document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('btn-dashboard').addEventListener('click', () => showPage('dashboard'));
+      document.getElementById('btn-energy').addEventListener('click', () => showPage('energy'));
       document.getElementById('btn-chart').addEventListener('click', () => showPage('chart'));
       document.getElementById('btn-alarm').addEventListener('click', () => showPage('alarm'));
       document.getElementById('btn-report').addEventListener('click', () => showPage('report'));

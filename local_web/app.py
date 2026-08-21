@@ -1985,59 +1985,97 @@ def chart_data():
 
 @app.route('/api/power_chart_data')
 def power_chart_data():
-    channels   = request.args.getlist('ch')   # e.g. ?ch=ch13&ch=ch14
-    field      = request.args.get('field', 'energy_total')   # power_total / energy_total / etc
-    range_type = request.args.get('range', 'realtime')
+    channels   = request.args.getlist('ch')   # e.g. ?ch=ch13&ch=ch14 or ?ch=all
+    field      = request.args.get('field', 'delta_kwh')   # delta_kwh / power_total / energy_total / etc
+    range_type = request.args.get('range', '6h')
     date_from  = request.args.get('from', None)
     date_to    = request.args.get('to',   None)
 
-    field_mapping = {
-        'power_total': ('kw', 1.0),
-        'energy_total': ('kwh', 1.0),
-        'voltage_ll_avg': ('v', 1.0),
-        'voltage_avg': ('v', 1.0),
-        'current_avg': ('a', 1.0),
-        'power_factor': ('pf', 1.0),
-        'v': ('v', 1.0),
-        'a': ('a', 1.0),
-        'kw': ('kw', 1.0),
-        'pf': ('pf', 1.0),
-        'kwh': ('kwh', 1.0)
-    }
-    mapped = field_mapping.get(field)
-    if not mapped:
-        field = 'energy_total'
-        mapped = ('kwh', 1.0)
-    db_col, scale = mapped
+    if not channels or 'all' in channels:
+        channels = ['ch13', 'ch14']
 
     now_tw = datetime.now(TZ_TW_APP)
     if range_type == 'custom' and date_from and date_to:
         dt_from = _normalize_dt(date_from)
         dt_to   = _normalize_dt(date_to)
     else:
-        minutes_map = {'realtime': 60, '1h': 60, '4h': 240, '6h': 360, '24h': 1440}
-        minutes  = minutes_map.get(range_type, int(request.args.get('minutes', 60)))
+        minutes_map = {'6h': 360, '1d': 1440, '24h': 1440, 'day': 1440, '7d': 10080, 'week': 10080, '1h': 60, 'realtime': 60}
+        minutes  = minutes_map.get(range_type, 360)
         dt_from = now_tw - timedelta(minutes=minutes)
         dt_to   = now_tw
+
+    total_seconds = (dt_to - dt_from).total_seconds()
+    if total_seconds <= 6 * 3600:
+        bucket_sec = 300       # 5 分鐘
+    elif total_seconds <= 24 * 3600:
+        bucket_sec = 900       # 15 分鐘
+    elif total_seconds <= 7 * 86400:
+        bucket_sec = 3600      # 1 小時
+    else:
+        bucket_sec = 86400     # 1 天
 
     series = {}
     with get_pg() as conn:
         for ch in channels:
             rows = conn.execute(
-                f'SELECT timestamp, {db_col} as val FROM power_readings '
-                f'WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp',
+                "SELECT timestamp, kw, kwh, v, a, pf FROM power_readings "
+                "WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp ASC",
                 (ch, dt_from, dt_to)
             ).fetchall()
-            if not rows and db_col == 'kwh':
-                t_rows = conn.execute(
-                    'SELECT timestamp, value as val FROM temperatures '
-                    'WHERE channel=%s AND timestamp BETWEEN %s AND %s ORDER BY timestamp',
-                    (ch, dt_from, dt_to)
-                ).fetchall()
-                rows = t_rows
-            series[ch] = [{'t': _fmt_ts(r['timestamp']), 'v': round(float(r['val']) * scale, 2) if r['val'] is not None else None} for r in rows]
 
-    return jsonify({'series': series, 'field': field})
+            if field == 'delta_kwh':
+                # 計算各時間切片的實質用電增量 (ΔkWh)
+                buckets = {}
+                for r in rows:
+                    ts = r['timestamp']
+                    if not ts.tzinfo:
+                        ts = ts.replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP)
+                    else:
+                        ts = ts.astimezone(TZ_TW_APP)
+                    epoch = int(ts.timestamp())
+                    b_epoch = (epoch // bucket_sec) * bucket_sec
+                    if b_epoch not in buckets:
+                        buckets[b_epoch] = {'min_kwh': r['kwh'], 'max_kwh': r['kwh'], 'ts': datetime.fromtimestamp(b_epoch, TZ_TW_APP)}
+                    b = buckets[b_epoch]
+                    if r['kwh'] is not None:
+                        if b['min_kwh'] is None or r['kwh'] < b['min_kwh']:
+                            b['min_kwh'] = r['kwh']
+                        if b['max_kwh'] is None or r['kwh'] > b['max_kwh']:
+                            b['max_kwh'] = r['kwh']
+
+                sorted_epochs = sorted(buckets.keys())
+                data_pts = []
+                for idx, ep in enumerate(sorted_epochs):
+                    b = buckets[ep]
+                    delta = 0.0
+                    if b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
+                        delta = float(b['max_kwh'] - b['min_kwh'])
+                    if delta == 0.0 and idx > 0:
+                        prev_b = buckets[sorted_epochs[idx - 1]]
+                        if b['max_kwh'] is not None and prev_b['max_kwh'] is not None:
+                            diff = float(b['max_kwh'] - prev_b['max_kwh'])
+                            if 0 <= diff < 500:
+                                delta = diff
+                    data_pts.append({
+                        't': b['ts'].strftime('%Y-%m-%d %H:%M:%S'),
+                        'v': round(delta, 2)
+                    })
+                series[ch] = data_pts
+            else:
+                col_map = {
+                    'power_total': 'kw', 'kw': 'kw',
+                    'energy_total': 'kwh', 'kwh': 'kwh',
+                    'voltage_ll_avg': 'v', 'v': 'v',
+                    'current_avg': 'a', 'a': 'a',
+                    'power_factor': 'pf', 'pf': 'pf'
+                }
+                c_name = col_map.get(field, 'kw')
+                series[ch] = [{
+                    't': _fmt_ts(r['timestamp']),
+                    'v': round(float(r[c_name]), 2) if r[c_name] is not None else None
+                } for r in rows]
+
+    return jsonify({'series': series, 'field': field, 'bucket_sec': bucket_sec})
 
 # ── 台電時間電價尖離峰時段判斷 ────────────────────────────────────
 OFF_PEAK_HOLIDAYS = [
@@ -2111,26 +2149,33 @@ def get_tariff_type(dt: datetime, is_high_voltage: bool = True) -> str:
 
 @app.route('/api/power_energy_stats')
 def power_energy_stats():
+    period = request.args.get('period', 'month')  # day / week / month / custom
+    date_from_str = request.args.get('from', None)
+    date_to_str = request.args.get('to', None)
+
     now_tw = datetime.now(TZ_TW_APP)
     today_start = now_tw.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 本週起始 (週一 00:00)
+    week_start = (now_tw - timedelta(days=now_tw.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     month_start = now_tw.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
-    # 取得異常警報閾值設定
-    alarm_map = _alarm_settings_map()
-    anomaly_threshold_pct = 15.0
-    for s in alarm_map.values():
-        if s.get('power_anomaly_threshold') is not None:
-            try:
-                anomaly_threshold_pct = float(s['power_anomaly_threshold'])
-                break
-            except (ValueError, TypeError):
-                pass
+    # 決定當前選定週期的起始與結束時間
+    if period == 'day':
+        dt_period_from = today_start
+        dt_period_to = now_tw
+    elif period == 'week':
+        dt_period_from = week_start
+        dt_period_to = now_tw
+    elif period == 'custom' and date_from_str and date_to_str:
+        dt_period_from = _normalize_dt(date_from_str)
+        dt_period_to = _normalize_dt(date_to_str)
+    else: # month (預設)
+        dt_period_from = month_start
+        dt_period_to = now_tw
 
-    # 查詢過去 35 天的電表讀數以計算每日/每小時聚合與前 7 天基準
     lookback_start = (now_tw - timedelta(days=35)).replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    hourly_data = {} # (date_str, hour) -> {'ch13': delta, 'ch14': delta, 'total': delta, 'tariff': type}
-    daily_data = {}  # date_str -> {'total_kwh': 0, 'peak_kwh': 0, 'semi_peak_kwh': 0, 'off_peak_kwh': 0}
+    hourly_data = {}
 
     with get_pg() as conn:
         for ch in ['ch13', 'ch14']:
@@ -2139,7 +2184,6 @@ def power_energy_stats():
                 "WHERE channel=%s AND timestamp >= %s ORDER BY timestamp ASC",
                 (ch, lookback_start)
             ).fetchall()
-            
             if not rows:
                 continue
 
@@ -2168,11 +2212,9 @@ def power_energy_stats():
                 b = hourly_buckets[k]
                 dt_hour = b['dt'].replace(minute=0, second=0, microsecond=0)
                 tariff = get_tariff_type(dt_hour)
-                
                 delta = 0.0
                 if b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
                     delta = float(b['max_kwh'] - b['min_kwh'])
-                
                 if delta == 0.0 and idx > 0:
                     prev_k = sorted_keys[idx - 1]
                     prev_b = hourly_buckets[prev_k]
@@ -2180,117 +2222,161 @@ def power_energy_stats():
                         diff = float(b['max_kwh'] - prev_b['max_kwh'])
                         if 0 <= diff < 1500:
                             delta = diff
-                
                 if delta == 0.0 and b['kw_cnt'] > 0:
                     avg_kw = b['kw_sum'] / b['kw_cnt']
                     if avg_kw > 0:
                         delta = min(avg_kw, 500.0)
-
-                if delta < 0 or delta > 1500:
-                    delta = 0.0
 
                 if k not in hourly_data:
                     hourly_data[k] = {'ch13': 0.0, 'ch14': 0.0, 'total': 0.0, 'tariff': tariff, 'dt': dt_hour}
                 hourly_data[k][ch] = delta
                 hourly_data[k]['total'] += delta
 
-    for (d_str, hr), h in hourly_data.items():
-        if d_str not in daily_data:
-            daily_data[d_str] = {'total_kwh': 0.0, 'peak_kwh': 0.0, 'semi_peak_kwh': 0.0, 'off_peak_kwh': 0.0, 'date': d_str}
-        tot = h['total']
-        daily_data[d_str]['total_kwh'] += tot
-        if h['tariff'] == 'peak':
-            daily_data[d_str]['peak_kwh'] += tot
-        elif h['tariff'] == 'semi_peak':
-            daily_data[d_str]['semi_peak_kwh'] += tot
-        else:
-            daily_data[d_str]['off_peak_kwh'] += tot
-
-    today_str = now_tw.strftime('%Y-%m-%d')
-    today_kwh = round(daily_data.get(today_str, {}).get('total_kwh', 0.0), 1)
-
-    # ── 當月累積用電量：以每日累積用電量進行聚合加總 ──
-    month_prefix = now_tw.strftime('%Y-%m')
-    month_days = [d_str for d_str in sorted(daily_data.keys()) if d_str.startswith(month_prefix)]
-    
+    # 統計本日、本週、當月用電
+    today_kwh = 0.0
+    week_kwh = 0.0
     month_kwh = 0.0
-    month_peak_kwh = 0.0
-    month_semi_peak_kwh = 0.0
-    month_off_peak_kwh = 0.0
 
-    for d_str in month_days:
-        d = daily_data[d_str]
-        month_kwh += d['total_kwh']
-        month_peak_kwh += d['peak_kwh']
-        month_semi_peak_kwh += d['semi_peak_kwh']
-        month_off_peak_kwh += d['off_peak_kwh']
+    # 選定週期內的統計 (尖峰、半尖峰、離峰)
+    period_total_kwh = 0.0
+    period_peak_kwh = 0.0
+    period_semi_peak_kwh = 0.0
+    period_off_peak_kwh = 0.0
 
-    month_non_peak_kwh = month_semi_peak_kwh + month_off_peak_kwh
-    if month_kwh > 0:
-        peak_ratio = round((month_peak_kwh / month_kwh) * 100, 1)
-        non_peak_ratio = round((month_non_peak_kwh / month_kwh) * 100, 1)
+    for (d_str, hr), h in hourly_data.items():
+        dt_h = h['dt']
+        tot = h['total']
+        if dt_h >= today_start:
+            today_kwh += tot
+        if dt_h >= week_start:
+            week_kwh += tot
+        if dt_h >= month_start:
+            month_kwh += tot
+
+        if dt_period_from <= dt_h <= dt_period_to:
+            period_total_kwh += tot
+            if h['tariff'] == 'peak':
+                period_peak_kwh += tot
+            elif h['tariff'] == 'semi_peak':
+                period_semi_peak_kwh += tot
+            else:
+                period_off_peak_kwh += tot
+
+    if period_total_kwh > 0:
+        peak_ratio = round((period_peak_kwh / period_total_kwh) * 100, 1)
+        semi_peak_ratio = round((period_semi_peak_kwh / period_total_kwh) * 100, 1)
+        off_peak_ratio = round((period_off_peak_kwh / period_total_kwh) * 100, 1)
     else:
         peak_ratio = 0.0
-        non_peak_ratio = 0.0
+        semi_peak_ratio = 0.0
+        off_peak_ratio = 0.0
 
-    daily_records = []
-    for i in range(14, -1, -1):
-        target_date = (now_tw - timedelta(days=i)).strftime('%Y-%m-%d')
-        d_val = daily_data.get(target_date, {'total_kwh': 0.0, 'peak_kwh': 0.0, 'semi_peak_kwh': 0.0, 'off_peak_kwh': 0.0, 'date': target_date})
-        
-        tot_k = round(d_val['total_kwh'], 1)
-        daily_records.append({
-            'date': target_date,
-            'total_kwh': tot_k,
-            'peak_kwh': round(d_val['peak_kwh'], 1),
-            'off_peak_kwh': round(d_val['semi_peak_kwh'] + d_val['off_peak_kwh'], 1)
+    DEVICE_NAMES_MAP = {
+        'ch01': '1F 冷凍庫 A', 'ch02': '1F 冷凍庫 B', 'ch03': '1F 冷凍庫 C',
+        'ch04': '1F 冷凍庫 D', 'ch05': '1F 冷凍庫 E', 'ch06': '1F 緩衝庫 A',
+        'ch07': '1F 碼頭區 A', 'ch08': '3F 急速庫 20HP', 'ch09': '3F 急速庫 10HP',
+        'ch10': '3F 半成品庫 A', 'ch11': '3F 半成品庫 B', 'ch12': '3F 冷藏庫 A',
+        'ch13': '1F 集合式電錶', 'ch14': '3F 集合式電錶'
+    }
+
+    # 12 台冷鏈設備即時工況與選定週期累積時數
+    # 庫別定義
+    ROOM_MAP = [
+        {'id': 'room1', 'name': '1F 冷凍庫', 'channels': ['ch01', 'ch02', 'ch03', 'ch04', 'ch05'], 'color': '#1a5fa8'},
+        {'id': 'room2', 'name': '1F 緩衝庫', 'channels': ['ch06'], 'color': '#16a085'},
+        {'id': 'room3', 'name': '1F 碼頭區', 'channels': ['ch07'], 'color': '#27ae60'},
+        {'id': 'room4', 'name': '3F 急速庫', 'channels': ['ch08', 'ch09'], 'color': '#c0392b'},
+        {'id': 'room5', 'name': '3F 半成品冷凍庫', 'channels': ['ch10', 'ch11'], 'color': '#e67e22'},
+        {'id': 'room6', 'name': '3F 冷藏庫', 'channels': ['ch12'], 'color': '#8e44ad'}
+    ]
+
+    realtime_data = _latest_temperatures_payload()
+    alarm_map = _alarm_settings_map()
+
+    # 計算週期內各設備運轉時數
+    device_runtimes = []
+    room_scores = {r['id']: 0.0 for r in ROOM_MAP}
+
+    with get_pg() as conn:
+        for r_def in ROOM_MAP:
+            for ch in r_def['channels']:
+                # 查詢該設備在該週期內的最早與最晚 runtime_hours 差值
+                r_rows = conn.execute('''
+                    SELECT runtime_hours FROM temperatures
+                    WHERE channel = %s AND timestamp BETWEEN %s AND %s AND runtime_hours IS NOT NULL
+                    ORDER BY timestamp ASC
+                ''', (ch, dt_period_from, dt_period_to)).fetchall()
+
+                r_hours = 0.0
+                if r_rows and len(r_rows) >= 2:
+                    h_start = float(r_rows[0]['runtime_hours'] or 0.0)
+                    h_end = float(r_rows[-1]['runtime_hours'] or 0.0)
+                    if h_end >= h_start:
+                        r_hours = round(h_end - h_start, 1)
+                elif r_rows and len(r_rows) == 1:
+                    r_hours = 0.5
+
+                cur_info = realtime_data.get(ch, {})
+                comp_curr = cur_info.get('compressor_current')
+                cooling = cur_info.get('cooling_status') or cur_info.get('flags', {}).get('cooling')
+                defrost = cur_info.get('defrost_status') or cur_info.get('flags', {}).get('defrost')
+                eq_err = cur_info.get('eq_err') or cur_info.get('flags', {}).get('eq_err')
+
+                status = 'stop'
+                if eq_err:
+                    status = 'error'
+                elif defrost:
+                    status = 'defrost'
+                elif cooling and comp_curr and float(comp_curr) > (alarm_map.get(ch, {}).get('current_threshold') or 0.5):
+                    status = 'cooling'
+
+                device_runtimes.append({
+                    'ch': ch,
+                    'room_id': r_def['id'],
+                    'room_name': r_def['name'],
+                    'name': DEVICE_NAMES_MAP.get(ch, ch),
+                    'status': status,
+                    'current': round(float(comp_curr), 1) if comp_curr is not None else 0.0,
+                    'runtime_hours': r_hours
+                })
+
+                # 依電流與時數權重累計該庫能耗積分
+                eff_curr = float(comp_curr) if comp_curr else (4.5 if '急速' in r_def['name'] else 2.5)
+                room_scores[r_def['id']] += max(r_hours * eff_curr, 0.1)
+
+    # 計算各庫圓餅圖佔比
+    tot_score = sum(room_scores.values()) or 1.0
+    actual_kwh_base = period_total_kwh if period_total_kwh > 0 else 100.0
+
+    room_distribution = []
+    for r_def in ROOM_MAP:
+        pct = round((room_scores[r_def['id']] / tot_score) * 100, 1)
+        kwh = round((pct / 100.0) * actual_kwh_base, 1)
+        room_distribution.append({
+            'id': r_def['id'],
+            'name': r_def['name'],
+            'kwh': kwh,
+            'pct': pct,
+            'color': r_def['color']
         })
-
-    # 同步持久化寫入資料庫每小時差值表 (hourly_power_stats) 與每日統計表 (daily_power_stats)
-    try:
-        with get_pg() as conn:
-            with conn.cursor() as cursor:
-                for (d_str, hr), h in hourly_data.items():
-                    cursor.execute('''
-                        INSERT INTO hourly_power_stats (hour_timestamp, ch13_kwh_delta, ch14_kwh_delta, total_kwh_delta, tariff_type)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (hour_timestamp) DO UPDATE
-                        SET ch13_kwh_delta = EXCLUDED.ch13_kwh_delta,
-                            ch14_kwh_delta = EXCLUDED.ch14_kwh_delta,
-                            total_kwh_delta = EXCLUDED.total_kwh_delta,
-                            tariff_type = EXCLUDED.tariff_type
-                    ''', (h['dt'], h.get('ch13', 0.0), h.get('ch14', 0.0), h.get('total', 0.0), h.get('tariff', 'off_peak')))
-
-                for rec in daily_records:
-                    cursor.execute('''
-                        INSERT INTO daily_power_stats (date, total_kwh, peak_kwh, semi_peak_kwh, off_peak_kwh)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (date) DO UPDATE
-                        SET total_kwh = EXCLUDED.total_kwh,
-                            peak_kwh = EXCLUDED.peak_kwh,
-                            semi_peak_kwh = EXCLUDED.semi_peak_kwh,
-                            off_peak_kwh = EXCLUDED.off_peak_kwh
-                    ''', (
-                        rec['date'],
-                        rec['total_kwh'],
-                        rec['peak_kwh'],
-                        daily_data.get(rec['date'], {}).get('semi_peak_kwh', 0.0),
-                        daily_data.get(rec['date'], {}).get('off_peak_kwh', 0.0)
-                    ))
-    except Exception as e:
-        logging.warning(f"Failed to persist hourly power stats to DB: {e}")
 
     return jsonify({
         'status': 'ok',
-        'today_kwh': today_kwh,
+        'period': period,
+        'today_kwh': round(today_kwh, 1),
+        'week_kwh': round(week_kwh, 1),
         'month_kwh': round(month_kwh, 1),
-        'month_peak_kwh': round(month_peak_kwh, 1),
-        'month_semi_peak_kwh': round(month_semi_peak_kwh, 1),
-        'month_off_peak_kwh': round(month_off_peak_kwh, 1),
-        'month_non_peak_kwh': round(month_non_peak_kwh, 1),
+        'period_total_kwh': round(period_total_kwh, 1),
+        'period_peak_kwh': round(period_peak_kwh, 1),
+        'period_semi_peak_kwh': round(period_semi_peak_kwh, 1),
+        'period_off_peak_kwh': round(period_off_peak_kwh, 1),
         'peak_ratio': peak_ratio,
-        'non_peak_ratio': non_peak_ratio,
-        'daily_records': daily_records
+        'semi_peak_ratio': semi_peak_ratio,
+        'off_peak_ratio': off_peak_ratio,
+        'dt_from': dt_period_from.strftime('%Y-%m-%d %H:%M'),
+        'dt_to': dt_period_to.strftime('%Y-%m-%d %H:%M'),
+        'room_distribution': room_distribution,
+        'device_runtimes': device_runtimes
     })
 
 # ============================================================
@@ -2317,30 +2403,48 @@ def _calculate_report_time_range(period, date_from_str=None, date_to_str=None):
     today = now_tw.date()
     
     if period == 'day':
-        # 自動取前一日 00:00:00 ~ 23:59:59
-        target_date = today - timedelta(days=1)
+        if date_from_str:
+            try:
+                target_date = datetime.strptime(date_from_str[:10], '%Y-%m-%d').date()
+            except Exception:
+                target_date = today
+        else:
+            target_date = today
         d_from = datetime.combine(target_date, datetime.min.time(), tzinfo=TZ_TW_APP)
         d_to = datetime.combine(target_date, datetime.max.time(), tzinfo=TZ_TW_APP)
         label = f"{target_date.strftime('%Y-%m-%d')} (日報表)"
         file_suffix = target_date.strftime('%Y-%m-%d')
     elif period == 'week':
-        # 自動取前一完整週 (週一 00:00:00 ~ 週日 23:59:59)
-        days_since_monday = now_tw.weekday()
-        last_sunday = today - timedelta(days=days_since_monday + 1)
-        last_monday = last_sunday - timedelta(days=6)
-        d_from = datetime.combine(last_monday, datetime.min.time(), tzinfo=TZ_TW_APP)
-        d_to = datetime.combine(last_sunday, datetime.max.time(), tzinfo=TZ_TW_APP)
-        label = f"{last_monday.strftime('%Y-%m-%d')} ~ {last_sunday.strftime('%Y-%m-%d')} (週報表)"
-        file_suffix = f"W_{last_monday.strftime('%Y%m%d')}_{last_sunday.strftime('%Y%m%d')}"
+        if date_from_str:
+            try:
+                ref_date = datetime.strptime(date_from_str[:10], '%Y-%m-%d').date()
+            except Exception:
+                ref_date = today
+        else:
+            ref_date = today
+        days_since_monday = ref_date.weekday()
+        week_monday = ref_date - timedelta(days=days_since_monday)
+        week_sunday = week_monday + timedelta(days=6)
+        d_from = datetime.combine(week_monday, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(week_sunday, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{week_monday.strftime('%Y-%m-%d')} ~ {week_sunday.strftime('%Y-%m-%d')} (週報表)"
+        file_suffix = f"W_{week_monday.strftime('%Y%m%d')}_{week_sunday.strftime('%Y%m%d')}"
     elif period == 'month':
-        # 自動取前一完整月份 (1日 00:00:00 ~ 月底 23:59:59)
-        first_this_month = today.replace(day=1)
-        last_prev_month = first_this_month - timedelta(days=1)
-        first_prev_month = last_prev_month.replace(day=1)
-        d_from = datetime.combine(first_prev_month, datetime.min.time(), tzinfo=TZ_TW_APP)
-        d_to = datetime.combine(last_prev_month, datetime.max.time(), tzinfo=TZ_TW_APP)
-        label = f"{first_prev_month.strftime('%Y-%m')} (月報表)"
-        file_suffix = first_prev_month.strftime('%Y-%m')
+        if date_from_str:
+            try:
+                ref_date = datetime.strptime(date_from_str[:10], '%Y-%m-%d').date()
+            except Exception:
+                ref_date = today
+        else:
+            ref_date = today
+        first_day_month = ref_date.replace(day=1)
+        import calendar
+        _, last_day_num = calendar.monthrange(ref_date.year, ref_date.month)
+        last_day_month = ref_date.replace(day=last_day_num)
+        d_from = datetime.combine(first_day_month, datetime.min.time(), tzinfo=TZ_TW_APP)
+        d_to = datetime.combine(last_day_month, datetime.max.time(), tzinfo=TZ_TW_APP)
+        label = f"{first_day_month.strftime('%Y-%m')} (月報表)"
+        file_suffix = first_day_month.strftime('%Y-%m')
     elif period == 'custom':
         if not date_from_str:
             date_from_str = today.strftime('%Y-%m-%d')
@@ -2421,11 +2525,11 @@ def _generate_temperature_report_data(room_id, d_from, d_to, interval_min=5):
             is_high = (hi is not None and avg_temp > hi)
             is_low = (lo is not None and avg_temp < lo)
             if is_high:
-                status_str = f"⚠ 高溫超標 (>{hi}°C)"
+                status_str = f"高溫超標 (>{hi}°C)"
                 status_type = "ALARM_HIGH"
                 out_of_bounds_count += 1
             elif is_low:
-                status_str = f"⚠ 低溫超標 (<{lo}°C)"
+                status_str = f"低溫超標 (<{lo}°C)"
                 status_type = "ALARM_LOW"
                 out_of_bounds_count += 1
             else:
@@ -2530,19 +2634,30 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
             """, equip_chs + [d_from, d_to]).fetchall()
 
     from collections import defaultdict
-    buckets = defaultdict(lambda: {'v_list': [], 'a_list': [], 'kw_list': [], 'pf_list': [], 'kwh_by_ch': {}, 'equip_rt': {}})
+    buckets = defaultdict(lambda: {
+        'samples': defaultdict(lambda: {'kw_sum': 0.0, 'a_sum': 0.0, 'v_list': [], 'pf_list': []}),
+        'kwh_by_ch': {},
+        'equip_rt': {}
+    })
     
     for r in rows:
         ts = r['timestamp']
         ts_tw = ts.astimezone(TZ_TW_APP) if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
         floored_min = (ts_tw.minute // interval_min) * interval_min
         b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M')
+        ts_key = ts_tw.strftime('%Y-%m-%d %H:%M:%S')
         
-        if r['v'] is not None: buckets[b_key]['v_list'].append(float(r['v']))
-        if r['a'] is not None: buckets[b_key]['a_list'].append(float(r['a']))
-        if r['kw'] is not None: buckets[b_key]['kw_list'].append(float(r['kw']))
-        if r['pf'] is not None: buckets[b_key]['pf_list'].append(float(r['pf']))
-        if r['kwh'] is not None: buckets[b_key]['kwh_by_ch'][r['channel']] = float(r['kwh'])
+        sample = buckets[b_key]['samples'][ts_key]
+        if r['kw'] is not None:
+            sample['kw_sum'] += float(r['kw'])
+        if r['a'] is not None:
+            sample['a_sum'] += float(r['a'])
+        if r['v'] is not None:
+            sample['v_list'].append(float(r['v']))
+        if r['pf'] is not None:
+            sample['pf_list'].append(float(r['pf']))
+        if r['kwh'] is not None:
+            buckets[b_key]['kwh_by_ch'][r['channel']] = float(r['kwh'])
 
     for r in equip_rows:
         ts = r['timestamp']
@@ -2568,11 +2683,23 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
         b_key = curr.strftime('%Y-%m-%d %H:%M')
         b_data = buckets.get(b_key)
         
-        if b_data and (b_data['kw_list'] or b_data['kwh_by_ch'] or b_data['equip_rt']):
-            kw_sum = round(sum(b_data['kw_list']), 1) if b_data['kw_list'] else 0.0
-            v_avg = round(sum(b_data['v_list'])/len(b_data['v_list']), 1) if b_data['v_list'] else 0.0
-            a_sum = round(sum(b_data['a_list']), 1) if b_data['a_list'] else 0.0
-            pf_avg = round(sum(b_data['pf_list'])/len(b_data['pf_list']), 2) if b_data['pf_list'] else 0.95
+        if b_data and (b_data['samples'] or b_data['kwh_by_ch'] or b_data['equip_rt']):
+            samples = list(b_data['samples'].values())
+            if samples:
+                # 採樣總和除以採樣筆數 (取得該區間之真正平均用電量與電流)
+                kw_avg = round(sum(s['kw_sum'] for s in samples) / len(samples), 1)
+                a_avg = round(sum(s['a_sum'] for s in samples) / len(samples), 1)
+                
+                v_all = [v for s in samples for v in s['v_list']]
+                v_avg = round(sum(v_all) / len(v_all), 1) if v_all else 0.0
+                
+                pf_all = [pf for s in samples for pf in s['pf_list']]
+                pf_avg = round(sum(pf_all) / len(pf_all), 2) if pf_all else 0.95
+            else:
+                kw_avg = 0.0
+                a_avg = 0.0
+                v_avg = 0.0
+                pf_avg = 0.95
             
             kwh_sum = round(sum(b_data['kwh_by_ch'].values()), 1) if b_data['kwh_by_ch'] else 0.0
             
@@ -2580,26 +2707,30 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
                 if ch in b_data['equip_rt']:
                     current_rt_state[ch] = b_data['equip_rt'][ch]
 
-            equip_runtimes_rec = {ch: round(current_rt_state[ch], 2) for ch in equip_chs}
+            total_equip_rt = round(sum(current_rt_state.values()), 2)
 
-            all_kws.append(kw_sum)
+            all_kws.append(kw_avg)
             if v_avg > 0: all_v.append(v_avg)
-            if a_sum > 0: all_a.append(a_sum)
+            if a_avg > 0: all_a.append(a_avg)
             if pf_avg > 0: all_pf.append(pf_avg)
             
-            hour = curr.hour
-            is_peak = (16 <= hour < 22)
-            tariff_type = "🔴 夜尖峰" if is_peak else "🟢 離峰/半尖峰"
+            t_type = get_tariff_type(curr)
+            if t_type == 'peak':
+                tariff_type = "尖峰"
+            elif t_type == 'semi_peak':
+                tariff_type = "半尖峰"
+            else:
+                tariff_type = "離峰"
             
             records.append({
                 'time': b_key,
-                'kw': kw_sum,
+                'tariff_type': tariff_type,
+                'kw': kw_avg,
                 'v': v_avg,
-                'a': a_sum,
+                'a': a_avg,
                 'pf': pf_avg,
                 'kwh': kwh_sum,
-                'tariff_type': tariff_type,
-                'equip_runtimes': equip_runtimes_rec
+                'total_equip_runtime': total_equip_rt
             })
         curr += timedelta(minutes=interval_min)
 
@@ -2611,8 +2742,20 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
     avg_pf = round(sum(all_pf) / len(all_pf), 2) if all_pf else 0.0
     
     first_kwh = records[0]['kwh'] if records else 0.0
-    last_kwh = records[-1]['kwh'] if records else 0.0
-    consumed_kwh = round(last_kwh - first_kwh, 1) if last_kwh >= first_kwh else 0.0
+    for idx_r, rec in enumerate(records):
+        curr_kwh = rec['kwh']
+        if idx_r == 0:
+            rec['delta_kwh'] = 0.0
+            rec['accum_kwh'] = 0.0
+        else:
+            prev_kwh = records[idx_r - 1]['kwh']
+            delta = round(curr_kwh - prev_kwh, 1) if curr_kwh >= prev_kwh else 0.0
+            accum = round(curr_kwh - first_kwh, 1) if curr_kwh >= first_kwh else 0.0
+            rec['delta_kwh'] = delta
+            rec['accum_kwh'] = accum
+
+    last_accum = records[-1]['accum_kwh'] if records else 0.0
+    consumed_kwh = round(last_accum, 1)
 
     summary = {
         'target_name': meter_name,
@@ -2624,7 +2767,7 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
         'avg_v': avg_v,
         'avg_a': avg_a,
         'avg_pf': avg_pf,
-        'equip_headers': [{'key': ch, 'name': name} for ch, name in equip_list]
+        'total_equip_runtime_latest': round(sum(current_rt_state.values()), 2)
     }
 
     return summary, records
@@ -2669,39 +2812,30 @@ def export_report_excel():
         date_to_str = request.args.get('date_to')
         interval_min = int(request.args.get('interval_min', 5))
 
-        d_from, d_to, label, file_suffix = _calculate_report_time_range(period, date_from_str, date_to_str)
+        d_from, d_to, label, filename_ts = _calculate_report_time_range(period, date_from_str, date_to_str)
 
         if category == 'temp':
             summary, records = _generate_temperature_report_data(target, d_from, d_to, interval_min)
-            sheet_title = '冷鏈庫溫歷程'
-            filename = f"裕珍皇_{summary['target_name']}_庫溫歷程報表_{file_suffix}.xlsx"
+            filename = f"冷鏈庫溫歷程紀錄表_{summary['target_name']}_{filename_ts}.xlsx"
+            sheet_title = "庫溫紀錄表"
         else:
             summary, records = _generate_energy_report_data(target, d_from, d_to, interval_min)
-            sheet_title = 'SPM3電表能源'
-            filename = f"裕珍皇_{summary['target_name']}_能源統計報表_{file_suffix}.xlsx"
+            filename = f"SPM3電表能源統計報表_{summary['target_name']}_{filename_ts}.xlsx"
+            sheet_title = "能源統計表"
 
         wb = Workbook()
         ws = wb.active
         ws.title = sheet_title
-
+        
+        max_col = 6 if category == 'temp' else 9
+        title_fill = PatternFill('solid', fgColor='0C3B82')
         hdr_fill = PatternFill('solid', fgColor='0C3B82')
+        kpi_fill = PatternFill('solid', fgColor='F1F5F9')
         sub_fill = PatternFill('solid', fgColor='F1F5F9')
         alarm_fill = PatternFill('solid', fgColor='FEE2E2')
         thin_side = Side(style='thin', color='CBD5E1')
         cell_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
-        # 標題橫幅
-        max_col = 6 if category == 'temp' else (6 + len(summary.get('equip_headers', [])))
-        max_col_letter = openpyxl.utils.get_column_letter(max_col)
-
-        ws.merge_cells(f'A1:{max_col_letter}1')
-        ws['A1'].value = f"裕珍皇食品二廠 · {summary['report_type_name']}"
-        ws['A1'].font = Font(name='Arial', size=15, bold=True, color='0C3B82')
-        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-        ws.row_dimensions[1].height = 32
-
-        # 統計摘要卡片區
-        ws.merge_cells(f'A2:{max_col_letter}2')
         ws['A2'].value = f"統計區間：{label}   │   監控對象：{summary['target_name']}   │   產表時間：{datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')}"
         ws['A2'].font = Font(name='Arial', size=10, bold=True, color='475569')
         ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
@@ -2717,9 +2851,9 @@ def export_report_excel():
         else:
             meta_rows = [
                 ("區間總耗電", f"{summary['consumed_kwh']} kWh", "平均功率因數", f"{summary['avg_pf']}"),
-                ("平均實功率", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
-                ("最大實功率", f"{summary['max_kw']} kW", "平均線電壓", f"{summary['avg_v']} V"),
-                ("平均電流", f"{summary['avg_a']} A", "設備運轉時數", f"已納入下方 {len(summary.get('equip_headers', []))} 台主機明細")
+                ("平均用電量", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
+                ("最高用電量", f"{summary['max_kw']} kW", "平均線電壓", f"{summary['avg_v']} V"),
+                ("總平均電流", f"{summary['avg_a']} A", "廠區設備總時數", f"{summary.get('total_equip_runtime_latest', 0.0)} hr")
             ]
 
         r_start = 4
@@ -2735,7 +2869,34 @@ def export_report_excel():
                 else:
                     c.alignment = Alignment(horizontal='left', vertical='center')
             ws.merge_cells(start_row=row_num, start_column=2, end_row=row_num, end_column=3)
-            ws.merge_cells(start_row=row_num, start_column=5, end_row=row_num, end_column=min(6, max_col))
+        max_col = 6 if category == 'temp' else 10
+
+        # 主標題
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max_col)
+        title_cell = ws.cell(1, 1, f"裕珍皇冷鏈監控系統 · {summary['report_type_name']}")
+        title_cell.font = Font(name='Arial', size=14, bold=True, color='FFFFFF')
+        title_cell.fill = title_fill
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 36
+
+        # 報告摘要資訊
+        meta_items = [
+            ('監控對象：', summary['target_name'], '統計週期：', f"{label} ({period})"),
+            ('採樣頻率：', f"每 {interval_min} 分鐘", '總資料筆數：', f"{summary['total_samples']} 筆"),
+            ('產生時間：', datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S'), '報表系統：', 'YJH-SCADA Pro 2.0')
+        ]
+        for row_idx, (k1, v1, k2, v2) in enumerate(meta_items, 3):
+            ws.cell(row_idx, 1, k1).font = Font(name='Arial', size=10, bold=True, color='475569')
+            ws.cell(row_idx, 2, v1).font = Font(name='Arial', size=10, color='1E293B')
+            ws.cell(row_idx, 4, k2).font = Font(name='Arial', size=10, bold=True, color='475569')
+            ws.cell(row_idx, 5, v2).font = Font(name='Arial', size=10, color='1E293B')
+            for col in range(1, max_col + 1):
+                c = ws.cell(row_idx, col)
+                c.fill = kpi_fill
+                if col not in (1, 4):
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+            ws.merge_cells(start_row=row_idx, start_column=2, end_row=row_idx, end_column=3)
+            ws.merge_cells(start_row=row_idx, start_column=5, end_row=row_idx, end_column=min(6, max_col))
 
         # 數據表格表頭
         tbl_start_row = 9
@@ -2743,9 +2904,8 @@ def export_report_excel():
             headers = ['#', '採樣時間', '平均庫溫 (°C)', '區間最低溫 (°C)', '區間最高溫 (°C)', '判定狀態']
             widths = [8, 20, 18, 18, 18, 22]
         else:
-            equip_hdrs = summary.get('equip_headers', [])
-            headers = ['#', '採樣時間', '瞬時功率 (kW)', '平均線電壓 (V)', '總平均電流 (A)', '電能讀數 (kWh)'] + [f"{eh['name']} (hr)" for eh in equip_hdrs]
-            widths = [8, 20, 18, 18, 18, 20] + [16] * len(equip_hdrs)
+            headers = ['#', '採樣時間', '電費時段', '即時用電量 (kW)', '平均線電壓 (V)', '總平均電流 (A)', '當期累計用電 (kWh)', '區間用電 (kWh)', '電表底度 (kWh)', '廠區設備運轉總時數 (hr)']
+            widths = [8, 20, 14, 18, 18, 18, 22, 18, 20, 26]
 
         for c_idx, (h, w) in enumerate(zip(headers, widths), 1):
             cell = ws.cell(tbl_start_row, c_idx, h)
@@ -2757,7 +2917,6 @@ def export_report_excel():
         ws.row_dimensions[tbl_start_row].height = 24
 
         # 數據填充
-        equip_keys = [eh['key'] for eh in summary.get('equip_headers', [])]
         for idx, rec in enumerate(records, 1):
             r_num = tbl_start_row + idx
             ws.row_dimensions[r_num].height = 20
@@ -2766,8 +2925,21 @@ def export_report_excel():
             if category == 'temp':
                 vals = [idx, rec['time'], rec['avg_temp'], rec['min_temp'], rec['max_temp'], rec['status']]
             else:
-                eq_rt_map = rec.get('equip_runtimes', {})
-                vals = [idx, rec['time'], rec['kw'], rec['v'], rec['a'], rec['kwh']] + [eq_rt_map.get(k, 0.0) for k in equip_keys]
+                vals = [idx, rec['time'], rec.get('tariff_type', '離峰'), rec['kw'], rec['v'], rec['a'], rec.get('accum_kwh', 0.0), rec.get('delta_kwh', 0.0), rec['kwh'], rec.get('total_equip_runtime', 0.0)]
+
+            for c_idx, v in enumerate(vals, 1):
+                cell = ws.cell(r_num, c_idx, v)
+                cell.border = cell_border
+                cell.font = Font(name='Arial', size=10)
+                if is_alarm:
+                    cell.fill = alarm_fill
+                    if c_idx == 6:
+                        cell.font = Font(name='Arial', size=10, bold=True, color='991B1B')
+
+                if c_idx == 1 or c_idx == 2 or (category == 'energy' and c_idx == 3) or (category == 'temp' and c_idx == 6):
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
 
             for c_idx, v in enumerate(vals, 1):
                 cell = ws.cell(r_num, c_idx, v)
