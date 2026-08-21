@@ -1836,7 +1836,7 @@
             <!-- 第 1 排：頂部 3 大即時電力卡片 -->
             <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:12px; width:100%; box-sizing:border-box;">
               <div style="background:var(--accent); border-radius:8px; padding:12px 16px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); min-width:0;">
-                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px; white-space:nowrap;">即時總用電量</div>
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px; white-space:nowrap;">即時總功率</div>
                 <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-kw">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">kW</span></div>
               </div>
               <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 16px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); min-width:0;">
@@ -1920,13 +1920,13 @@
                 </div>
               </div>
 
-              <!-- 右側 12 台主機運轉時數列表 (無稼動率) -->
+              <!-- 右側 12 台主機運轉時數列表 (直接顯示全部，無滾軸) -->
               <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-width:0; box-sizing:border-box;">
                 <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                   <span>冷鏈主機運轉狀態與時數</span>
                   <span style="font-size:11px; color:var(--text-3);">時數隨所選週期連動</span>
                 </div>
-                <div style="max-height:360px; overflow-y:auto; overflow-x:hidden; width:100%;">
+                <div style="width:100%; overflow-x:hidden;">
                   <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
                     <thead>
                       <tr style="background:#f8fafc; border-bottom:1.5px solid var(--border); color:var(--text-2); position:sticky; top:0;">
@@ -1974,9 +1974,9 @@
                 </select>
                 <span class="tb-label">分析指標</span>
                 <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:210px;">
-                  <option value="daily_kwh">用電量 (kWh - 雙色柱狀圖)</option>
-                  <option value="kw">即時用電量 (kW - 平滑曲線圖)</option>
-                  <option value="a">總平均電流 (A - 平滑曲線圖)</option>
+                  <option value="daily_kwh">區間用電量 (kWh - 雙色柱狀圖)</option>
+                  <option value="kw">即時功率 (kW - 平滑曲線圖)</option>
+                  <option value="a">平均電流 (A - 平滑曲線圖)</option>
                   <option value="v">平均線電壓 (V - 平滑曲線圖)</option>
                   <option value="pf">功率因數 (PF - 平滑曲線圖)</option>
                 </select>
@@ -1994,7 +1994,7 @@
                     <th>最大值時間</th>
                     <th>最小值</th>
                     <th>最小值時間</th>
-                    <th>平均值 / 總計</th>
+                    <th id="stats-tbl-avg-hdr">平均功率 / 累積用電量</th>
                     <th>採樣筆數</th>
                   </tr>
                 </thead>
@@ -2252,10 +2252,7 @@
               <span style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;" id="rep-total-badge">共 0 筆</span>
             </div>
 
-            <!-- 第二行：採樣資料量技術標註 -->
-            <div style="font-size:11px; color:var(--text-2); font-weight:600; padding:2px 0 0 2px;">
-              採樣資料量參考：日報表 5分鐘 (288筆) │ 週報表 10分鐘 (1,008筆) │ 月報表 30分鐘 (1,440筆) │ 1分鐘 (1,440筆/日)
-            </div>
+
           </div>
 
           <!-- 報表預覽表格 -->
@@ -2480,7 +2477,7 @@
     }
 
     async function loadEnergyOverview() {
-      // 1. 即時總耗電 (kW)、電壓 (V)、電流 (A)
+      // 1. 即時總功率 (kW)、電壓 (V)、電流 (A)
       const data = lastSseData || await fetchTemperatures() || {};
       let realtimeKw = 0.0, realtimeV = 0.0, realtimeA = 0.0, countV = 0;
       ['ch13', 'ch14'].forEach(ch => {
@@ -2573,7 +2570,7 @@
 
     function renderRoomEnergyPieChart(dist, totalKwh) {
       const lblTotal = document.getElementById('lbl-pie-total-kwh');
-      if (lblTotal) lblTotal.textContent = `總耗電量: ${totalKwh} kWh`;
+      if (lblTotal) lblTotal.textContent = `累積用電量: ${totalKwh} kWh`;
 
       const canvas = document.getElementById('roomEnergyPieChart');
       if (!canvas) return;
@@ -2743,7 +2740,7 @@
           const s13 = series['ch13'] || [];
           const s14 = series['ch14'] || [];
           datasets.push({
-            label: '1F 集合式電錶 用電量 (kWh)',
+            label: '1F 集合式電錶 區間用電量 (kWh)',
             data: s13.map(p => Number(p.v || 0)),
             backgroundColor: '#1a5fa8',
             stack: 'kwh_stack',
@@ -2752,7 +2749,7 @@
             categoryPercentage: 0.8
           });
           datasets.push({
-            label: '3F 集合式電錶 用電量 (kWh)',
+            label: '3F 集合式電錶 區間用電量 (kWh)',
             data: s14.map(p => Number(p.v || 0)),
             backgroundColor: '#d97706',
             stack: 'kwh_stack',
@@ -2764,7 +2761,7 @@
           chKeys.forEach(ch => {
             const s = series[ch] || [];
             datasets.push({
-              label: `${chNames[ch] || ch} · 用電量 (kWh)`,
+              label: `${chNames[ch] || ch} · 區間用電量 (kWh)`,
               data: s.map(p => Number(p.v || 0)),
               backgroundColor: chColors[ch] || '#1a5fa8',
               borderRadius: 4,
@@ -2774,7 +2771,7 @@
           });
         }
       } else if (meter === 'all' && metric === 'kw') {
-        // 全廠即時總用電量：清爽三線曲線 (全廠合計 + 1F + 3F，無面積陰影)
+        // 全廠即時總功率：清爽三線曲線 (全廠合計 + 1F + 3F，無面積陰影)
         const tMap = {};
         chKeys.forEach(ch => {
           (series[ch] || []).forEach(pt => {
@@ -2786,7 +2783,7 @@
         const totalPts = sortedTs.map(t => ({ x: t, y: Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)) }));
         
         datasets.push({
-          label: '全廠 即時總用電量 (kW)',
+          label: '全廠 即時總功率 (kW)',
           data: totalPts,
           borderColor: '#0284c7',
           backgroundColor: 'transparent',
@@ -2797,7 +2794,7 @@
           pointHoverRadius: 5
         });
         datasets.push({
-          label: '1F 集合式電錶 即時用電量 (kW)',
+          label: '1F 集合式電錶 即時功率 (kW)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
           borderColor: '#1a5fa8',
           backgroundColor: 'transparent',
@@ -2808,7 +2805,7 @@
           pointHoverRadius: 4
         });
         datasets.push({
-          label: '3F 集合式電錶 即時用電量 (kW)',
+          label: '3F 集合式電錶 即時功率 (kW)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
           borderColor: '#d97706',
           backgroundColor: 'transparent',
@@ -2821,7 +2818,7 @@
       } else {
         chKeys.forEach(ch => {
           const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
-          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric);
+          const mLabel = metric === 'kw' ? '即時功率 (kW)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric);
           datasets.push({
             label: `${chNames[ch] || ch} · ${mLabel}`,
             data: pts,
@@ -2930,12 +2927,12 @@
             const minIdx = totalVals.indexOf(minVal);
             const sumVal = totalVals.reduce((a, b) => a + b, 0);
             const avgVal = sumVal / totalVals.length;
-            const sumOrAvg = isBar ? `當期累積總計: ${sumVal.toFixed(1)} kWh` : `平均總功率: ${avgVal.toFixed(1)} kW`;
+            const sumOrAvg = isBar ? `區間用電量小計: ${sumVal.toFixed(1)} kWh` : `平均總功率: ${avgVal.toFixed(1)} kW`;
 
             statsRows += `
               <tr style="background:#f0f9ff; font-weight:800;">
                 <td style="color:#0284c7;">全廠合計</td>
-                <td style="color:#0284c7;">${isBar ? '當期累積總用電量 (kWh)' : '即時總用電量 (kW)'}</td>
+                <td style="color:#0284c7;">${isBar ? '區間用電量 (kWh)' : '即時總功率 (kW)'}</td>
                 <td style="color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
                 <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[maxIdx] || '--'}</td>
                 <td style="color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
@@ -2957,8 +2954,8 @@
           const minPt = pts.find(p => p.v === minVal);
           const sumVal = vals.reduce((a, b) => a + b, 0);
           const avgVal = sumVal / vals.length;
-          const sumOrAvg = isBar ? `總計: ${sumVal.toFixed(1)} kWh` : `平均: ${avgVal.toFixed(1)} ${metricUnit}`;
-          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (metric === 'daily_kwh' ? '用電量 (kWh)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric));
+          const sumOrAvg = isBar ? `區間用電量: ${sumVal.toFixed(1)} kWh` : `平均功率: ${avgVal.toFixed(1)} ${metricUnit}`;
+          const mLabel = metric === 'kw' ? '即時功率 (kW)' : (metric === 'daily_kwh' ? '區間用電量 (kWh)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric));
           const maxT = Array.isArray(maxPt?.t) ? maxPt.t.join(' ') : (maxPt?.t || '--');
           const minT = Array.isArray(minPt?.t) ? minPt.t.join(' ') : (minPt?.t || '--');
 
@@ -3164,10 +3161,10 @@
           document.getElementById('kpi-rep-title-1').textContent = '區間總耗電量';
           document.getElementById('kpi-rep-val-1').textContent = `${summary.consumed_kwh} kWh`;
 
-          document.getElementById('kpi-rep-title-2').textContent = '最高用電量';
+          document.getElementById('kpi-rep-title-2').textContent = '最高功率';
           document.getElementById('kpi-rep-val-2').textContent = `${summary.max_kw} kW`;
 
-          document.getElementById('kpi-rep-title-3').textContent = '即時用電量 (平均)';
+          document.getElementById('kpi-rep-title-3').textContent = '平均功率';
           document.getElementById('kpi-rep-val-3').textContent = `${summary.avg_kw} kW`;
 
           document.getElementById('kpi-rep-title-4').textContent = '平均功率因數';
@@ -3198,7 +3195,7 @@
                 <th style="width:50px; text-align:center;">#</th>
                 <th style="width:150px; text-align:center;">採樣時間</th>
                 <th style="width:90px; text-align:center;">電費時段</th>
-                <th style="width:130px; text-align:right;">即時用電量 (平均)</th>
+                <th style="width:130px; text-align:right;">平均功率 (kW)</th>
                 <th style="width:110px; text-align:right;">平均電壓</th>
                 <th style="width:120px; text-align:right;">總平均電流</th>
                 <th style="width:140px; text-align:right;">累積用電量 (kWh)</th>
@@ -3346,19 +3343,19 @@
       let totalKw = 0, totalKwh = 0, sumV = 0, countV = 0, totalA = 0;
 
       const FIELDS = [
-        { label: 'RS電壓',   unit: 'V',   key: 'v_rs' },
-        { label: 'ST電壓',   unit: 'V',   key: 'v_st' },
-        { label: 'TR電壓',   unit: 'V',   key: 'v_tr' },
-        { label: '平均電壓', unit: 'V',   key: 'v_avg', accent: true },
-        { label: 'R相電流',  unit: 'A',   key: 'a_r' },
-        { label: 'S相電流',  unit: 'A',   key: 'a_s' },
-        { label: 'T相電流',  unit: 'A',   key: 'a_t' },
-        { label: '平均電流', unit: 'A',   key: 'a_avg', accent: true },
-        { label: '即時用電量', unit: 'kW',  key: 'kw', bold: true },
+        { label: 'RS電壓',    unit: 'V',   key: 'v_rs' },
+        { label: 'ST電壓',    unit: 'V',   key: 'v_st' },
+        { label: 'TR電壓',    unit: 'V',   key: 'v_tr' },
+        { label: '平均線電壓', unit: 'V',   key: 'v_avg', accent: true },
+        { label: 'R相電流',   unit: 'A',   key: 'a_r' },
+        { label: 'S相電流',   unit: 'A',   key: 'a_s' },
+        { label: 'T相電流',   unit: 'A',   key: 'a_t' },
+        { label: '三相均流',  unit: 'A',   key: 'a_avg', accent: true },
+        { label: '即時功率',  unit: 'kW',  key: 'kw', bold: true },
         { label: '累積用電量', unit: 'kWh', key: 'kwh' },
-        { label: '功率因數', unit: '',    key: 'pf' },
-        { label: '滿載率',   unit: '',    key: 'loadPctHtml', html: true },
-        { label: '連線',     unit: '',    key: 'statusHtml', html: true }
+        { label: '功率因數',  unit: '',    key: 'pf' },
+        { label: '滿載率',    unit: '',    key: 'loadPctHtml', html: true },
+        { label: '連線狀態',  unit: '',    key: 'statusHtml', html: true }
       ];
 
       const meterChs = ['ch13', 'ch14'];
@@ -3460,10 +3457,10 @@
         ${meterTables}
         <div style="background:#e8f0fe; border-radius:8px; padding:10px 16px; margin-top:8px; display:flex; gap:24px; flex-wrap:wrap; align-items:center; font-size:12.5px; font-weight:800;">
           <span style="color:var(--accent);">合計</span>
-          <span style="color:var(--accent);">平均電壓：${countV > 0 ? (sumV / countV).toFixed(1) : '--'} V</span>
-          <span style="color:var(--accent);">總平均電流：${totalA.toFixed(1)} A</span>
-          <span style="color:var(--accent);">即時總用電量：${totalKw.toFixed(1)} kW</span>
-          <span style="color:var(--accent);">總累積用電量：${totalKwh.toFixed(1)} kWh</span>
+          <span style="color:var(--accent);">平均線電壓：${countV > 0 ? (sumV / countV).toFixed(1) : '--'} V</span>
+          <span style="color:var(--accent);">電流合計：${totalA.toFixed(1)} A</span>
+          <span style="color:var(--accent);">即時總功率：${totalKw.toFixed(1)} kW</span>
+          <span style="color:var(--accent);">累積用電量：${totalKwh.toFixed(1)} kWh</span>
         </div>`;
       overlay.style.display = 'flex';
     }
@@ -3603,10 +3600,10 @@
       <div class="sc power-card${!anyOnline ? ' offline' : ''}" onclick="openPowerModal()" style="grid-column: 1 / -1; height:auto; cursor:pointer;" title="點擊查看詳細電錶數據">
         <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px;">${cardTitle}</div>
         <div style="display:flex; padding:14px 20px; gap:12px;">
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">即時總用電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kW</span></div></div>
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">當月累積耗電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電流總和</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">A</span></div></div>
-          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均電壓</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">V</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">即時總功率</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kW</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">當月累積用電量</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">kWh</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">電流合計</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">A</span></div></div>
+          <div style="flex:1; text-align:center;"><div style="font-size:11px; color:var(--text-3); font-weight:700; margin-bottom:4px;">平均線電壓</div><div style="font-size:24px; font-weight:800; color:var(--text-1);">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:12px; color:var(--text-3); margin-left:2px;">V</span></div></div>
         </div>
       </div>`;
     }
@@ -3730,22 +3727,22 @@
           <div class="sc-header" style="background:${anyOnline ? 'var(--accent-secondary)' : 'var(--text-3)'}; text-align:center; padding:6px 12px; color:#ffffff; font-size:13px; font-weight:800; letter-spacing:1px;">廠區電表資訊</div>
           <div style="display:flex; padding:8px 12px; gap:8px; align-items:center; background:#ffffff;">
             <div style="flex:1; text-align:center;">
-              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">即時總用電量</div>
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">即時總功率</div>
               <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? totalKw.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">kW</span></div>
             </div>
             <div style="width:1px; height:24px; background:#e2e8f0;"></div>
             <div style="flex:1; text-align:center;">
-              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">當月累積耗電量</div>
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">當月累積用電量</div>
               <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? monthKwhDisplay : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">kWh</span></div>
             </div>
             <div style="width:1px; height:24px; background:#e2e8f0;"></div>
             <div style="flex:1; text-align:center;">
-              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">平均電流總和</div>
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">電流合計</div>
               <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${anyOnline ? totalA.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">A</span></div>
             </div>
             <div style="width:1px; height:24px; background:#e2e8f0;"></div>
             <div style="flex:1; text-align:center;">
-              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">平均電壓</div>
+              <div style="font-size:10px; color:var(--text-3); font-weight:700; margin-bottom:2px; white-space:nowrap;">平均線電壓</div>
               <div style="font-size:16px; font-weight:800; color:var(--text-1); line-height:1.1;">${avgV !== null ? avgV.toFixed(1) : '--'}<span style="font-size:10px; color:var(--text-3); font-weight:600; margin-left:2px;">V</span></div>
             </div>
           </div>`;
