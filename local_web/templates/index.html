@@ -1973,9 +1973,9 @@
                   <option value="ch14">3F 集合式電錶</option>
                 </select>
                 <span class="tb-label">分析指標</span>
-                <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:220px;">
-                  <option value="kw">即時用電量 (kW - 雙色堆疊面積圖)</option>
-                  <option value="daily_kwh">用電量 (kWh - 雙色堆疊柱狀圖)</option>
+                <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:210px;">
+                  <option value="daily_kwh">用電量 (kWh - 雙色柱狀圖)</option>
+                  <option value="kw">即時用電量 (kW - 平滑曲線圖)</option>
                   <option value="a">總平均電流 (A - 平滑曲線圖)</option>
                   <option value="v">平均線電壓 (V - 平滑曲線圖)</option>
                   <option value="pf">功率因數 (PF - 平滑曲線圖)</option>
@@ -2677,7 +2677,7 @@
 
     async function loadPowerTrendChart() {
       const meter = document.getElementById('sel-ptrend-meter')?.value || 'all';
-      const metric = document.getElementById('sel-ptrend-metric')?.value || 'kw';
+      const metric = document.getElementById('sel-ptrend-metric')?.value || 'daily_kwh';
       const params = new URLSearchParams({
         field: metric,
         range: currentPowerTrendRange
@@ -2716,7 +2716,6 @@
         powerTrendChartInstance.destroy();
       }
 
-      const isStackedKw = (meter === 'all' && metric === 'kw');
       const isBar = (metric === 'daily_kwh');
       const chartType = isBar ? 'bar' : 'line';
       let datasets = [];
@@ -2726,49 +2725,14 @@
       const metricUnitMap = { kw: 'kW', daily_kwh: 'kWh', a: 'A', v: 'V', pf: '' };
       const metricUnit = metricUnitMap[metric] || '';
 
-      if (isStackedKw) {
-        // 全廠模式下：1F + 3F 雙色堆疊面積曲線圖 (頂部輪廓即為即時總用電量)
-        const tMap = {};
-        chKeys.forEach(ch => {
-          (series[ch] || []).forEach(pt => {
-            if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
-            tMap[pt.t][ch] = Number(pt.v || 0);
-          });
-        });
-        const sortedTs = Object.keys(tMap).sort();
-        
-        datasets.push({
-          label: '1F 集合式電錶 即時用電量 (kW)',
-          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
-          borderColor: '#1a5fa8',
-          backgroundColor: 'rgba(26, 95, 168, 0.45)',
-          fill: true,
-          stack: 'kw_stack',
-          tension: 0.35,
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 5
-        });
-        datasets.push({
-          label: '3F 集合式電錶 即時用電量 (kW)',
-          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
-          borderColor: '#d97706',
-          backgroundColor: 'rgba(217, 119, 6, 0.45)',
-          fill: true,
-          stack: 'kw_stack',
-          tension: 0.35,
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 5
-        });
-      } else if (isBar) {
+      if (isBar) {
+        // 用電量 (kWh) 雙色實體柱狀圖
         if (meter === 'all') {
-          // 全廠模式下：1F + 3F 雙色堆疊柱狀圖 (實心飽滿柱體)
           const s13 = series['ch13'] || [];
           const s14 = series['ch14'] || [];
           datasets.push({
             label: '1F 集合式電錶 用電量 (kWh)',
-            data: s13.map(p => p.v),
+            data: s13.map(p => Number(p.v || 0)),
             backgroundColor: '#1a5fa8',
             stack: 'kwh_stack',
             borderRadius: { topLeft: 0, topRight: 0 },
@@ -2777,7 +2741,7 @@
           });
           datasets.push({
             label: '3F 集合式電錶 用電量 (kWh)',
-            data: s14.map(p => p.v),
+            data: s14.map(p => Number(p.v || 0)),
             backgroundColor: '#d97706',
             stack: 'kwh_stack',
             borderRadius: { topLeft: 4, topRight: 4 },
@@ -2789,7 +2753,7 @@
             const s = series[ch] || [];
             datasets.push({
               label: `${chNames[ch] || ch} · 用電量 (kWh)`,
-              data: s.map(p => p.v),
+              data: s.map(p => Number(p.v || 0)),
               backgroundColor: chColors[ch] || '#1a5fa8',
               borderRadius: 4,
               barPercentage: 0.6,
@@ -2797,6 +2761,51 @@
             });
           });
         }
+      } else if (meter === 'all' && metric === 'kw') {
+        // 全廠即時總用電量：清爽三線曲線 (全廠合計 + 1F + 3F，無面積陰影)
+        const tMap = {};
+        chKeys.forEach(ch => {
+          (series[ch] || []).forEach(pt => {
+            if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
+            tMap[pt.t][ch] = Number(pt.v || 0);
+          });
+        });
+        const sortedTs = Object.keys(tMap).sort();
+        const totalPts = sortedTs.map(t => ({ x: t, y: Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)) }));
+        
+        datasets.push({
+          label: '全廠 即時總用電量 (kW)',
+          data: totalPts,
+          borderColor: '#0284c7',
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          fill: false,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5
+        });
+        datasets.push({
+          label: '1F 集合式電錶 即時用電量 (kW)',
+          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
+          borderColor: '#1a5fa8',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          fill: false,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        });
+        datasets.push({
+          label: '3F 集合式電錶 即時用電量 (kW)',
+          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
+          borderColor: '#d97706',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          fill: false,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        });
       } else {
         chKeys.forEach(ch => {
           const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
@@ -2805,8 +2814,8 @@
             label: `${chNames[ch] || ch} · ${mLabel}`,
             data: pts,
             borderColor: chColors[ch] || '#1a5fa8',
-            backgroundColor: 'rgba(26,95,168,0.08)',
-            fill: metric === 'kw',
+            backgroundColor: 'transparent',
+            fill: false,
             tension: 0.35,
             borderWidth: 2,
             pointRadius: 0,
@@ -2816,7 +2825,7 @@
         });
       }
 
-      const isStackedY = (isStackedKw || (isBar && meter === 'all'));
+      const isStackedY = (isBar && meter === 'all');
 
       powerTrendChartInstance = new Chart(ctx, {
         type: chartType,
