@@ -472,6 +472,15 @@
       padding: var(--main-pad, 12px);
       background: var(--bg-0);
       overflow-y: auto;
+      overflow-x: hidden;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    #page-energy, #energy-subtab-overview, #energy-subtab-trends {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
     }
     .zone {
       margin-bottom: var(--zone-mb, 10px);
@@ -1733,110 +1742,110 @@
           </div>
 
           <!-- 子頁籤 1：能源總覽與設備分析 -->
-          <div id="energy-subtab-overview">
+          <div id="energy-subtab-overview" style="width:100%; box-sizing:border-box; overflow-x:hidden;">
             <!-- 第 1 排：頂部 3 大即時電力卡片 -->
-            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:12px;">
-              <div style="background:var(--accent); border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">即時總用電量</div>
+            <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:12px; width:100%; box-sizing:border-box;">
+              <div style="background:var(--accent); border-radius:8px; padding:12px 16px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); min-width:0;">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px; white-space:nowrap;">即時總用電量</div>
                 <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-kw">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">kW</span></div>
               </div>
-              <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">平均線電壓</div>
+              <div style="background:var(--accent-secondary); border-radius:8px; padding:12px 16px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); min-width:0;">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px; white-space:nowrap;">平均線電壓</div>
                 <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-v">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">V</span></div>
               </div>
-              <div style="background:#1e40af; border-radius:8px; padding:12px 18px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px;">總平均電流</div>
+              <div style="background:#1e40af; border-radius:8px; padding:12px 16px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); min-width:0;">
+                <div style="font-size:12px; font-weight:700; opacity:0.9; margin-bottom:4px; white-space:nowrap;">總平均電流</div>
                 <div style="font-size:26px; font-weight:800; line-height:1;"><span id="kpi-energy-a">--</span> <span style="font-size:14px; font-weight:600; opacity:0.85;">A</span></div>
               </div>
             </div>
 
             <!-- 第 2 排：單一大卡片「累積用電量」（採用湛海科技藍 #0369a1 底色配純白文字，與第 1 排做出鮮明色彩層次，高度等高 68px，數值 26px） -->
-            <div style="background:#0369a1; border-radius:8px; padding:12px 22px; min-height:68px; box-sizing:border-box; margin-bottom:12px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-              <div style="font-size:13px; font-weight:800; opacity:0.95; letter-spacing:0.5px;">累積用電量</div>
-              <div style="display:flex; align-items:center; gap:28px; flex-wrap:wrap;">
-                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+            <div style="background:#0369a1; border-radius:8px; padding:10px 18px; min-height:68px; box-sizing:border-box; margin-bottom:12px; color:#fff; box-shadow:0 1px 4px rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; width:100%;">
+              <div style="font-size:13px; font-weight:800; opacity:0.95; letter-spacing:0.5px; white-space:nowrap;">累積用電量</div>
+              <div style="display:flex; align-items:center; gap:clamp(12px, 1.8vw, 24px); flex-wrap:wrap;">
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline; white-space:nowrap;">
                   <span id="kpi-energy-today" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/day</span>
                 </div>
                 <div style="width:1px; height:24px; background:rgba(255,255,255,0.25);"></div>
-                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline; white-space:nowrap;">
                   <span id="kpi-energy-week" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/week</span>
                 </div>
                 <div style="width:1px; height:24px; background:rgba(255,255,255,0.25);"></div>
-                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline;">
+                <div style="font-variant-numeric:tabular-nums; display:flex; align-items:baseline; white-space:nowrap;">
                   <span id="kpi-energy-month" style="font-size:26px; font-weight:800; line-height:1;">--</span><span style="font-size:13px; font-weight:600; opacity:0.85; margin-left:3px;">kWh/month</span>
                 </div>
               </div>
             </div>
 
             <!-- 第 3 排：統一週期切換器 -->
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:8px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-              <span class="tb-label" style="font-size:12px; font-weight:700; color:var(--text-2);">統計週期</span>
-              <div class="range-btns">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:8px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.04); flex-wrap:wrap; width:100%; box-sizing:border-box;">
+              <span class="tb-label" style="font-size:12px; font-weight:700; color:var(--text-2); white-space:nowrap;">統計週期</span>
+              <div class="range-btns" style="flex-wrap:wrap;">
                 <button class="rbtn" id="btn-energy-period-day" onclick="setEnergyPeriod('day')">當日</button>
                 <button class="rbtn" id="btn-energy-period-week" onclick="setEnergyPeriod('week')">當週</button>
                 <button class="rbtn active" id="btn-energy-period-month" onclick="setEnergyPeriod('month')">當月</button>
                 <button class="rbtn" id="btn-energy-period-custom" onclick="setEnergyPeriod('custom')">自訂區間</button>
               </div>
-              <div id="energy-custom-picker" style="display:none; align-items:center; gap:6px; margin-left:8px;">
+              <div id="energy-custom-picker" style="display:none; align-items:center; gap:6px; margin-left:8px; flex-wrap:wrap;">
                 <input type="date" id="energy-date-from" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
                 <span style="color:var(--text-3); font-size:11px;">～</span>
                 <input type="date" id="energy-date-to" style="padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:11px;">
                 <button class="qbtn qbtn-search" onclick="applyEnergyCustomPeriod()" style="padding:3px 10px; font-size:11px;">查詢</button>
               </div>
-              <span id="lbl-energy-period-range" style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700;"></span>
+              <span id="lbl-energy-period-range" style="margin-left:auto; font-size:11px; color:var(--text-3); font-weight:700; white-space:nowrap;"></span>
             </div>
 
             <!-- 第 4 排：所選週期 時間電價分項能耗、佔比與進度橫條 (高度 68px 對齊，字體高度同步調大) -->
-            <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:10px 18px; min-height:68px; box-sizing:border-box; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; justify-content:space-between;">
-              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:baseline;">
-                  <span style="color:var(--alarm); font-size:13px; font-weight:700;">尖峰用電: <b id="kpi-tariff-peak" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-peak-pct">--%</span>)</span></span>
-                  <span style="color:#ea580c; font-size:13px; font-weight:700;">半尖峰用電: <b id="kpi-tariff-semi" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-semi-pct">--%</span>)</span></span>
-                  <span style="color:var(--ok); font-size:13px; font-weight:700;">離峰用電: <b id="kpi-tariff-off" style="font-size:18px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:12px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:12px; color:var(--text-3); font-weight:600;">(<span id="lbl-off-pct">--%</span>)</span></span>
+            <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:10px 16px; min-height:68px; box-sizing:border-box; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04); display:flex; flex-direction:column; justify-content:space-between; width:100%;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; gap:clamp(8px, 1.5vw, 18px); flex-wrap:wrap; align-items:baseline;">
+                  <span style="color:var(--alarm); font-size:12.5px; font-weight:700; white-space:nowrap;">尖峰用電: <b id="kpi-tariff-peak" style="font-size:17px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:11.5px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:11.5px; color:var(--text-3); font-weight:600;">(<span id="lbl-peak-pct">--%</span>)</span></span>
+                  <span style="color:#ea580c; font-size:12.5px; font-weight:700; white-space:nowrap;">半尖峰用電: <b id="kpi-tariff-semi" style="font-size:17px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:11.5px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:11.5px; color:var(--text-3); font-weight:600;">(<span id="lbl-semi-pct">--%</span>)</span></span>
+                  <span style="color:var(--ok); font-size:12.5px; font-weight:700; white-space:nowrap;">離峰用電: <b id="kpi-tariff-off" style="font-size:17px; font-weight:800; font-variant-numeric:tabular-nums;">--</b> <span style="font-size:11.5px; font-weight:600; color:var(--text-3);">kWh</span> <span style="font-size:11.5px; color:var(--text-3); font-weight:600;">(<span id="lbl-off-pct">--%</span>)</span></span>
                 </div>
-                <div style="color:var(--text-1); font-size:13px; font-weight:700; background:#f1f5f9; padding:4px 12px; border-radius:6px; display:flex; align-items:baseline; gap:4px;">
-                  <span>當期總計:</span> <b id="kpi-tariff-period-total" style="font-size:17px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums;">--</b>
+                <div style="color:var(--text-1); font-size:12.5px; font-weight:700; background:#f1f5f9; padding:4px 10px; border-radius:6px; display:flex; align-items:baseline; gap:4px; white-space:nowrap;">
+                  <span>當期總計:</span> <b id="kpi-tariff-period-total" style="font-size:16px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums;">--</b>
                 </div>
               </div>
-              <div style="display:flex; height:8px; gap:8px; background:transparent; margin-top:4px;">
+              <div style="display:flex; height:8px; gap:8px; background:transparent; margin-top:4px; width:100%;">
                 <div id="bar-peak-pct" style="width:0%; background:var(--alarm); border-radius:4px; transition:width .3s;" title="尖峰時段佔比"></div>
                 <div id="bar-semi-pct" style="width:0%; background:#ea580c; border-radius:4px; transition:width .3s;" title="半尖峰時段佔比"></div>
                 <div id="bar-off-pct" style="width:0%; background:var(--ok); border-radius:4px; transition:width .3s;" title="離峰時段佔比"></div>
               </div>
             </div>
 
-            <!-- 雙欄版面：左側各庫能耗圓餅圖 (38%) + 右側 12台設備時數列表 (62%) -->
-            <div style="display:grid; grid-template-columns: 38% 62%; gap:14px; align-items:start;">
+            <!-- 雙欄版面：左側各庫能耗圓餅圖 (36%) + 右側 12台設備時數列表 (64%) -->
+            <div style="display:grid; grid-template-columns: minmax(0, 36%) minmax(0, 64%); gap:12px; align-items:start; width:100%; box-sizing:border-box;">
               <!-- 左側圓餅圖 -->
-              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-width:0; box-sizing:border-box;">
+                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                   <span>各庫用電量佔比</span>
                   <span id="lbl-pie-total-kwh" style="font-size:11px; color:var(--text-3); font-weight:600;"></span>
                 </div>
-                <div style="position:relative; height:180px; display:flex; justify-content:center; align-items:center;">
+                <div style="position:relative; height:180px; display:flex; justify-content:center; align-items:center; width:100%;">
                   <canvas id="roomEnergyPieChart"></canvas>
                 </div>
-                <div id="room-energy-legend" style="margin-top:10px; display:flex; flex-direction:column; gap:4px; max-height:160px; overflow-y:auto;">
+                <div id="room-energy-legend" style="margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:160px; overflow-y:auto;">
                   <!-- dynamically filled -->
                 </div>
               </div>
 
               <!-- 右側 12 台主機運轉時數列表 (無稼動率) -->
-              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:14px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-width:0; box-sizing:border-box;">
+                <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                   <span>冷鏈主機運轉狀態與時數</span>
                   <span style="font-size:11px; color:var(--text-3);">時數隨所選週期連動</span>
                 </div>
-                <div style="max-height:360px; overflow-y:auto;">
-                  <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <div style="max-height:360px; overflow-y:auto; overflow-x:hidden; width:100%;">
+                  <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
                     <thead>
                       <tr style="background:#f8fafc; border-bottom:1.5px solid var(--border); color:var(--text-2); position:sticky; top:0;">
-                        <th style="padding:6px 4px; text-align:center; width:28px;">#</th>
-                        <th style="padding:6px 6px; text-align:left;">所屬庫別</th>
-                        <th style="padding:6px 6px; text-align:left;">設備名稱</th>
-                        <th style="padding:6px 6px; text-align:center;">即時狀態</th>
-                        <th style="padding:6px 6px; text-align:right;">運轉電流</th>
-                        <th style="padding:6px 8px; text-align:right;">區間運轉時數</th>
+                        <th style="padding:6px 2px; text-align:center; width:24px;">#</th>
+                        <th style="padding:6px 4px; text-align:left; width:25%;">所屬庫別</th>
+                        <th style="padding:6px 4px; text-align:left; width:27%;">設備名稱</th>
+                        <th style="padding:6px 2px; text-align:center; width:16%;">即時狀態</th>
+                        <th style="padding:6px 4px; text-align:right; width:16%;">運轉電流</th>
+                        <th style="padding:6px 4px; text-align:right; width:16%;">區間時數</th>
                       </tr>
                     </thead>
                     <tbody id="device-runtime-tbody">
