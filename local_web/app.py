@@ -1983,10 +1983,24 @@ def chart_data():
 
     return jsonify({'series': series, 'stats': stats, 'alarm_map': alarm_map})
 
+def _parse_input_dt(val, default_end=False):
+    if not val:
+        return None
+    val = val.strip().replace('T', ' ')
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+        try:
+            dt = datetime.strptime(val, fmt)
+            if fmt == '%Y-%m-%d' and default_end:
+                dt = dt.replace(hour=23, minute=59, second=59)
+            return dt.replace(tzinfo=TZ_TW_APP)
+        except ValueError:
+            pass
+    return None
+
 @app.route('/api/power_chart_data')
 def power_chart_data():
     channels   = request.args.getlist('ch')   # e.g. ?ch=ch13&ch=ch14 or ?ch=all
-    field      = request.args.get('field', 'delta_kwh')   # delta_kwh / power_total / energy_total / etc
+    field      = request.args.get('field', 'daily_kwh')
     range_type = request.args.get('range', '6h')
     date_from  = request.args.get('from', None)
     date_to    = request.args.get('to',   None)
@@ -1996,8 +2010,8 @@ def power_chart_data():
 
     now_tw = datetime.now(TZ_TW_APP)
     if range_type == 'custom' and date_from and date_to:
-        dt_from = _normalize_dt(date_from)
-        dt_to   = _normalize_dt(date_to)
+        dt_from = _parse_input_dt(date_from) or (now_tw - timedelta(days=7))
+        dt_to   = _parse_input_dt(date_to, default_end=True) or now_tw
     else:
         minutes_map = {'6h': 360, '1d': 1440, '24h': 1440, 'day': 1440, '7d': 10080, 'week': 10080, '1h': 60, 'realtime': 60}
         minutes  = minutes_map.get(range_type, 360)
@@ -2010,33 +2024,36 @@ def power_chart_data():
     bucket_intervals = []
     
     if is_discrete:
-        weekday_names = ['(一)', '(二)', '(三)', '(四)', '(五)', '(六)', '(日)']
-        if range_type == '6h' or (range_type == 'custom' and total_seconds <= 6 * 3600):
-            curr = dt_from.replace(minute=0, second=0, microsecond=0)
-            while curr < dt_to:
-                next_t = curr + timedelta(hours=1)
-                bucket_intervals.append((curr.strftime('%H:00'), curr, next_t))
-                curr = next_t
-        elif range_type in ('1d', '24h', 'day') or (range_type == 'custom' and total_seconds <= 24 * 3600):
-            curr = dt_from.replace(minute=0, second=0, microsecond=0)
-            while curr < dt_to:
-                next_t = curr + timedelta(hours=1)
-                bucket_intervals.append((curr.strftime('%H:00'), curr, next_t))
-                curr = next_t
-        elif range_type in ('7d', 'week') or (range_type == 'custom' and total_seconds <= 7 * 86400):
-            curr = (dt_to - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-            while curr <= dt_to:
-                next_t = curr + timedelta(days=1)
-                w_str = weekday_names[curr.weekday()]
-                m_str = curr.strftime('%m/%d')
-                bucket_intervals.append((f"{m_str} {w_str}", curr, next_t))
-                curr = next_t
-        else:
-            curr = dt_from.replace(hour=0, minute=0, second=0, microsecond=0)
-            while curr <= dt_to:
-                next_t = curr + timedelta(days=1)
-                bucket_intervals.append((curr.strftime('%m/%d'), curr, next_t))
-                curr = next_t
+        # 智慧自適應演算法：保證任意時間範圍皆自動採樣為 20~30 根飽滿長條柱
+        STANDARD_BUCKETS = [
+            (15 * 60, '%H:%M'),         # 15 分鐘 (6h -> 24根)
+            (30 * 60, '%H:%M'),         # 30 分鐘 (12h -> 24根)
+            (1 * 3600, '%H:%M'),        # 1 小時 (24h -> 24根)
+            (2 * 3600, '%m/%d %H:%M'),  # 2 小時 (48h -> 24根)
+            (4 * 3600, '%m/%d %H:%M'),  # 4 小時
+            (6 * 3600, '%m/%d %H:%M'),  # 6 小時 (7d -> 28根)
+            (12 * 3600, '%m/%d %H:%M'), # 12 小時 (14d -> 28根)
+            (24 * 3600, '%m/%d'),       # 1 天 (30d -> 30根)
+            (2 * 86400, '%m/%d'),       # 2 天 (60d -> 30根)
+            (3 * 86400, '%m/%d'),       # 3 天 (90d -> 30根)
+        ]
+        target_count = 25
+        raw_bucket = total_seconds / target_count
+        best_sec, best_fmt = STANDARD_BUCKETS[0]
+        min_diff = abs(best_sec - raw_bucket)
+        for sec, fmt in STANDARD_BUCKETS:
+            diff = abs(sec - raw_bucket)
+            if diff < min_diff:
+                min_diff = diff
+                best_sec = sec
+                best_fmt = fmt
+
+        start_epoch = (int(dt_from.timestamp()) // best_sec) * best_sec
+        curr = datetime.fromtimestamp(start_epoch, TZ_TW_APP)
+        while curr < dt_to:
+            next_t = curr + timedelta(seconds=best_sec)
+            bucket_intervals.append((curr.strftime(best_fmt), curr, next_t))
+            curr = next_t
         discrete_labels = [b[0] for b in bucket_intervals]
 
     series = {}
