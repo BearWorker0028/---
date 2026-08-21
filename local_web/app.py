@@ -2012,6 +2012,11 @@ def power_chart_data():
     if range_type == 'custom' and date_from and date_to:
         dt_from = _parse_input_dt(date_from) or (now_tw - timedelta(days=7))
         dt_to   = _parse_input_dt(date_to, default_end=True) or now_tw
+        if dt_to < dt_from:
+            dt_to, dt_from = dt_from, dt_to
+        # 寫死最大範疇限制 30 天內
+        if (dt_to - dt_from).total_seconds() > 30 * 86400:
+            dt_from = dt_to - timedelta(days=30)
     else:
         minutes_map = {'6h': 360, '1d': 1440, '24h': 1440, 'day': 1440, '7d': 10080, 'week': 10080, '1h': 60, 'realtime': 60}
         minutes  = minutes_map.get(range_type, 360)
@@ -2024,35 +2029,38 @@ def power_chart_data():
     bucket_intervals = []
     
     if is_discrete:
-        # 智慧自適應演算法：保證任意時間範圍皆自動採樣為 20~30 根飽滿長條柱
+        # 智慧自適應演算法：保證任意時間範圍皆自動採樣為 20~30 根飽滿長條柱，並使用雙行標籤防重疊
         STANDARD_BUCKETS = [
-            (15 * 60, '%H:%M'),         # 15 分鐘 (6h -> 24根)
-            (30 * 60, '%H:%M'),         # 30 分鐘 (12h -> 24根)
-            (1 * 3600, '%H:%M'),        # 1 小時 (24h -> 24根)
-            (2 * 3600, '%m/%d %H:%M'),  # 2 小時 (48h -> 24根)
-            (4 * 3600, '%m/%d %H:%M'),  # 4 小時
-            (6 * 3600, '%m/%d %H:%M'),  # 6 小時 (7d -> 28根)
-            (12 * 3600, '%m/%d %H:%M'), # 12 小時 (14d -> 28根)
-            (24 * 3600, '%m/%d'),       # 1 天 (30d -> 30根)
-            (2 * 86400, '%m/%d'),       # 2 天 (60d -> 30根)
-            (3 * 86400, '%m/%d'),       # 3 天 (90d -> 30根)
+            (15 * 60, '%H:%M', False),          # 15 分鐘 (6h -> 24根)
+            (30 * 60, '%H:%M', False),          # 30 分鐘 (12h -> 24根)
+            (1 * 3600, '%H:%M', False),         # 1 小時 (24h -> 24根)
+            (2 * 3600, '%m/%d|%H:%M', True),   # 2 小時 (48h -> 24根)
+            (4 * 3600, '%m/%d|%H:%M', True),   # 4 小時
+            (6 * 3600, '%m/%d|%H:%M', True),   # 6 小時 (7d -> 28根)
+            (12 * 3600, '%m/%d|%H:%M', True),  # 12 小時 (14d -> 28根)
+            (24 * 3600, '%m/%d', False),        # 1 天 (30d -> 30根)
+            (2 * 86400, '%m/%d', False),        # 2 天 (60d -> 30根)
+            (3 * 86400, '%m/%d', False),        # 3 天 (90d -> 30根)
         ]
         target_count = 25
         raw_bucket = total_seconds / target_count
-        best_sec, best_fmt = STANDARD_BUCKETS[0]
+        best_sec, best_fmt, is_multi = STANDARD_BUCKETS[0]
         min_diff = abs(best_sec - raw_bucket)
-        for sec, fmt in STANDARD_BUCKETS:
+        for sec, fmt, multi in STANDARD_BUCKETS:
             diff = abs(sec - raw_bucket)
             if diff < min_diff:
                 min_diff = diff
                 best_sec = sec
                 best_fmt = fmt
+                is_multi = multi
 
         start_epoch = (int(dt_from.timestamp()) // best_sec) * best_sec
         curr = datetime.fromtimestamp(start_epoch, TZ_TW_APP)
         while curr < dt_to:
             next_t = curr + timedelta(seconds=best_sec)
-            bucket_intervals.append((curr.strftime(best_fmt), curr, next_t))
+            s_fmt = curr.strftime(best_fmt)
+            lbl = s_fmt.split('|') if is_multi else s_fmt
+            bucket_intervals.append((lbl, curr, next_t))
             curr = next_t
         discrete_labels = [b[0] for b in bucket_intervals]
 

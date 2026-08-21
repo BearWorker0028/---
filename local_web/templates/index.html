@@ -1954,8 +1954,8 @@
                 <span class="tb-label">時間範圍</span>
                 <div class="range-btns">
                   <button class="rbtn active" id="btn-ptrend-6h" onclick="setPowerTrendRange('6h')">6小時</button>
-                  <button class="rbtn" id="btn-ptrend-1d" onclick="setPowerTrendRange('1d')">1日 (24h)</button>
-                  <button class="rbtn" id="btn-ptrend-7d" onclick="setPowerTrendRange('7d')">7日 (週)</button>
+                  <button class="rbtn" id="btn-ptrend-1d" onclick="setPowerTrendRange('1d')">24小時</button>
+                  <button class="rbtn" id="btn-ptrend-7d" onclick="setPowerTrendRange('7d')">7日</button>
                   <button class="rbtn" id="btn-ptrend-custom" onclick="setPowerTrendRange('custom')">自訂區間</button>
                 </div>
                 <div id="ptrend-custom-picker" style="display:none; align-items:center; gap:6px; margin-left:8px;">
@@ -2691,8 +2691,20 @@
       if (currentPowerTrendRange === 'custom') {
         const df = document.getElementById('ptrend-date-from')?.value;
         const dt = document.getElementById('ptrend-date-to')?.value;
-        if (df) params.set('from', df);
-        if (dt) params.set('to', dt);
+        if (df && dt) {
+          const dFrom = new Date(df);
+          const dTo = new Date(dt);
+          const diffDays = (dTo.getTime() - dFrom.getTime()) / (1000 * 3600 * 24);
+          if (diffDays > 30) {
+            alert('自訂區間最大範圍寫死限制為 30 天內，系統已自動為您切齊！');
+            const newFrom = new Date(dTo.getTime() - 30 * 24 * 3600 * 1000);
+            document.getElementById('ptrend-date-from').value = newFrom.toISOString().slice(0, 16);
+            params.set('from', document.getElementById('ptrend-date-from').value);
+          } else {
+            params.set('from', df);
+          }
+          params.set('to', dt);
+        }
       }
 
       let res;
@@ -2842,10 +2854,12 @@
               type: 'category',
               grid: { display: false },
               ticks: {
-                font: { size: 11, weight: '700' },
+                font: { size: 10, weight: '700' },
                 color: '#475569',
                 maxRotation: 0,
-                autoSkip: false
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 16
               }
             } : {
               type: 'time',
@@ -2902,11 +2916,12 @@
           const tMap = {};
           chKeys.forEach(ch => {
             (series[ch] || []).forEach(pt => {
-              if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
-              tMap[pt.t][ch] = Number(pt.v || 0);
+              const k = Array.isArray(pt.t) ? pt.t.join(' ') : pt.t;
+              if (!tMap[k]) tMap[k] = { t: k, ch13: 0, ch14: 0 };
+              tMap[k][ch] = Number(pt.v || 0);
             });
           });
-          const sortedTs = Object.keys(tMap).sort();
+          const sortedTs = Object.keys(tMap);
           const totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
           if (totalVals.length > 0) {
             const maxVal = Math.max(...totalVals);
@@ -2944,15 +2959,17 @@
           const avgVal = sumVal / vals.length;
           const sumOrAvg = isBar ? `總計: ${sumVal.toFixed(1)} kWh` : `平均: ${avgVal.toFixed(1)} ${metricUnit}`;
           const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (metric === 'daily_kwh' ? '用電量 (kWh)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric));
+          const maxT = Array.isArray(maxPt?.t) ? maxPt.t.join(' ') : (maxPt?.t || '--');
+          const minT = Array.isArray(minPt?.t) ? minPt.t.join(' ') : (minPt?.t || '--');
 
           statsRows += `
             <tr>
               <td style="font-weight:700;">${chNames[ch] || ch}</td>
               <td>${mLabel}</td>
               <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
-              <td style="font-size:11px; color:var(--text-3);">${maxPt?.t || '--'}</td>
+              <td style="font-size:11px; color:var(--text-3);">${maxT}</td>
               <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
-              <td style="font-size:11px; color:var(--text-3);">${minPt?.t || '--'}</td>
+              <td style="font-size:11px; color:var(--text-3);">${minT}</td>
               <td style="font-weight:800; color:var(--accent);">${sumOrAvg}</td>
               <td>${vals.length} 筆</td>
             </tr>
