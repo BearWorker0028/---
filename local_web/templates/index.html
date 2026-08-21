@@ -1817,7 +1817,7 @@
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
             <div class="view-toggle-row" style="margin-bottom:0;">
               <button class="view-btn active" id="btn-subtab-energy-overview" onclick="switchEnergySubTab('overview')">能源總覽與設備分析</button>
-              <button class="view-btn" id="btn-subtab-energy-trends" onclick="switchEnergySubTab('trends')">電力趨勢走勢圖</button>
+              <button class="view-btn" id="btn-subtab-energy-trends" onclick="switchEnergySubTab('trends')">電力趨勢圖</button>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button onclick="openTariffModal()" style="padding:5px 12px; border:1px solid var(--accent); background:#e8f0fe; color:var(--accent); font-size:11px; font-weight:700; border-radius:5px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:background .15s;">
@@ -1947,7 +1947,7 @@
             </div>
           </div>
 
-          <!-- 子頁籤 2：電力趨勢走勢圖 -->
+          <!-- 子頁籤 2：電力趨勢圖 -->
           <div id="energy-subtab-trends" style="display:none;">
             <div class="chart-toolbar">
               <div class="tb-row">
@@ -1974,12 +1974,10 @@
                 </select>
                 <span class="tb-label">分析指標</span>
                 <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:200px;">
-                  <option value="delta_kwh">區間用電增量 (ΔkWh - 柱狀圖)</option>
-                  <option value="kw">即時總用電量 (kW - 折線走勢)</option>
-                  <option value="v">平均線電壓 (V)</option>
+                  <option value="kw">即時用電量 (kW)</option>
                   <option value="a">總平均電流 (A)</option>
+                  <option value="v">平均線電壓 (V)</option>
                   <option value="pf">功率因數 (PF)</option>
-                  <option value="kwh">電表累積總度數 (kWh)</option>
                 </select>
               </div>
             </div>
@@ -2678,7 +2676,7 @@
 
     async function loadPowerTrendChart() {
       const meter = document.getElementById('sel-ptrend-meter')?.value || 'all';
-      const metric = document.getElementById('sel-ptrend-metric')?.value || 'delta_kwh';
+      const metric = document.getElementById('sel-ptrend-metric')?.value || 'kw';
       const params = new URLSearchParams({
         field: metric,
         range: currentPowerTrendRange
@@ -2708,7 +2706,6 @@
       const chKeys = Object.keys(series);
       if (chKeys.length === 0) return;
 
-      const isDeltaKwh = metric === 'delta_kwh';
       const canvas = document.getElementById('powerTrendChart');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -2718,89 +2715,167 @@
         powerTrendChartInstance.destroy();
       }
 
-      let chartType = isDeltaKwh ? 'bar' : 'line';
       let datasets = [];
-
       const chNames = { ch13: '1F 集合式電錶', ch14: '3F 集合式電錶' };
       const chColors = { ch13: '#1a5fa8', ch14: '#d97706' };
+      const metricUnitMap = { kw: 'kW', a: 'A', v: 'V', pf: '' };
+      const metricUnit = metricUnitMap[metric] || '';
 
-      if (meter === 'all' && isDeltaKwh) {
-        // 合併兩電錶之堆疊柱狀圖
+      if (meter === 'all' && metric === 'kw') {
+        // 全廠模式下：顯示即時總用電量曲線 (帶平滑漸層) + 1F 與 3F 曲線
         const tMap = {};
         chKeys.forEach(ch => {
           (series[ch] || []).forEach(pt => {
             if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
-            tMap[pt.t][ch] = pt.v || 0;
+            tMap[pt.t][ch] = Number(pt.v || 0);
           });
         });
         const sortedTs = Object.keys(tMap).sort();
+        const totalPts = sortedTs.map(t => ({ x: t, y: Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)) }));
+        
         datasets.push({
-          label: '1F 集合式電錶 (ΔkWh)',
-          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
-          backgroundColor: '#1a5fa8',
-          stack: 'power'
+          label: '即時總用電量 (kW)',
+          data: totalPts,
+          borderColor: '#0284c7',
+          backgroundColor: 'rgba(2, 132, 199, 0.08)',
+          borderWidth: 2.5,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBorderWidth: 2
         });
         datasets.push({
-          label: '3F 集合式電錶 (ΔkWh)',
+          label: '1F 集合式電錶 即時用電量 (kW)',
+          data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
+          borderColor: '#1a5fa8',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          fill: false,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        });
+        datasets.push({
+          label: '3F 集合式電錶 即時用電量 (kW)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
-          backgroundColor: '#d97706',
-          stack: 'power'
+          borderColor: '#d97706',
+          backgroundColor: 'transparent',
+          borderWidth: 1.8,
+          fill: false,
+          tension: 0.35,
+          pointRadius: 0,
+          pointHoverRadius: 4
         });
       } else {
         chKeys.forEach(ch => {
           const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
+          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric);
           datasets.push({
-            label: `${chNames[ch] || ch} - ${document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric}`,
+            label: `${chNames[ch] || ch} · ${mLabel}`,
             data: pts,
             borderColor: chColors[ch] || '#1a5fa8',
-            backgroundColor: isDeltaKwh ? (chColors[ch] || '#1a5fa8') : 'rgba(26,95,168,0.08)',
-            fill: !isDeltaKwh,
-            tension: 0.2,
-            pointRadius: isDeltaKwh ? 0 : 2
+            backgroundColor: 'rgba(26,95,168,0.06)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBorderWidth: 2
           });
         });
       }
 
       powerTrendChartInstance = new Chart(ctx, {
-        type: chartType,
+        type: 'line',
         data: { datasets: datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           scales: {
             x: {
               type: 'time',
               time: {
-                tooltipFormat: 'yyyy-MM-dd HH:mm',
+                tooltipFormat: 'yyyy/MM/dd HH:mm:ss',
                 displayFormats: {
+                  second: 'HH:mm:ss',
                   minute: 'HH:mm',
                   hour: 'MM/dd HH:mm',
                   day: 'MM/dd'
                 }
               },
-              grid: { color: 'rgba(0,0,0,0.05)' }
+              grid: { color: 'rgba(0,0,0,0.04)' },
+              ticks: { maxTicksLimit: 8, maxRotation: 0 }
             },
             y: {
-              beginAtZero: isDeltaKwh,
-              grid: { color: 'rgba(0,0,0,0.05)' }
+              beginAtZero: metric === 'kw' || metric === 'a',
+              grid: { color: 'rgba(0,0,0,0.04)' },
+              ticks: {
+                callback: (val) => `${val}${metricUnit ? ' ' + metricUnit : ''}`
+              }
             }
           },
           plugins: {
-            legend: { position: 'top' },
+            legend: {
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                font: { size: 11, weight: '700' },
+                color: '#334155'
+              }
+            },
             tooltip: {
               mode: 'index',
-              intersect: false
+              intersect: false,
+              callbacks: {
+                label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) : '--'} ${metricUnit}`
+              }
             }
           }
         }
       });
 
-      // 統計表
+      // 統計數據看板更新
       const statsWrap = document.getElementById('power-stats-wrap');
       const statsBody = document.getElementById('power-stats-body');
       if (statsWrap && statsBody) {
         statsWrap.style.display = 'block';
         let statsRows = '';
+
+        if (meter === 'all' && metric === 'kw') {
+          // 增加全廠合計之統計行
+          const tMap = {};
+          chKeys.forEach(ch => {
+            (series[ch] || []).forEach(pt => {
+              if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
+              tMap[pt.t][ch] = Number(pt.v || 0);
+            });
+          });
+          const sortedTs = Object.keys(tMap).sort();
+          const totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+          if (totalVals.length > 0) {
+            const maxVal = Math.max(...totalVals);
+            const minVal = Math.min(...totalVals);
+            const maxIdx = totalVals.indexOf(maxVal);
+            const minIdx = totalVals.indexOf(minVal);
+            const avgVal = totalVals.reduce((a, b) => a + b, 0) / totalVals.length;
+
+            statsRows += `
+              <tr style="background:#f0f9ff; font-weight:800;">
+                <td style="color:#0284c7;">全廠合計</td>
+                <td style="color:#0284c7;">即時總用電量 (kW)</td>
+                <td style="color:var(--alarm);">${maxVal.toFixed(1)} kW</td>
+                <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[maxIdx] || '--'}</td>
+                <td style="color:var(--ok);">${minVal.toFixed(1)} kW</td>
+                <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[minIdx] || '--'}</td>
+                <td style="color:#0284c7;">平均: ${avgVal.toFixed(1)} kW</td>
+                <td style="font-weight:normal;">${totalVals.length} 筆</td>
+              </tr>
+            `;
+          }
+        }
+
         chKeys.forEach(ch => {
           const pts = (series[ch] || []).filter(p => p.v !== null);
           if (pts.length === 0) return;
@@ -2809,19 +2884,18 @@
           const minVal = Math.min(...vals);
           const maxPt = pts.find(p => p.v === maxVal);
           const minPt = pts.find(p => p.v === minVal);
-          const sumVal = vals.reduce((a, b) => a + b, 0);
-          const avgVal = sumVal / vals.length;
-          const sumOrAvg = isDeltaKwh ? `總計: ${sumVal.toFixed(1)} kWh` : `平均: ${avgVal.toFixed(1)}`;
+          const avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
+          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric);
 
           statsRows += `
             <tr>
               <td style="font-weight:700;">${chNames[ch] || ch}</td>
-              <td>${document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric}</td>
-              <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(1)}</td>
+              <td>${mLabel}</td>
+              <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
               <td style="font-size:11px; color:var(--text-3);">${maxPt?.t || '--'}</td>
-              <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)}</td>
+              <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
               <td style="font-size:11px; color:var(--text-3);">${minPt?.t || '--'}</td>
-              <td style="font-weight:800; color:var(--accent);">${sumOrAvg}</td>
+              <td style="font-weight:800; color:var(--accent);">平均: ${avgVal.toFixed(1)} ${metricUnit}</td>
               <td>${vals.length} 筆</td>
             </tr>
           `;
