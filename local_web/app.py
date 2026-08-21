@@ -2077,7 +2077,7 @@ def power_chart_data():
 
     return jsonify({'series': series, 'field': field, 'bucket_sec': bucket_sec})
 
-# ── 台電時間電價尖離峰時段判斷 ────────────────────────────────────
+# ── 台電時間電價尖離峰時段判斷（依台電官方標準時間電價三段式契約規範） ──
 OFF_PEAK_HOLIDAYS = [
     "01-01",  # 元旦
     "02-28",  # 二二八和平紀念日
@@ -2088,49 +2088,49 @@ OFF_PEAK_HOLIDAYS = [
 ]
 
 TAIPOWER_TARIFF_RULES = {
-    "summer": {
+    "summer": {  # 夏月 (6/1 ~ 9/30)
         "weekday": [
-            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},
-            {"start_hour": 9, "end_hour": 16, "type": "semi_peak"},
-            {"start_hour": 16, "end_hour": 22, "type": "peak"},       # 16:00~22:00 夜尖峰
-            {"start_hour": 22, "end_hour": 24, "type": "semi_peak"},
+            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},       # 00:00~09:00 離峰 (2.23)
+            {"start_hour": 9, "end_hour": 16, "type": "semi_peak"},     # 09:00~16:00 半尖峰 (5.02)
+            {"start_hour": 16, "end_hour": 22, "type": "peak"},         # 16:00~22:00 尖峰 (8.12)
+            {"start_hour": 22, "end_hour": 24, "type": "semi_peak"},    # 22:00~24:00 半尖峰 (5.02)
         ],
         "saturday": [
-            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},
-            {"start_hour": 9, "end_hour": 24, "type": "semi_peak"},
+            {"start_hour": 0, "end_hour": 9, "type": "off_peak"},       # 00:00~09:00 離峰 (2.23)
+            {"start_hour": 9, "end_hour": 24, "type": "semi_peak"},     # 09:00~24:00 半尖峰 (2.50)
         ],
         "sunday_and_holidays": [
-            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},
+            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},      # 全日離峰 (2.23)
         ],
     },
-    "non_summer": {
+    "non_summer": {  # 非夏月 (10/1 ~ 翌年5/31) - 無尖峰時段
         "weekday": [
-            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},
-            {"start_hour": 6, "end_hour": 16, "type": "semi_peak"},
-            {"start_hour": 16, "end_hour": 22, "type": "peak"},
-            {"start_hour": 22, "end_hour": 24, "type": "semi_peak"},
+            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},       # 00:00~06:00 離峰 (2.12)
+            {"start_hour": 6, "end_hour": 11, "type": "semi_peak"},     # 06:00~11:00 半尖峰 (4.86)
+            {"start_hour": 11, "end_hour": 14, "type": "off_peak"},     # 11:00~14:00 離峰 (2.12)
+            {"start_hour": 14, "end_hour": 24, "type": "semi_peak"},    # 14:00~24:00 半尖峰 (4.86)
         ],
         "saturday": [
-            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},
-            {"start_hour": 6, "end_hour": 24, "type": "semi_peak"},
+            {"start_hour": 0, "end_hour": 6, "type": "off_peak"},       # 00:00~06:00 離峰 (2.12)
+            {"start_hour": 6, "end_hour": 11, "type": "semi_peak"},     # 06:00~11:00 半尖峰 (2.40)
+            {"start_hour": 11, "end_hour": 14, "type": "off_peak"},     # 11:00~14:00 離峰 (2.12)
+            {"start_hour": 14, "end_hour": 24, "type": "semi_peak"},    # 14:00~24:00 半尖峰 (2.40)
         ],
         "sunday_and_holidays": [
-            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},
+            {"start_hour": 0, "end_hour": 24, "type": "off_peak"},      # 全日離峰 (2.12)
         ],
     },
 }
 
-def get_tariff_type(dt: datetime, is_high_voltage: bool = True) -> str:
-    """判斷指定時間點的時間電價時段 (peak / semi_peak / off_peak)"""
+def get_tariff_type(dt: datetime, is_high_voltage: bool = False) -> str:
+    """判斷指定時間點的時間電價時段 (peak / semi_peak / off_peak)
+       標準時間電價三段式契約：夏月為 6/1 ~ 9/30
+    """
     date_str = dt.strftime("%m-%d")
     time_hour = dt.hour
     weekday = dt.weekday()  # 0=週一, 5=週六, 6=週日
 
-    if is_high_voltage:
-        is_summer = "05-16" <= date_str <= "10-15"
-    else:
-        is_summer = "06-01" <= date_str <= "09-30"
-
+    is_summer = "06-01" <= date_str <= "09-30"
     season_key = "summer" if is_summer else "non_summer"
 
     if weekday == 6 or date_str in OFF_PEAK_HOLIDAYS:

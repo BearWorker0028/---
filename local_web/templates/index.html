@@ -1563,65 +1563,155 @@
       </div>
     </div>
   </div>
-  <!-- ── 台電三段式時間電價時段標準說明 Modal ── -->
+  <!-- ── 台電三段式時間電價時段標準說明 Modal (100% 依據台電官方契約規範) ── -->
   <div id="modal-tariff-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1002;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:#fff;border-radius:12px;width:740px;max-width:95vw;max-height:88vh;box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="background:#fff;border-radius:12px;width:780px;max-width:96vw;max-height:90vh;box-shadow:0 10px 30px #00000055;overflow:hidden;display:flex;flex-direction:column;">
       <div style="background:var(--accent);padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
-        <h3 style="color:#fff;margin:0;font-size:15px;letter-spacing:1px;">台電三段式時間電價時段標準說明</h3>
+        <h3 style="color:#fff;margin:0;font-size:15px;letter-spacing:1px;">時間電價 (三段式) 標準費率與計算說明</h3>
         <button onclick="closeTariffModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">✕</button>
       </div>
       <div style="padding:20px;overflow-y:auto;font-size:12px;color:var(--text-1);line-height:1.6;">
-        <div style="background:#f0f9ff;border-left:4px solid var(--accent);padding:10px 14px;border-radius:4px;margin-bottom:14px;">
-          <b>台電時間電價計費原則：</b><br>
-          台電時間電價依負載特性劃分計費時段，將高載尖峰集中於 <b>16:00 ~ 22:00（夜尖峰）</b>，各時段按實際累計用電量（kWh）依台電公告費率分段計價。
+        <div style="background:#f0f9ff;border-left:4px solid var(--accent);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11.5px;">
+          <b>台電時間電價（三段式）計費說明：</b><br>
+          本廠區屬於台電標準契約用電戶，電費由<b>「基本電費（依簽約容量計算）」</b>與<b>「流動電費（依各時段實際用電度數 × 單價計費）」</b>組成，<b>無一般簡易型之 2,000 度超額加價規定</b>。
         </div>
 
-        <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;">
+        <!-- 1. 基本電費 -->
+        <div style="font-weight:800; font-size:13px; color:var(--text-1); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+          <span style="display:inline-block; width:4px; height:14px; background:var(--accent); border-radius:2px;"></span>
+          一、基本電費（按月計收）
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px;border:1px solid var(--border);">
           <thead>
-            <tr style="background:#f1f5f9;border-bottom:2px solid var(--border);">
-              <th style="padding:8px;text-align:left;">時段分類</th>
-              <th style="padding:8px;text-align:left;">包含時間定義</th>
-              <th style="padding:8px;text-align:center;">夏月流動費率</th>
-              <th style="padding:8px;text-align:center;">非夏月流動費率</th>
-              <th style="padding:8px;text-align:left;">計費屬性</th>
+            <tr style="background:#f1f5f9;border-bottom:1.5px solid var(--border);">
+              <th style="padding:7px 10px;text-align:left;" colspan="2">分類項目</th>
+              <th style="padding:7px 10px;text-align:center;">計費單位</th>
+              <th style="padding:7px 10px;text-align:center;">夏月 (6/1~9/30)</th>
+              <th style="padding:7px 10px;text-align:center;">非夏月 (10/1~翌年5/31)</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:8px;font-weight:700;color:var(--alarm);">尖峰時段 (Peak)</td>
-              <td style="padding:8px;">平日 <b>16:00 ~ 22:00</b> (夜尖峰)</td>
-              <td style="padding:8px;text-align:center;font-weight:800;color:var(--alarm);">8.12 元/度</td>
-              <td style="padding:8px;text-align:center;color:var(--text-3);">— (併入半尖峰)</td>
-              <td style="padding:8px;color:var(--alarm);font-weight:700;">高載計量時段</td>
+              <td style="padding:6px 10px;font-weight:700;" colspan="2">按戶計收</td>
+              <td style="padding:6px 10px;text-align:center;color:var(--text-3);">每戶每月</td>
+              <td style="padding:6px 10px;text-align:center;font-weight:700;" colspan="2">262.50 元</td>
             </tr>
             <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:8px;font-weight:700;color:#ea580c;">半尖峰 (Semi-Peak)</td>
-              <td style="padding:8px;">平日 09:00~16:00, 22:00~24:00<br>週六 09:00~24:00</td>
-              <td style="padding:8px;text-align:center;font-weight:700;color:#ea580c;">5.02 元/度<br><span style="font-size:10px;color:var(--text-3);">(週六 2.50)</span></td>
-              <td style="padding:8px;text-align:center;font-weight:700;color:#ea580c;">4.86 元/度<br><span style="font-size:10px;color:var(--text-3);">(週六 2.40)</span></td>
-              <td style="padding:8px;">常規營運計量時段</td>
+              <td style="padding:6px 10px;font-weight:700;rowspan:4;" rowspan="4">按瓩計收<br>(契約容量)</td>
+              <td style="padding:6px 10px;">經常契約</td>
+              <td style="padding:6px 10px;text-align:center;color:var(--text-3);">每瓩每月</td>
+              <td style="padding:6px 10px;text-align:center;font-weight:700;color:var(--alarm);">236.20 元</td>
+              <td style="padding:6px 10px;text-align:center;font-weight:700;color:var(--text-1);">173.20 元</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px 10px;">半尖峰契約</td>
+              <td style="padding:6px 10px;text-align:center;color:var(--text-3);">每瓩每月</td>
+              <td style="padding:6px 10px;text-align:center;">173.20 元</td>
+              <td style="padding:6px 10px;text-align:center;">173.20 元</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px 10px;">週六半尖峰契約</td>
+              <td style="padding:6px 10px;text-align:center;color:var(--text-3);">每瓩每月</td>
+              <td style="padding:6px 10px;text-align:center;">47.20 元</td>
+              <td style="padding:6px 10px;text-align:center;">34.60 元</td>
             </tr>
             <tr>
-              <td style="padding:8px;font-weight:700;color:var(--ok);">離峰時段 (Off-Peak)</td>
-              <td style="padding:8px;">每日深夜 <b>00:00 ~ 09:00</b><br>週日及離峰日全天</td>
-              <td style="padding:8px;text-align:center;font-weight:800;color:var(--ok);">2.23 元/度</td>
-              <td style="padding:8px;text-align:center;font-weight:800;color:var(--ok);">2.12 元/度</td>
-              <td style="padding:8px;color:var(--ok);font-weight:700;">低載計量時段 (價差達3.64倍)</td>
+              <td style="padding:6px 10px;">離峰契約</td>
+              <td style="padding:6px 10px;text-align:center;color:var(--text-3);">每瓩每月</td>
+              <td style="padding:6px 10px;text-align:center;">47.20 元</td>
+              <td style="padding:6px 10px;text-align:center;">34.60 元</td>
             </tr>
           </tbody>
         </table>
 
-        <!-- 補充說明與法規來源（中性淺色系，資訊層級與法規同級） -->
+        <!-- 2. 流動電費 -->
+        <div style="font-weight:800; font-size:13px; color:var(--text-1); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+          <span style="display:inline-block; width:4px; height:14px; background:var(--accent); border-radius:2px;"></span>
+          二、流動電費（每度費率，單位：元）
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px;border:1px solid var(--border);">
+          <thead>
+            <tr style="background:#f1f5f9;border-bottom:1.5px solid var(--border);">
+              <th style="padding:7px 8px;text-align:center;width:75px;">適用星期</th>
+              <th style="padding:7px 8px;text-align:center;width:75px;">時段分類</th>
+              <th style="padding:7px 10px;text-align:left;">時段定義 (包含時間)</th>
+              <th style="padding:7px 8px;text-align:center;width:100px;">夏月 (6/1~9/30)</th>
+              <th style="padding:7px 8px;text-align:center;width:115px;">非夏月 (10/1~5/31)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px 8px;text-align:center;font-weight:700;background:#fafafa;" rowspan="3">週一至週五</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--alarm);">尖峰時間</td>
+              <td style="padding:6px 10px;">夏月 <b>16:00 ~ 22:00</b> (夜尖峰)</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--alarm);">8.12 元</td>
+              <td style="padding:6px 8px;text-align:center;color:var(--text-3);">— (無尖峰)</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">半尖峰時間</td>
+              <td style="padding:6px 10px;">
+                夏月：09:00~16:00、22:00~24:00<br>
+                非夏月：06:00~11:00、14:00~24:00
+              </td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">5.02 元</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">4.86 元</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--ok);">離峰時間</td>
+              <td style="padding:6px 10px;">
+                夏月：00:00~09:00<br>
+                非夏月：00:00~06:00、11:00~14:00 (中午離峰)
+              </td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.23 元</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.12 元</td>
+            </tr>
+
+            <tr style="border-bottom:1px solid var(--border); background:#fcfcfc;">
+              <td style="padding:6px 8px;text-align:center;font-weight:700;background:#fafafa;" rowspan="2">週六</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">半尖峰時間</td>
+              <td style="padding:6px 10px;">
+                夏月：09:00~24:00<br>
+                非夏月：06:00~11:00、14:00~24:00
+              </td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">2.50 元</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:#ea580c;">2.40 元</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border); background:#fcfcfc;">
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--ok);">離峰時間</td>
+              <td style="padding:6px 10px;">
+                夏月：00:00~09:00<br>
+                非夏月：00:00~06:00、11:00~14:00
+              </td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.23 元</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.12 元</td>
+            </tr>
+
+            <tr>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;background:#fafafa;">週日及離峰日</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--ok);">離峰時間</td>
+              <td style="padding:6px 10px;"><b>全日 (00:00 ~ 24:00)</b></td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.23 元</td>
+              <td style="padding:6px 8px;text-align:center;font-weight:800;color:var(--ok);">2.12 元</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 3. 電費計算官方範例 -->
         <div style="background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:12px 16px;">
-          <div style="font-size:11px; color:var(--text-2); line-height:1.6; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--border);">
-            <b style="color:var(--text-1);">2,000 度以上超額加價說明：</b>
-            每月用電度數超過 2,000 度以上之部分，每度另加收超額流動電費（夏月 <b>+0.96 元/度</b>、非夏月 <b>+0.93 元/度</b>）。
+          <div style="font-weight:800; font-size:12px; color:var(--alarm); margin-bottom:6px;">
+            📖 電費計算官方範例 (以經常契約容量 95 瓩為例)：
           </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-            <div style="font-size:11px; color:var(--text-2); line-height:1.5;">
-              <b style="color:var(--text-1);">法規來源：</b>台灣電力公司《各類電價表及計算範例》— 時間電價（三段式）最新公告標準
+          <div style="font-size:11px; color:var(--text-2); line-height:1.6; margin-bottom:8px;">
+            假設某月經常契約容量 <b>95 瓩</b>，8 月份實際用電量為：尖峰 <b>900 度</b>、平日半尖峰 <b>5,100 度</b>、週六半尖峰 <b>1,000 度</b>、離峰 <b>4,000 度</b>（未超約）：<br>
+            • <b>基本電費</b> ＝ 262.50 元 ＋ (236.20 元 × 95 瓩) ＝ <b>22,701.5 元</b><br>
+            • <b>流動電費</b> ＝ (8.12 × 900) ＋ (5.02 × 5,100) ＋ (2.50 × 1,000) ＋ (2.23 × 4,000) ＝ <b>44,330.5 元</b><br>
+            • <b>當月總電費</b> ＝ 22,701.5 ＋ 44,330.5 ＝ <b style="color:var(--alarm); font-size:13px;">67,032 元</b>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; pt:4px; border-top:1px dashed var(--border); margin-top:6px; padding-top:6px;">
+            <div style="font-size:11px; color:var(--text-2);">
+              <b style="color:var(--text-1);">法規來源：</b>台灣電力公司《時間電價（三段式）最新公告標準》
             </div>
-            <a href="https://www.taipower.com.tw/media/wzicn04w/%E5%90%84%E9%A1%9E%E9%9B%BB%E5%83%B9%E8%A1%A8%E5%8F%8A%E8%A8%88%E7%AE%97%E7%AF%84%E4%BE%8B.pdf?mediaDL=true" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; background:var(--accent); color:#fff; text-decoration:none; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.06);">
+            <a href="https://www.taipower.com.tw/media/wzicn04w/%E5%90%84%E9%A1%9E%E9%9B%BB%E5%83%B9%E8%A1%A8%E5%8F%8A%E8%A8%88%E7%AE%97%E7%AF%84%E4%BE%8B.pdf?mediaDL=true" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--accent); color:#fff; text-decoration:none; border-radius:4px; font-size:10.5px; font-weight:700; white-space:nowrap;">
               下載台電電價表 (PDF) ↗
             </a>
           </div>
