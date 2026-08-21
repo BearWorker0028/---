@@ -1966,18 +1966,19 @@
                 </div>
               </div>
               <div class="tb-row" style="flex-wrap:wrap; gap:10px; align-items:center;">
-                <span class="tb-label">電錶對象</span>
+                <span class="tb-label">電錶選項</span>
                 <select id="sel-ptrend-meter" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer;">
                   <option value="all">全廠電錶 (1F + 3F 合併)</option>
                   <option value="ch13">1F 集合式電錶</option>
                   <option value="ch14">3F 集合式電錶</option>
                 </select>
                 <span class="tb-label">分析指標</span>
-                <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:200px;">
-                  <option value="kw">即時用電量 (kW)</option>
-                  <option value="a">總平均電流 (A)</option>
-                  <option value="v">平均線電壓 (V)</option>
-                  <option value="pf">功率因數 (PF)</option>
+                <select id="sel-ptrend-metric" onchange="loadPowerTrendChart()" style="padding:5px 10px; border:1px solid var(--border); border-radius:5px; font-size:12px; background:#fff; cursor:pointer; min-width:220px;">
+                  <option value="kw">即時用電量 (kW - 雙色堆疊面積圖)</option>
+                  <option value="daily_kwh">用電量 (kWh - 雙色堆疊柱狀圖)</option>
+                  <option value="a">總平均電流 (A - 平滑曲線圖)</option>
+                  <option value="v">平均線電壓 (V - 平滑曲線圖)</option>
+                  <option value="pf">功率因數 (PF - 平滑曲線圖)</option>
                 </select>
               </div>
             </div>
@@ -2715,14 +2716,18 @@
         powerTrendChartInstance.destroy();
       }
 
+      const isStackedKw = (meter === 'all' && metric === 'kw');
+      const isBar = (metric === 'daily_kwh');
+      const chartType = isBar ? 'bar' : 'line';
       let datasets = [];
+
       const chNames = { ch13: '1F 集合式電錶', ch14: '3F 集合式電錶' };
       const chColors = { ch13: '#1a5fa8', ch14: '#d97706' };
-      const metricUnitMap = { kw: 'kW', a: 'A', v: 'V', pf: '' };
+      const metricUnitMap = { kw: 'kW', daily_kwh: 'kWh', a: 'A', v: 'V', pf: '' };
       const metricUnit = metricUnitMap[metric] || '';
 
-      if (meter === 'all' && metric === 'kw') {
-        // 全廠模式下：顯示即時總用電量曲線 (帶平滑漸層) + 1F 與 3F 曲線
+      if (isStackedKw) {
+        // 全廠模式下：1F + 3F 雙色堆疊面積曲線圖 (頂部輪廓即為即時總用電量)
         const tMap = {};
         chKeys.forEach(ch => {
           (series[ch] || []).forEach(pt => {
@@ -2731,42 +2736,67 @@
           });
         });
         const sortedTs = Object.keys(tMap).sort();
-        const totalPts = sortedTs.map(t => ({ x: t, y: Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)) }));
         
-        datasets.push({
-          label: '即時總用電量 (kW)',
-          data: totalPts,
-          borderColor: '#0284c7',
-          backgroundColor: 'rgba(2, 132, 199, 0.08)',
-          borderWidth: 2.5,
-          fill: true,
-          tension: 0.35,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBorderWidth: 2
-        });
         datasets.push({
           label: '1F 集合式電錶 即時用電量 (kW)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
           borderColor: '#1a5fa8',
-          backgroundColor: 'transparent',
-          borderWidth: 1.8,
-          fill: false,
+          backgroundColor: 'rgba(26, 95, 168, 0.45)',
+          fill: true,
+          stack: 'kw_stack',
           tension: 0.35,
+          borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 4
+          pointHoverRadius: 5
         });
         datasets.push({
           label: '3F 集合式電錶 即時用電量 (kW)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
           borderColor: '#d97706',
-          backgroundColor: 'transparent',
-          borderWidth: 1.8,
-          fill: false,
+          backgroundColor: 'rgba(217, 119, 6, 0.45)',
+          fill: true,
+          stack: 'kw_stack',
           tension: 0.35,
+          borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 4
+          pointHoverRadius: 5
         });
+      } else if (isBar) {
+        if (meter === 'all') {
+          // 全廠模式下：1F + 3F 雙色堆疊柱狀圖
+          const tMap = {};
+          chKeys.forEach(ch => {
+            (series[ch] || []).forEach(pt => {
+              if (!tMap[pt.t]) tMap[pt.t] = { t: pt.t, ch13: 0, ch14: 0 };
+              tMap[pt.t][ch] = Number(pt.v || 0);
+            });
+          });
+          const sortedTs = Object.keys(tMap).sort();
+          datasets.push({
+            label: '1F 集合式電錶 用電量 (kWh)',
+            data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
+            backgroundColor: '#1a5fa8',
+            stack: 'kwh_stack',
+            borderRadius: { topLeft: 0, topRight: 0 }
+          });
+          datasets.push({
+            label: '3F 集合式電錶 用電量 (kWh)',
+            data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
+            backgroundColor: '#d97706',
+            stack: 'kwh_stack',
+            borderRadius: { topLeft: 4, topRight: 4 }
+          });
+        } else {
+          chKeys.forEach(ch => {
+            const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
+            datasets.push({
+              label: `${chNames[ch] || ch} · 用電量 (kWh)`,
+              data: pts,
+              backgroundColor: chColors[ch] || '#1a5fa8',
+              borderRadius: 4
+            });
+          });
+        }
       } else {
         chKeys.forEach(ch => {
           const pts = (series[ch] || []).map(p => ({ x: p.t, y: p.v }));
@@ -2775,8 +2805,8 @@
             label: `${chNames[ch] || ch} · ${mLabel}`,
             data: pts,
             borderColor: chColors[ch] || '#1a5fa8',
-            backgroundColor: 'rgba(26,95,168,0.06)',
-            fill: true,
+            backgroundColor: 'rgba(26,95,168,0.08)',
+            fill: metric === 'kw',
             tension: 0.35,
             borderWidth: 2,
             pointRadius: 0,
@@ -2786,8 +2816,10 @@
         });
       }
 
+      const isStackedY = (isStackedKw || (isBar && meter === 'all'));
+
       powerTrendChartInstance = new Chart(ctx, {
-        type: 'line',
+        type: chartType,
         data: { datasets: datasets },
         options: {
           responsive: true,
@@ -2809,7 +2841,8 @@
               ticks: { maxTicksLimit: 8, maxRotation: 0 }
             },
             y: {
-              beginAtZero: metric === 'kw' || metric === 'a',
+              stacked: isStackedY,
+              beginAtZero: (metric === 'kw' || metric === 'daily_kwh' || metric === 'a'),
               grid: { color: 'rgba(0,0,0,0.04)' },
               ticks: {
                 callback: (val) => `${val}${metricUnit ? ' ' + metricUnit : ''}`
@@ -2843,8 +2876,8 @@
         statsWrap.style.display = 'block';
         let statsRows = '';
 
-        if (meter === 'all' && metric === 'kw') {
-          // 增加全廠合計之統計行
+        if (meter === 'all') {
+          // 計算全廠合計統計行
           const tMap = {};
           chKeys.forEach(ch => {
             (series[ch] || []).forEach(pt => {
@@ -2859,17 +2892,19 @@
             const minVal = Math.min(...totalVals);
             const maxIdx = totalVals.indexOf(maxVal);
             const minIdx = totalVals.indexOf(minVal);
-            const avgVal = totalVals.reduce((a, b) => a + b, 0) / totalVals.length;
+            const sumVal = totalVals.reduce((a, b) => a + b, 0);
+            const avgVal = sumVal / totalVals.length;
+            const sumOrAvg = isBar ? `當期累積總計: ${sumVal.toFixed(1)} kWh` : `平均總功率: ${avgVal.toFixed(1)} kW`;
 
             statsRows += `
               <tr style="background:#f0f9ff; font-weight:800;">
                 <td style="color:#0284c7;">全廠合計</td>
-                <td style="color:#0284c7;">即時總用電量 (kW)</td>
-                <td style="color:var(--alarm);">${maxVal.toFixed(1)} kW</td>
+                <td style="color:#0284c7;">${isBar ? '當期累積總用電量 (kWh)' : '即時總用電量 (kW)'}</td>
+                <td style="color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
                 <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[maxIdx] || '--'}</td>
-                <td style="color:var(--ok);">${minVal.toFixed(1)} kW</td>
+                <td style="color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
                 <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[minIdx] || '--'}</td>
-                <td style="color:#0284c7;">平均: ${avgVal.toFixed(1)} kW</td>
+                <td style="color:#0284c7;">${sumOrAvg}</td>
                 <td style="font-weight:normal;">${totalVals.length} 筆</td>
               </tr>
             `;
@@ -2884,8 +2919,10 @@
           const minVal = Math.min(...vals);
           const maxPt = pts.find(p => p.v === maxVal);
           const minPt = pts.find(p => p.v === minVal);
-          const avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
-          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric);
+          const sumVal = vals.reduce((a, b) => a + b, 0);
+          const avgVal = sumVal / vals.length;
+          const sumOrAvg = isBar ? `總計: ${sumVal.toFixed(1)} kWh` : `平均: ${avgVal.toFixed(1)} ${metricUnit}`;
+          const mLabel = metric === 'kw' ? '即時用電量 (kW)' : (metric === 'daily_kwh' ? '用電量 (kWh)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric));
 
           statsRows += `
             <tr>
@@ -2895,7 +2932,7 @@
               <td style="font-size:11px; color:var(--text-3);">${maxPt?.t || '--'}</td>
               <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
               <td style="font-size:11px; color:var(--text-3);">${minPt?.t || '--'}</td>
-              <td style="font-weight:800; color:var(--accent);">平均: ${avgVal.toFixed(1)} ${metricUnit}</td>
+              <td style="font-weight:800; color:var(--accent);">${sumOrAvg}</td>
               <td>${vals.length} 筆</td>
             </tr>
           `;

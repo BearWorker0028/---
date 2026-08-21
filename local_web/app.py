@@ -2005,14 +2005,22 @@ def power_chart_data():
         dt_to   = now_tw
 
     total_seconds = (dt_to - dt_from).total_seconds()
-    if total_seconds <= 6 * 3600:
-        bucket_sec = 300       # 5 分鐘
-    elif total_seconds <= 24 * 3600:
-        bucket_sec = 900       # 15 分鐘
-    elif total_seconds <= 7 * 86400:
-        bucket_sec = 3600      # 1 小時
+    if field in ('daily_kwh', 'delta_kwh', 'kwh_bar', 'energy'):
+        if total_seconds <= 6 * 3600:
+            bucket_sec = 1800      # 30 分鐘一根柱
+        elif total_seconds <= 24 * 3600:
+            bucket_sec = 3600      # 1 小時一根柱 (24 根)
+        else:
+            bucket_sec = 86400     # 1 天一根柱 (每日耗電)
     else:
-        bucket_sec = 86400     # 1 天
+        if total_seconds <= 6 * 3600:
+            bucket_sec = 300       # 5 分鐘
+        elif total_seconds <= 24 * 3600:
+            bucket_sec = 900       # 15 分鐘
+        elif total_seconds <= 7 * 86400:
+            bucket_sec = 3600      # 1 小時
+        else:
+            bucket_sec = 86400     # 1 天
 
     series = {}
     with get_pg() as conn:
@@ -2023,8 +2031,8 @@ def power_chart_data():
                 (ch, dt_from, dt_to)
             ).fetchall()
 
-            if field == 'delta_kwh':
-                # 計算各時間切片的實質用電增量 (ΔkWh)
+            if field in ('daily_kwh', 'delta_kwh', 'kwh_bar', 'energy'):
+                # 計算各時間切片的實質用電量 (kWh)
                 buckets = {}
                 for r in rows:
                     ts = r['timestamp']
