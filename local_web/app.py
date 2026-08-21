@@ -2851,7 +2851,7 @@ def export_report_excel():
         else:
             meta_rows = [
                 ("區間總耗電", f"{summary['consumed_kwh']} kWh", "平均功率因數", f"{summary['avg_pf']}"),
-                ("平均用電量", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
+                ("即時用電量 (平均)", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
                 ("最高用電量", f"{summary['max_kw']} kW", "平均線電壓", f"{summary['avg_v']} V"),
                 ("總平均電流", f"{summary['avg_a']} A", "廠區設備總時數", f"{summary.get('total_equip_runtime_latest', 0.0)} hr")
             ]
@@ -2904,8 +2904,8 @@ def export_report_excel():
             headers = ['#', '採樣時間', '平均庫溫 (°C)', '區間最低溫 (°C)', '區間最高溫 (°C)', '判定狀態']
             widths = [8, 20, 18, 18, 18, 22]
         else:
-            headers = ['#', '採樣時間', '電費時段', '即時用電量 (kW)', '平均線電壓 (V)', '總平均電流 (A)', '當期累計用電 (kWh)', '區間用電 (kWh)', '電表底度 (kWh)', '廠區設備運轉總時數 (hr)']
-            widths = [8, 20, 14, 18, 18, 18, 22, 18, 20, 26]
+            headers = ['#', '採樣時間', '電費時段', '即時用電量 (平均, kW)', '平均線電壓 (V)', '總平均電流 (A)', '當期累計用電 (kWh)', '區間用電 (kWh)', '電表底度 (kWh)', '廠區設備運轉總時數 (hr)']
+            widths = [8, 20, 14, 22, 18, 18, 22, 18, 20, 26]
 
         for c_idx, (h, w) in enumerate(zip(headers, widths), 1):
             cell = ws.cell(tbl_start_row, c_idx, h)
