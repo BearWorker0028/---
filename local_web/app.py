@@ -2759,7 +2759,7 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
 
     summary = {
         'target_name': meter_name,
-        'report_type_name': 'SPM-3 電表能源統計報表',
+        'report_type_name': '能源統計報表',
         'total_samples': total_samples,
         'consumed_kwh': consumed_kwh,
         'avg_kw': avg_kw,
@@ -2820,7 +2820,7 @@ def export_report_excel():
             sheet_title = "庫溫紀錄表"
         else:
             summary, records = _generate_energy_report_data(target, d_from, d_to, interval_min)
-            filename = f"SPM3電表能源統計報表_{summary['target_name']}_{filename_ts}.xlsx"
+            filename = f"能源統計報表_{summary['target_name']}_{filename_ts}.xlsx"
             sheet_title = "能源統計表"
 
         wb = Workbook()
@@ -2850,7 +2850,7 @@ def export_report_excel():
             ]
         else:
             meta_rows = [
-                ("區間總耗電", f"{summary['consumed_kwh']} kWh", "平均功率因數", f"{summary['avg_pf']}"),
+                ("區間累積用電量", f"{summary['consumed_kwh']} kWh", "平均功率因數", f"{summary['avg_pf']}"),
                 ("即時用電量 (平均)", f"{summary['avg_kw']} kW", "採樣筆數", f"{summary['total_samples']} 筆 (每{interval_min}分鐘)"),
                 ("最高用電量", f"{summary['max_kw']} kW", "平均線電壓", f"{summary['avg_v']} V"),
                 ("總平均電流", f"{summary['avg_a']} A", "廠區設備總時數", f"{summary.get('total_equip_runtime_latest', 0.0)} hr")
@@ -2904,8 +2904,8 @@ def export_report_excel():
             headers = ['#', '採樣時間', '平均庫溫 (°C)', '區間最低溫 (°C)', '區間最高溫 (°C)', '判定狀態']
             widths = [8, 20, 18, 18, 18, 22]
         else:
-            headers = ['#', '採樣時間', '電費時段', '即時用電量 (平均, kW)', '平均線電壓 (V)', '總平均電流 (A)', '當期累計用電 (kWh)', '區間用電 (kWh)', '電表底度 (kWh)', '廠區設備運轉總時數 (hr)']
-            widths = [8, 20, 14, 22, 18, 18, 22, 18, 20, 26]
+            headers = ['#', '採樣時間', '電費時段', '即時用電量 (平均, kW)', '平均線電壓 (V)', '總平均電流 (A)', '當期累積用電量 (kWh)', '區間累積用電量 (kWh)', '電表累積總度數 (kWh)', '廠區設備運轉總時數 (hr)']
+            widths = [8, 20, 14, 22, 18, 18, 22, 22, 22, 26]
 
         for c_idx, (h, w) in enumerate(zip(headers, widths), 1):
             cell = ws.cell(tbl_start_row, c_idx, h)

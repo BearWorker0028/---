@@ -1889,7 +1889,7 @@
                   <option value="v">平均線電壓 (V)</option>
                   <option value="a">總平均電流 (A)</option>
                   <option value="pf">功率因數 (PF)</option>
-                  <option value="kwh">電錶累積總底度 (kWh)</option>
+                  <option value="kwh">電表累積總度數 (kWh)</option>
                 </select>
               </div>
             </div>
@@ -2126,7 +2126,7 @@
               <span class="tb-label">報表類型</span>
               <select id="rep-category-filter" onchange="onReportCategoryChange()" style="min-width:180px;">
                 <option value="temp">冷鏈庫溫歷程紀錄表</option>
-                <option value="energy">SPM-3 電表能源統計報表</option>
+                <option value="energy">能源統計報表</option>
               </select>
 
               <span class="tb-label">監控對象</span>
@@ -2934,7 +2934,7 @@
           document.getElementById('kpi-rep-title-4').textContent = '平均功率因數';
           document.getElementById('kpi-rep-val-4').textContent = `${summary.avg_pf}`;
 
-          if (titleEl) titleEl.textContent = `SPM-3 電表能源預覽 · ${summary.target_name}`;
+          if (titleEl) titleEl.textContent = `能源統計預覽 · ${summary.target_name}`;
           if (metaEl) metaEl.textContent = `區間：${data.time_label}  │  平均電壓：${summary.avg_v} V  │  總平均電流：${summary.avg_a} A`;
         }
 
@@ -2962,7 +2962,7 @@
                 <th style="width:130px; text-align:right;">即時用電量 (平均)</th>
                 <th style="width:110px; text-align:right;">平均電壓</th>
                 <th style="width:120px; text-align:right;">總平均電流</th>
-                <th style="width:140px; text-align:right;">累計用電 (kWh)</th>
+                <th style="width:140px; text-align:right;">累積用電量 (kWh)</th>
                 <th style="width:180px; text-align:right; color:#0369a1; background:#f0f9ff;">廠區設備運轉總時數 (hr)</th>
               </tr>
             `;
@@ -3116,7 +3116,7 @@
         { label: 'T相電流',  unit: 'A',   key: 'a_t' },
         { label: '平均電流', unit: 'A',   key: 'a_avg', accent: true },
         { label: '即時用電量', unit: 'kW',  key: 'kw', bold: true },
-        { label: '累積功率', unit: 'kWh', key: 'kwh' },
+        { label: '累積用電量', unit: 'kWh', key: 'kwh' },
         { label: '功率因數', unit: '',    key: 'pf' },
         { label: '滿載率',   unit: '',    key: 'loadPctHtml', html: true },
         { label: '連線',     unit: '',    key: 'statusHtml', html: true }
@@ -3224,7 +3224,7 @@
           <span style="color:var(--accent);">平均電壓：${countV > 0 ? (sumV / countV).toFixed(1) : '--'} V</span>
           <span style="color:var(--accent);">總平均電流：${totalA.toFixed(1)} A</span>
           <span style="color:var(--accent);">即時總用電量：${totalKw.toFixed(1)} kW</span>
-          <span style="color:var(--accent);">總累積功率：${totalKwh.toFixed(1)} kWh</span>
+          <span style="color:var(--accent);">總累積用電量：${totalKwh.toFixed(1)} kWh</span>
         </div>`;
       overlay.style.display = 'flex';
     }
