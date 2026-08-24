@@ -2253,24 +2253,33 @@ def power_energy_stats():
                     b['kw_cnt'] += 1
 
             sorted_keys = sorted(hourly_buckets.keys())
-            for idx, k in enumerate(sorted_keys):
+            last_kwh = None
+            last_dt = None
+            for k in sorted_keys:
                 b = hourly_buckets[k]
                 dt_hour = b['dt'].replace(minute=0, second=0, microsecond=0)
                 tariff = get_tariff_type(dt_hour)
                 delta = 0.0
-                if b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
-                    delta = float(b['max_kwh'] - b['min_kwh'])
-                if delta == 0.0 and idx > 0:
-                    prev_k = sorted_keys[idx - 1]
-                    prev_b = hourly_buckets[prev_k]
-                    if b['max_kwh'] is not None and prev_b['max_kwh'] is not None:
-                        diff = float(b['max_kwh'] - prev_b['max_kwh'])
-                        if 0 <= diff < 1500:
+                kw_avg = (b['kw_sum'] / b['kw_cnt']) if b['kw_cnt'] > 0 else 0.0
+
+                if last_kwh is not None and b['max_kwh'] is not None:
+                    time_diff_hours = (dt_hour - last_dt).total_seconds() / 3600.0
+                    if 0 < time_diff_hours <= 2.0:
+                        diff = float(b['max_kwh'] - last_kwh)
+                        if 0 <= diff <= 500.0:
                             delta = diff
-                if delta == 0.0 and b['kw_cnt'] > 0:
-                    avg_kw = b['kw_sum'] / b['kw_cnt']
-                    if avg_kw > 0:
-                        delta = min(avg_kw, 500.0)
+
+                if delta == 0.0 and b['max_kwh'] is not None and b['min_kwh'] is not None and b['max_kwh'] >= b['min_kwh']:
+                    diff = float(b['max_kwh'] - b['min_kwh'])
+                    if 0 <= diff <= 500.0:
+                        delta = diff
+
+                if delta == 0.0 and kw_avg > 0:
+                    delta = min(kw_avg, 500.0)
+
+                if b['max_kwh'] is not None:
+                    last_kwh = b['max_kwh']
+                    last_dt = dt_hour
 
                 if k not in hourly_data:
                     hourly_data[k] = {'ch13': 0.0, 'ch14': 0.0, 'total': 0.0, 'tariff': tariff, 'dt': dt_hour}
@@ -2338,41 +2347,106 @@ def power_energy_stats():
     realtime_data = _latest_temperatures_payload()
     alarm_map = _alarm_settings_map()
 
-    # 計算週期內各設備運轉時數
+    # 計算週期內各設備運轉時數與 5 大狀態時數聚合
     device_runtimes = []
-    room_scores = {r['id']: 0.0 for r in ROOM_MAP}
+    room_hours_map = {r['id']: 0.0 for r in ROOM_MAP}
+    total_period_hours = max((dt_period_to - dt_period_from).total_seconds() / 3600.0, 1.0)
 
     with get_pg() as conn:
         for r_def in ROOM_MAP:
             for ch in r_def['channels']:
-                # 查詢該設備在該週期內的最早與最晚 runtime_hours 差值
+                # 查詢該設備在該週期內的所有記錄
                 r_rows = conn.execute('''
-                    SELECT runtime_hours FROM temperatures
-                    WHERE channel = %s AND timestamp BETWEEN %s AND %s AND runtime_hours IS NOT NULL
+                    SELECT timestamp, status, runtime_hours, compressor_current, coil_temp, control_temp, value
+                    FROM temperatures
+                    WHERE channel = %s AND timestamp BETWEEN %s AND %s
                     ORDER BY timestamp ASC
                 ''', (ch, dt_period_from, dt_period_to)).fetchall()
 
-                r_hours = 0.0
+                cooling_hr = 0.0
                 if r_rows and len(r_rows) >= 2:
                     h_start = float(r_rows[0]['runtime_hours'] or 0.0)
                     h_end = float(r_rows[-1]['runtime_hours'] or 0.0)
                     if h_end >= h_start:
-                        r_hours = round(h_end - h_start, 1)
+                        cooling_hr = round(h_end - h_start, 1)
                 elif r_rows and len(r_rows) == 1:
-                    r_hours = 0.5
+                    cooling_hr = 0.1
+
+                total_samples = len(r_rows)
+                if total_samples >= 2:
+                    active_monitored_hr = max((r_rows[-1]['timestamp'] - r_rows[0]['timestamp']).total_seconds() / 3600.0, 1.0)
+                else:
+                    active_monitored_hr = total_period_hours
+
+                ch_threshold = float(alarm_map.get(ch, {}).get('current_threshold') if alarm_map.get(ch, {}).get('current_threshold') is not None else 0.8)
+
+                # 5 大狀態採樣點分類 (電流高於閥值才算運轉；若電流高於閥值且非製冷除霜則為送風運轉)
+                active_curr_cnt = 0
+                defrost_cnt = 0
+                fault_cnt = 0
+
+                for r in r_rows:
+                    v = float(r['value'] or 0.0) if r['value'] is not None else 0.0
+                    curr = float(r['compressor_current'] or 0.0) if r['compressor_current'] is not None else 0.0
+                    coil = float(r['coil_temp'] or 0.0) if r['coil_temp'] is not None else 0.0
+                    st = r.get('status') or 'NORMAL'
+
+                    if curr > ch_threshold and total_samples >= 500 and v < 999.0:
+                        active_curr_cnt += 1
+                        if st in ('TRIGGERED', 'ALARM', 'FAULT'):
+                            fault_cnt += 1
+                        elif '冷凍' in r_def['name'] and coil > 0.0 and curr > 2.0:
+                            defrost_cnt += 1
+
+                if total_samples > 0:
+                    active_curr_hr = round((active_curr_cnt / total_samples) * active_monitored_hr, 1)
+                    defrost_hr = round((defrost_cnt / total_samples) * active_monitored_hr, 1)
+                    fault_hr = round((fault_cnt / total_samples) * active_monitored_hr, 1)
+                else:
+                    active_curr_hr = 0.0
+                    defrost_hr = 0.0
+                    fault_hr = 0.0
+
+                cooling_hr = min(cooling_hr, active_monitored_hr)
+                # 送風時數：電流高於閥值且排除純製冷與除霜之運轉時數
+                fan_hr = max(0.0, round(active_curr_hr - cooling_hr - defrost_hr - fault_hr, 1))
+                standby_hr = max(0.0, round(active_monitored_hr - cooling_hr - defrost_hr - fan_hr - fault_hr, 1))
+
+                tot_state_hr = cooling_hr + fan_hr + defrost_hr + fault_hr + standby_hr or 1.0
+                cooling_pct = round((cooling_hr / tot_state_hr) * 100, 1)
+                fan_pct = round((fan_hr / tot_state_hr) * 100, 1)
+                defrost_pct = round((defrost_hr / tot_state_hr) * 100, 1)
+                fault_pct = round((fault_hr / tot_state_hr) * 100, 1)
+                standby_pct = round(max(0.0, 100.0 - cooling_pct - fan_pct - defrost_pct - fault_pct), 1)
 
                 cur_info = realtime_data.get(ch, {})
                 comp_curr = cur_info.get('compressor_current')
                 cooling = cur_info.get('cooling_status') or cur_info.get('flags', {}).get('cooling')
                 defrost = cur_info.get('defrost_status') or cur_info.get('flags', {}).get('defrost')
+                fan = cur_info.get('fan_status') or cur_info.get('flags', {}).get('fan')
                 eq_err = cur_info.get('eq_err') or cur_info.get('flags', {}).get('eq_err')
 
+                comp_curr_val = float(comp_curr) if comp_curr is not None else 0.0
+
+                # 即時狀態判讀：
+                # 1. 電流 <= 閥值 -> 100% 待機停止 (stop)
+                # 2. 電流 > 閥值:
+                #    - 除霜信號/高溫除霜 -> defrost (除霜中)
+                #    - 製冷信號開啟 -> cooling (製冷中)
+                #    - 製冷關閉 + 送風開啟 -> fan (送風中)
+                #    - 其餘預設 -> cooling (製冷中)
                 status = 'stop'
                 if eq_err:
                     status = 'error'
-                elif defrost:
+                elif comp_curr_val <= ch_threshold:
+                    status = 'stop'
+                elif defrost or ('冷凍' in r_def['name'] and cur_info.get('coil_temperature') and float(cur_info.get('coil_temperature', 0.0)) > 0.0 and comp_curr_val > 2.0):
                     status = 'defrost'
-                elif cooling and comp_curr and float(comp_curr) > (alarm_map.get(ch, {}).get('current_threshold') or 0.5):
+                elif cooling:
+                    status = 'cooling'
+                elif fan:
+                    status = 'fan'
+                else:
                     status = 'cooling'
 
                 device_runtimes.append({
@@ -2382,27 +2456,44 @@ def power_energy_stats():
                     'name': DEVICE_NAMES_MAP.get(ch, ch),
                     'status': status,
                     'current': round(float(comp_curr), 1) if comp_curr is not None else 0.0,
-                    'runtime_hours': r_hours
+                    'runtime_hours': cooling_hr,
+                    'states': {
+                        'cooling_hours': cooling_hr,
+                        'fan_hours': fan_hr,
+                        'defrost_hours': defrost_hr,
+                        'standby_hours': standby_hr,
+                        'fault_hours': fault_hr,
+                        'cooling_pct': cooling_pct,
+                        'fan_pct': fan_pct,
+                        'defrost_pct': defrost_pct,
+                        'standby_pct': standby_pct,
+                        'fault_pct': fault_pct
+                    }
                 })
 
-                # 依電流與時數權重累計該庫能耗積分
-                eff_curr = float(comp_curr) if comp_curr else (4.5 if '急速' in r_def['name'] else 2.5)
-                room_scores[r_def['id']] += max(r_hours * eff_curr, 0.1)
+                room_hours_map[r_def['id']] += cooling_hr
 
-    # 計算各庫圓餅圖佔比
-    tot_score = sum(room_scores.values()) or 1.0
-    actual_kwh_base = period_total_kwh if period_total_kwh > 0 else 100.0
-
+    # 計算各庫使用時間（運轉時數）佔比與各庫設備時數清單
+    tot_all_room_hours = sum(room_hours_map.values())
     room_distribution = []
     for r_def in ROOM_MAP:
-        pct = round((room_scores[r_def['id']] / tot_score) * 100, 1)
-        kwh = round((pct / 100.0) * actual_kwh_base, 1)
+        r_hr = round(room_hours_map[r_def['id']], 1)
+        r_pct = round((r_hr / tot_all_room_hours) * 100, 1) if tot_all_room_hours > 0 else 0.0
+        room_devs = [
+            {
+                'ch': d['ch'],
+                'name': d['name'],
+                'runtime_hours': d['runtime_hours']
+            }
+            for d in device_runtimes if d['room_id'] == r_def['id']
+        ]
         room_distribution.append({
             'id': r_def['id'],
             'name': r_def['name'],
-            'kwh': kwh,
-            'pct': pct,
-            'color': r_def['color']
+            'hours': r_hr,
+            'pct': r_pct,
+            'color': r_def['color'],
+            'devices': room_devs
         })
 
     return jsonify({
@@ -2420,6 +2511,7 @@ def power_energy_stats():
         'off_peak_ratio': off_peak_ratio,
         'dt_from': dt_period_from.strftime('%Y-%m-%d %H:%M'),
         'dt_to': dt_period_to.strftime('%Y-%m-%d %H:%M'),
+        'total_runtime_hours': round(tot_all_room_hours, 1),
         'room_distribution': room_distribution,
         'device_runtimes': device_runtimes
     })
@@ -2680,8 +2772,11 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
 
     from collections import defaultdict
     buckets = defaultdict(lambda: {
-        'samples': defaultdict(lambda: {'kw_sum': 0.0, 'a_sum': 0.0, 'v_list': [], 'pf_list': []}),
-        'kwh_by_ch': {},
+        'chs': defaultdict(lambda: {
+            'kwh_min': None, 'kwh_max': None,
+            'kw_sum': 0.0, 'kw_cnt': 0,
+            'v_list': [], 'a_list': [], 'pf_list': []
+        }),
         'equip_rt': {}
     })
     
@@ -2689,32 +2784,40 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
         ts = r['timestamp']
         ts_tw = ts.astimezone(TZ_TW_APP) if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
         floored_min = (ts_tw.minute // interval_min) * interval_min
-        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M')
-        ts_key = ts_tw.strftime('%Y-%m-%d %H:%M:%S')
-        
-        sample = buckets[b_key]['samples'][ts_key]
-        if r['kw'] is not None:
-            sample['kw_sum'] += float(r['kw'])
-        if r['a'] is not None:
-            sample['a_sum'] += float(r['a'])
-        if r['v'] is not None:
-            sample['v_list'].append(float(r['v']))
-        if r['pf'] is not None:
-            sample['pf_list'].append(float(r['pf']))
+        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0)
+        ch = r['channel']
+        ch_entry = buckets[b_key]['chs'][ch]
+
         if r['kwh'] is not None:
-            buckets[b_key]['kwh_by_ch'][r['channel']] = float(r['kwh'])
+            val_kwh = float(r['kwh'])
+            if ch_entry['kwh_min'] is None or val_kwh < ch_entry['kwh_min']:
+                ch_entry['kwh_min'] = val_kwh
+            if ch_entry['kwh_max'] is None or val_kwh > ch_entry['kwh_max']:
+                ch_entry['kwh_max'] = val_kwh
+        if r['kw'] is not None:
+            ch_entry['kw_sum'] += float(r['kw'])
+            ch_entry['kw_cnt'] += 1
+        if r['v'] is not None:
+            ch_entry['v_list'].append(float(r['v']))
+        if r['a'] is not None:
+            ch_entry['a_list'].append(float(r['a']))
+        if r['pf'] is not None:
+            ch_entry['pf_list'].append(float(r['pf']))
 
     for r in equip_rows:
         ts = r['timestamp']
         ts_tw = ts.astimezone(TZ_TW_APP) if isinstance(ts, datetime) else datetime.fromisoformat(str(ts).replace(' ', 'T')).replace(tzinfo=TZ_TW_APP)
         floored_min = (ts_tw.minute // interval_min) * interval_min
-        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M')
+        b_key = ts_tw.replace(minute=floored_min, second=0, microsecond=0)
         
         ch = r['channel']
         rt = float(r['runtime_hours'] or 0.0)
         buckets[b_key]['equip_rt'][ch] = rt
 
     current_rt_state = {ch: 0.0 for ch in equip_chs}
+    last_seen_kwh = {ch: None for ch in chs}
+    last_seen_time = {ch: None for ch in chs}
+
     records = []
     curr = d_from.replace(minute=(d_from.minute // interval_min) * interval_min, second=0, microsecond=0)
     end_curr = d_to.replace(second=0, microsecond=0)
@@ -2723,41 +2826,74 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
     all_v = []
     all_a = []
     all_pf = []
+    accum_total = 0.0
     
     while curr <= end_curr:
-        b_key = curr.strftime('%Y-%m-%d %H:%M')
-        b_data = buckets.get(b_key)
+        b_data = buckets.get(curr)
         
-        if b_data and (b_data['samples'] or b_data['kwh_by_ch'] or b_data['equip_rt']):
-            samples = list(b_data['samples'].values())
-            if samples:
-                # 採樣總和除以採樣筆數 (取得該區間之真正平均用電量與電流)
-                kw_avg = round(sum(s['kw_sum'] for s in samples) / len(samples), 1)
-                a_avg = round(sum(s['a_sum'] for s in samples) / len(samples), 1)
-                
-                v_all = [v for s in samples for v in s['v_list']]
-                v_avg = round(sum(v_all) / len(v_all), 1) if v_all else 0.0
-                
-                pf_all = [pf for s in samples for pf in s['pf_list']]
-                pf_avg = round(sum(pf_all) / len(pf_all), 2) if pf_all else 0.95
-            else:
-                kw_avg = 0.0
-                a_avg = 0.0
-                v_avg = 0.0
-                pf_avg = 0.95
-            
-            kwh_sum = round(sum(b_data['kwh_by_ch'].values()), 1) if b_data['kwh_by_ch'] else 0.0
-            
+        if b_data and (b_data['chs'] or b_data['equip_rt']):
+            b_key_str = curr.strftime('%Y-%m-%d %H:%M')
+            ch_dict = b_data['chs']
+
+            interval_kw_sum = 0.0
+            interval_a_sum = 0.0
+            all_v_b = []
+            all_pf_b = []
+            interval_delta = 0.0
+            cur_kwh_sum = 0.0
+
+            for ch in chs:
+                if ch in ch_dict:
+                    c = ch_dict[ch]
+                    kw_avg = (c['kw_sum'] / c['kw_cnt']) if c['kw_cnt'] > 0 else 0.0
+                    a_avg = (sum(c['a_list']) / len(c['a_list'])) if c['a_list'] else 0.0
+                    interval_kw_sum += kw_avg
+                    interval_a_sum += a_avg
+                    all_v_b.extend(c['v_list'])
+                    all_pf_b.extend(c['pf_list'])
+
+                    ch_delta = 0.0
+                    max_allowed_delta = 150.0 * max(1.0, interval_min / 15.0)
+
+                    # 1. 跨區間連續增量 (跨度在合理連續時間內)
+                    if last_seen_kwh[ch] is not None and c['kwh_max'] is not None:
+                        time_diff_min = (curr - last_seen_time[ch]).total_seconds() / 60.0
+                        if 0 < time_diff_min <= max(30.0, interval_min * 2.0):
+                            diff = c['kwh_max'] - last_seen_kwh[ch]
+                            if 0 <= diff <= max_allowed_delta:
+                                ch_delta = diff
+
+                    # 2. 區間內增量
+                    if ch_delta == 0.0 and c['kwh_max'] is not None and c['kwh_min'] is not None and c['kwh_max'] >= c['kwh_min']:
+                        diff = c['kwh_max'] - c['kwh_min']
+                        if 0 <= diff <= max_allowed_delta:
+                            ch_delta = diff
+
+                    # 3. 備援功率積分
+                    if ch_delta == 0.0 and kw_avg > 0:
+                        ch_delta = kw_avg * (interval_min / 60.0)
+
+                    interval_delta += ch_delta
+                    if c['kwh_max'] is not None:
+                        last_seen_kwh[ch] = c['kwh_max']
+                        last_seen_time[ch] = curr
+                        cur_kwh_sum += c['kwh_max']
+
+            kw_avg_tot = round(interval_kw_sum, 1)
+            a_avg_tot = round(interval_a_sum, 1)
+            v_avg_tot = round(sum(all_v_b) / len(all_v_b), 1) if all_v_b else 0.0
+            pf_avg_tot = round(sum(all_pf_b) / len(all_pf_b), 2) if all_pf_b else 0.95
+
             for ch in equip_chs:
                 if ch in b_data['equip_rt']:
                     current_rt_state[ch] = b_data['equip_rt'][ch]
 
             total_equip_rt = round(sum(current_rt_state.values()), 2)
 
-            all_kws.append(kw_avg)
-            if v_avg > 0: all_v.append(v_avg)
-            if a_avg > 0: all_a.append(a_avg)
-            if pf_avg > 0: all_pf.append(pf_avg)
+            all_kws.append(kw_avg_tot)
+            if v_avg_tot > 0: all_v.append(v_avg_tot)
+            if a_avg_tot > 0: all_a.append(a_avg_tot)
+            if pf_avg_tot > 0: all_pf.append(pf_avg_tot)
             
             t_type = get_tariff_type(curr)
             if t_type == 'peak':
@@ -2766,15 +2902,20 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
                 tariff_type = "半尖峰"
             else:
                 tariff_type = "離峰"
+
+            delta_kwh_rounded = round(interval_delta, 1)
+            accum_total += interval_delta
             
             records.append({
-                'time': b_key,
+                'time': b_key_str,
                 'tariff_type': tariff_type,
-                'kw': kw_avg,
-                'v': v_avg,
-                'a': a_avg,
-                'pf': pf_avg,
-                'kwh': kwh_sum,
+                'kw': kw_avg_tot,
+                'v': v_avg_tot,
+                'a': a_avg_tot,
+                'pf': pf_avg_tot,
+                'kwh': round(cur_kwh_sum, 1),
+                'delta_kwh': delta_kwh_rounded,
+                'accum_kwh': round(accum_total, 1),
                 'total_equip_runtime': total_equip_rt
             })
         curr += timedelta(minutes=interval_min)
@@ -2785,22 +2926,7 @@ def _generate_energy_report_data(meter_id, d_from, d_to, interval_min=5):
     avg_v = round(sum(all_v) / len(all_v), 1) if all_v else 0.0
     avg_a = round(sum(all_a) / len(all_a), 1) if all_a else 0.0
     avg_pf = round(sum(all_pf) / len(all_pf), 2) if all_pf else 0.0
-    
-    first_kwh = records[0]['kwh'] if records else 0.0
-    for idx_r, rec in enumerate(records):
-        curr_kwh = rec['kwh']
-        if idx_r == 0:
-            rec['delta_kwh'] = 0.0
-            rec['accum_kwh'] = 0.0
-        else:
-            prev_kwh = records[idx_r - 1]['kwh']
-            delta = round(curr_kwh - prev_kwh, 1) if curr_kwh >= prev_kwh else 0.0
-            accum = round(curr_kwh - first_kwh, 1) if curr_kwh >= first_kwh else 0.0
-            rec['delta_kwh'] = delta
-            rec['accum_kwh'] = accum
-
-    last_accum = records[-1]['accum_kwh'] if records else 0.0
-    consumed_kwh = round(last_accum, 1)
+    consumed_kwh = round(accum_total, 1)
 
     summary = {
         'target_name': meter_name,

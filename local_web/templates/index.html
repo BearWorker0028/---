@@ -1909,8 +1909,8 @@
               <!-- 左側圓餅圖 -->
               <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-width:0; box-sizing:border-box;">
                 <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                  <span>各庫用電量佔比</span>
-                  <span id="lbl-pie-total-kwh" style="font-size:11px; color:var(--text-3); font-weight:600;"></span>
+                  <span>各庫使用時間佔比</span>
+                  <span id="lbl-pie-total-hours" style="font-size:11px; color:var(--text-3); font-weight:600;"></span>
                 </div>
                 <div style="position:relative; height:180px; display:flex; justify-content:center; align-items:center; width:100%;">
                   <canvas id="roomEnergyPieChart"></canvas>
@@ -1924,24 +1924,107 @@
               <div style="background:#fff; border:1.5px solid var(--border); border-radius:8px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,0.04); min-width:0; box-sizing:border-box;">
                 <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                   <span>冷鏈主機運轉狀態與時數</span>
-                  <span style="font-size:11px; color:var(--text-3);">時數隨所選週期連動</span>
                 </div>
                 <div style="width:100%; overflow-x:hidden;">
                   <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
                     <thead>
                       <tr style="background:#f8fafc; border-bottom:1.5px solid var(--border); color:var(--text-2); position:sticky; top:0;">
-                        <th style="padding:6px 2px; text-align:center; width:24px;">#</th>
-                        <th style="padding:6px 4px; text-align:left; width:25%;">所屬庫別</th>
-                        <th style="padding:6px 4px; text-align:left; width:27%;">設備名稱</th>
-                        <th style="padding:6px 2px; text-align:center; width:16%;">即時狀態</th>
-                        <th style="padding:6px 4px; text-align:right; width:16%;">運轉電流</th>
-                        <th style="padding:6px 4px; text-align:right; width:16%;">區間時數</th>
+                        <th style="padding:6px 2px; text-align:center; width:22px;">#</th>
+                        <th style="padding:6px 4px; text-align:left; width:20%;">所屬庫別</th>
+                        <th style="padding:6px 4px; text-align:left; width:22%;">設備名稱</th>
+                        <th style="padding:6px 2px; text-align:center; width:13%;">即時狀態</th>
+                        <th style="padding:6px 4px; text-align:right; width:13%;">運轉電流</th>
+                        <th style="padding:6px 4px; text-align:center; width:18%;">狀態時數分佈</th>
+                        <th style="padding:6px 6px; text-align:right; width:14%;">運轉時數</th>
                       </tr>
                     </thead>
                     <tbody id="device-runtime-tbody">
                       <!-- dynamically filled -->
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 單一設備狀態時數分佈百分比圓餅圖彈窗 -->
+            <div id="modal-device-state" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.65); z-index:999999; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="if(event.target===this)closeDeviceStateModal()">
+              <div style="background:#ffffff; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); width:92%; max-width:480px; overflow:hidden; border:1px solid #cbd5e1;" onclick="event.stopPropagation()">
+                <!-- 標題列 -->
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                  <div>
+                    <div id="modal-devstate-title" style="font-size:14px; font-weight:800; color:var(--text-1);">設備狀態時數分佈</div>
+                    <div id="modal-devstate-subtitle" style="font-size:11px; color:var(--text-3); font-weight:600; margin-top:2px;">統計週期</div>
+                  </div>
+                  <button onclick="closeDeviceStateModal()" style="background:none; border:none; font-size:22px; color:var(--text-3); cursor:pointer; padding:0 4px; line-height:1; font-weight:700;">&times;</button>
+                </div>
+
+                <!-- 圓餅圖主體 -->
+                <div style="padding:16px 18px;">
+                  <div style="position:relative; height:200px; display:flex; justify-content:center; align-items:center; width:100%; margin-bottom:12px;">
+                    <canvas id="deviceStatePieChart"></canvas>
+                  </div>
+
+                  <!-- 各狀態百分比清單 -->
+                  <div id="modal-devstate-details" style="display:flex; flex-direction:column; gap:6px; background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <!-- dynamically rendered -->
+                  </div>
+                </div>
+
+                <!-- 底部關閉按鈕 -->
+                <div style="display:flex; justify-content:flex-end; padding:10px 18px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+                  <button onclick="closeDeviceStateModal()" class="qbtn" style="padding:5px 16px; font-size:11.5px; font-weight:700; background:#64748b; color:#fff; border-radius:6px; cursor:pointer;">關閉</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 各庫設備狀態運轉時數統計分析彈窗 -->
+            <div id="modal-room-state" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.65); z-index:999999; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="if(event.target===this)closeRoomStateModal()">
+              <div style="background:#ffffff; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); width:92%; max-width:540px; max-height:90vh; overflow-y:auto; border:1px solid #cbd5e1;" onclick="event.stopPropagation()">
+                <!-- 標題列 -->
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background:#f8fafc; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:10;">
+                  <div>
+                    <div id="modal-roomstate-title" style="font-size:14px; font-weight:800; color:var(--text-1);">設備狀態運轉時數統計分析</div>
+                    <div id="modal-roomstate-subtitle" style="font-size:11px; color:var(--text-3); font-weight:600; margin-top:2px;">統計週期</div>
+                  </div>
+                  <button onclick="closeRoomStateModal()" style="background:none; border:none; font-size:22px; color:var(--text-3); cursor:pointer; padding:0 4px; line-height:1; font-weight:700;">&times;</button>
+                </div>
+
+                <!-- 彈窗主體 -->
+                <div style="padding:16px 18px; display:flex; flex-direction:column; gap:12px;">
+                  <!-- 圓餅圖 -->
+                  <div style="position:relative; height:190px; display:flex; justify-content:center; align-items:center; width:100%;">
+                    <canvas id="roomStatePieChart"></canvas>
+                  </div>
+
+                  <!-- 5 大工況聚合彙總清單 -->
+                  <div id="modal-roomstate-details" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <!-- dynamically rendered -->
+                  </div>
+
+                  <!-- 該庫個別設備時數明細表格 -->
+                  <div style="margin-top:2px;">
+                    <div style="font-size:12px; font-weight:700; color:var(--text-1); margin-bottom:6px;">所屬主機狀態時數明細</div>
+                    <div style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px;">
+                      <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
+                        <thead>
+                          <tr style="background:#f1f5f9; color:var(--text-2); position:sticky; top:0;">
+                            <th style="padding:4px 6px; text-align:left; width:36%;">設備名稱</th>
+                            <th style="padding:4px 4px; text-align:center; width:18%;">即時狀態</th>
+                            <th style="padding:4px 4px; text-align:right; width:23%;">製冷時數</th>
+                            <th style="padding:4px 6px; text-align:right; width:23%;">除霜時數</th>
+                          </tr>
+                        </thead>
+                        <tbody id="modal-roomstate-tbody">
+                          <!-- dynamically filled -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 底部關閉按鈕 -->
+                <div style="display:flex; justify-content:flex-end; padding:10px 18px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+                  <button onclick="closeRoomStateModal()" class="qbtn" style="padding:5px 16px; font-size:11.5px; font-weight:700; background:#64748b; color:#fff; border-radius:6px; cursor:pointer;">關閉</button>
                 </div>
               </div>
             </div>
@@ -2561,16 +2644,23 @@
         rangeEl.textContent = `${res.dt_from} ～ ${res.dt_to}`;
       }
 
-      // 5. 渲染各庫圓餅圖與圖例
-      renderRoomEnergyPieChart(res.room_distribution || [], res.period_total_kwh || 0);
+      // 5. 渲染各庫圓餅圖與圖例 (各庫使用時間佔比)
+      const totHours = (res.total_runtime_hours !== undefined && res.total_runtime_hours !== null && res.total_runtime_hours > 0)
+        ? res.total_runtime_hours
+        : (res.room_distribution || []).reduce((sum, r) => sum + Number(r.hours || 0), 0);
+      renderRoomEnergyPieChart(res.room_distribution || [], Number(totHours).toFixed(1));
 
-      // 6. 渲染 12 台主機運轉工況與時數列表
+      // 6. 渲染 12 台主機運轉工況與時數列表 (含狀態時數分佈迷你聚合條)
       renderDeviceRuntimeTable(res.device_runtimes || []);
     }
 
-    function renderRoomEnergyPieChart(dist, totalKwh) {
-      const lblTotal = document.getElementById('lbl-pie-total-kwh');
-      if (lblTotal) lblTotal.textContent = `累積用電量: ${totalKwh} kWh`;
+    let currentRoomDistribution = [];
+    let roomStatePieChartInstance = null;
+
+    function renderRoomEnergyPieChart(dist, totalHours) {
+      currentRoomDistribution = dist || [];
+      const lblTotal = document.getElementById('lbl-pie-total-hours');
+      if (lblTotal) lblTotal.textContent = `總運轉時數: ${totalHours} hr`;
 
       const canvas = document.getElementById('roomEnergyPieChart');
       if (!canvas) return;
@@ -2578,7 +2668,7 @@
       if (!ctx) return;
 
       const labels = dist.map(d => d.name);
-      const data = dist.map(d => d.kwh);
+      const data = dist.map(d => d.hours);
       const colors = dist.map(d => d.color);
 
       if (roomEnergyPieChartInstance) {
@@ -2603,28 +2693,40 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
+                title: (tooltipItems) => {
+                  if (!tooltipItems.length) return '';
+                  const item = dist[tooltipItems[0].dataIndex];
+                  return `${item.name}：${item.hours} hr (${item.pct}%)`;
+                },
                 label: (ctx) => {
                   const item = dist[ctx.dataIndex];
-                  return ` ${item.name}: ${item.kwh} kWh (${item.pct}%)`;
+                  if (!item.devices || item.devices.length === 0) {
+                    return `  總計: ${item.hours} hr (${item.pct}%)`;
+                  }
+                  return item.devices.map(d => `  • ${d.name}：${d.runtime_hours} hr`);
                 }
-              }
+              },
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 },
+              padding: 10,
+              boxPadding: 4
             }
           },
           cutout: '58%'
         }
       });
 
-      // 圖例清單
+      // 圖例清單（支援點擊展開該庫設備總狀態時間聚合）
       const legendWrap = document.getElementById('room-energy-legend');
       if (legendWrap) {
         legendWrap.innerHTML = dist.map(d => `
-          <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding:2px 0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:11px; padding:3px 6px; border-radius:4px; cursor:pointer; transition:background .15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" onclick="openRoomStateModal('${d.id}')" title="點擊查看 ${d.name} 設備總狀態時間聚合">
             <div style="display:flex; align-items:center; gap:6px;">
               <span style="width:10px; height:10px; border-radius:2px; background:${d.color}; display:inline-block;"></span>
               <span style="font-weight:600; color:var(--text-1);">${d.name}</span>
             </div>
             <div style="font-weight:700; color:var(--text-2);">
-              <span>${d.kwh} kWh</span>
+              <span>${d.hours} hr</span>
               <span style="color:var(--text-3); font-weight:600; margin-left:4px;">(${d.pct}%)</span>
             </div>
           </div>
@@ -2632,31 +2734,252 @@
       }
     }
 
+    function openRoomStateModal(roomId) {
+      const rangeEl = document.getElementById('lbl-energy-period-range');
+      const rangeText = rangeEl?.textContent || '所選週期';
+
+      const room = currentRoomDistribution.find(r => r.id === roomId);
+      const targetDevices = currentDeviceRuntimes.filter(d => d.room_id === roomId);
+      const rName = room ? room.name : (targetDevices[0]?.room_name || '所選庫別');
+      const roomTitle = `${rName} - 設備狀態運轉時數統計分析`;
+      const roomSubtitle = `統計週期：${rangeText} ｜ 所屬設備共 ${targetDevices.length} 台`;
+
+      const titleEl = document.getElementById('modal-roomstate-title');
+      const subEl = document.getElementById('modal-roomstate-subtitle');
+      if (titleEl) titleEl.textContent = roomTitle;
+      if (subEl) subEl.textContent = roomSubtitle;
+
+      // 聚合計算
+      const totalCooling = targetDevices.reduce((sum, d) => sum + Number(d.states?.cooling_hours || 0), 0);
+      const totalDefrost = targetDevices.reduce((sum, d) => sum + Number(d.states?.defrost_hours || 0), 0);
+      const totalFan = targetDevices.reduce((sum, d) => sum + Number(d.states?.fan_hours || 0), 0);
+      const totalStandby = targetDevices.reduce((sum, d) => sum + Number(d.states?.standby_hours || 0), 0);
+      const totalFault = targetDevices.reduce((sum, d) => sum + Number(d.states?.fault_hours || 0), 0);
+
+      const totStateSum = (totalCooling + totalDefrost + totalFan + totalStandby + totalFault) || 1.0;
+      const stateData = [
+        { label: '製冷中', hours: Number(totalCooling.toFixed(1)), pct: Number(((totalCooling / totStateSum) * 100).toFixed(1)), color: '#1a73e8' },
+        { label: '除霜中', hours: Number(totalDefrost.toFixed(1)), pct: Number(((totalDefrost / totStateSum) * 100).toFixed(1)), color: '#f59e0b' },
+        { label: '送風中', hours: Number(totalFan.toFixed(1)), pct: Number(((totalFan / totStateSum) * 100).toFixed(1)), color: '#10b981' },
+        { label: '待機停止', hours: Number(totalStandby.toFixed(1)), pct: Number(((totalStandby / totStateSum) * 100).toFixed(1)), color: '#cbd5e1' },
+        { label: '設備異常', hours: Number(totalFault.toFixed(1)), pct: Number(((totalFault / totStateSum) * 100).toFixed(1)), color: '#ef4444' }
+      ];
+
+      // 圓餅圖渲染
+      const canvas = document.getElementById('roomStatePieChart');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (roomStatePieChartInstance) {
+          roomStatePieChartInstance.destroy();
+        }
+        roomStatePieChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: stateData.map(s => s.label),
+            datasets: [{
+              data: stateData.map(s => s.hours),
+              backgroundColor: stateData.map(s => s.color),
+              borderWidth: 2,
+              borderColor: '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const item = stateData[ctx.dataIndex];
+                    return ` ${item.label}: ${item.hours} hr (${item.pct}%)`;
+                  }
+                }
+              }
+            },
+            cutout: '55%'
+          }
+        });
+      }
+
+      // 明細網格清單
+      const detailsEl = document.getElementById('modal-roomstate-details');
+      if (detailsEl) {
+        detailsEl.innerHTML = stateData.map(s => `
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; padding:2px 4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="width:10px; height:10px; border-radius:2px; background:${s.color}; display:inline-block;"></span>
+              <span style="font-weight:600; color:var(--text-1);">${s.label}</span>
+            </div>
+            <div style="font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums;">
+              <span>${s.hours} hr</span>
+              <span style="color:var(--text-3); font-weight:600; margin-left:4px;">(${s.pct}%)</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // 設備清單表格
+      const tbody = document.getElementById('modal-roomstate-tbody');
+      if (tbody) {
+        const statusBadge = (s) => {
+          if (s === 'cooling') return `<span style="color:#1a73e8; font-weight:700; background:#e8f0fe; padding:1px 5px; border-radius:4px;">製冷</span>`;
+          if (s === 'defrost') return `<span style="color:#ea580c; font-weight:700; background:#fff7ed; padding:1px 5px; border-radius:4px;">除霜</span>`;
+          if (s === 'fan') return `<span style="color:#16a34a; font-weight:700; background:#f0fdf4; padding:1px 5px; border-radius:4px;">送風</span>`;
+          if (s === 'error') return `<span style="color:#dc2626; font-weight:700; background:#fef2f2; padding:1px 5px; border-radius:4px;">異常</span>`;
+          return `<span style="color:#64748b; font-weight:600; background:#f1f5f9; padding:1px 5px; border-radius:4px;">停止</span>`;
+        };
+
+        tbody.innerHTML = targetDevices.map(d => `
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:4px 6px; font-weight:700; color:var(--text-1);">${d.name}</td>
+            <td style="padding:4px 4px; text-align:center;">${statusBadge(d.status)}</td>
+            <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--text-1);">${Number(d.states?.cooling_hours || 0).toFixed(1)} hr</td>
+            <td style="padding:4px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-2);">${Number(d.states?.defrost_hours || 0).toFixed(1)} hr</td>
+          </tr>
+        `).join('');
+      }
+
+      const modal = document.getElementById('modal-room-state');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeRoomStateModal() {
+      const modal = document.getElementById('modal-room-state');
+      if (modal) modal.style.display = 'none';
+    }
+
+    let currentDeviceRuntimes = [];
+    let deviceStatePieChartInstance = null;
+
     function renderDeviceRuntimeTable(devices) {
+      currentDeviceRuntimes = devices || [];
       const tbody = document.getElementById('device-runtime-tbody');
       if (!tbody) return;
 
       const statusBadge = (s, curr) => {
         if (s === 'cooling') {
           return `<span style="color:#1a73e8; font-weight:700; background:#e8f0fe; padding:2px 6px; border-radius:4px;">製冷中</span>`;
+        } else if (s === 'fan') {
+          return `<span style="color:#16a34a; font-weight:700; background:#f0fdf4; padding:2px 6px; border-radius:4px;">送風中</span>`;
         } else if (s === 'defrost') {
-          return `<span style="color:#e67e22; font-weight:700; background:#fff7ed; padding:2px 6px; border-radius:4px;">除霜中</span>`;
+          return `<span style="color:#ea580c; font-weight:700; background:#fff7ed; padding:2px 6px; border-radius:4px;">除霜中</span>`;
         } else if (s === 'error') {
-          return `<span style="color:#e74c3c; font-weight:700; background:#fef2f2; padding:2px 6px; border-radius:4px;">設備異常</span>`;
+          return `<span style="color:#dc2626; font-weight:700; background:#fef2f2; padding:2px 6px; border-radius:4px;">設備異常</span>`;
         }
         return `<span style="color:#64748b; font-weight:600; background:#f1f5f9; padding:2px 6px; border-radius:4px;">停止</span>`;
       };
 
-      tbody.innerHTML = devices.map((d, i) => `
+      tbody.innerHTML = devices.map((d, i) => {
+        const st = d.states || {};
+        const cPct = st.cooling_pct || 0;
+        const fnPct = st.fan_pct || 0;
+        const dPct = st.defrost_pct || 0;
+        const sPct = st.standby_pct || 0;
+        const fPct = st.fault_pct || 0;
+        const tip = `製冷: ${st.cooling_hours || 0}hr (${cPct}%) | 送風: ${st.fan_hours || 0}hr (${fnPct}%) | 除霜: ${st.defrost_hours || 0}hr (${dPct}%) | 待機: ${st.standby_hours || 0}hr (${sPct}%) | 異常: ${st.fault_hours || 0}hr (${fPct}%)`;
+
+        return `
         <tr style="border-bottom:1px solid var(--border); transition:background .1s;">
-          <td style="padding:6px 4px; text-align:center; color:var(--text-3); font-weight:700;">${i + 1}</td>
-          <td style="padding:6px 6px; font-weight:600; color:var(--text-2);">${d.room_name}</td>
-          <td style="padding:6px 6px; font-weight:700; color:var(--text-1);">${d.name}</td>
-          <td style="padding:6px 6px; text-align:center;">${statusBadge(d.status, d.current)}</td>
-          <td style="padding:6px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:${d.current > 0 ? 'var(--accent)' : 'var(--text-3)'};">${Number(d.current || 0).toFixed(1)} A</td>
-          <td style="padding:6px 8px; text-align:right; font-variant-numeric:tabular-nums; font-weight:800; color:var(--text-1);">${Number(d.runtime_hours || 0).toFixed(1)} <span style="font-size:10px; color:var(--text-3); font-weight:500;">hr</span></td>
-        </tr>
-      `).join('');
+          <td style="padding:6px 2px; text-align:center; color:var(--text-3); font-weight:700;">${i + 1}</td>
+          <td style="padding:6px 4px; font-weight:600; color:var(--text-2);">${d.room_name}</td>
+          <td style="padding:6px 4px; font-weight:700; color:var(--text-1);">${d.name}</td>
+          <td style="padding:6px 2px; text-align:center;">${statusBadge(d.status, d.current)}</td>
+          <td style="padding:6px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:${d.current > 0 ? 'var(--accent)' : 'var(--text-3)'};">${Number(d.current || 0).toFixed(1)} A</td>
+          <td style="padding:6px 4px; text-align:center; cursor:pointer;" onclick="openDeviceStateModal('${d.ch}')" title="點擊查看 ${d.name} 狀態百分比圓餅圖">
+            <div style="display:flex; height:11px; width:100%; min-width:80px; max-width:130px; margin:0 auto; background:#f1f5f9; border-radius:4px; overflow:hidden; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05); transition:transform .15s, box-shadow .15s;" onmouseover="this.style.transform='scale(1.04)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 2px rgba(0,0,0,0.05)'" title="${tip}&#10;👉 點擊查看百分比圓餅圖">
+              <div style="width:${cPct}%; background:#1a73e8; transition:width .3s;" title="製冷: ${st.cooling_hours || 0}hr (${cPct}%)"></div>
+              <div style="width:${fnPct}%; background:#10b981; transition:width .3s;" title="送風: ${st.fan_hours || 0}hr (${fnPct}%)"></div>
+              <div style="width:${dPct}%; background:#f59e0b; transition:width .3s;" title="除霜: ${st.defrost_hours || 0}hr (${dPct}%)"></div>
+              <div style="width:${sPct}%; background:#cbd5e1; transition:width .3s;" title="待機: ${st.standby_hours || 0}hr (${sPct}%)"></div>
+              <div style="width:${fPct}%; background:#ef4444; transition:width .3s;" title="異常: ${st.fault_hours || 0}hr (${fPct}%)"></div>
+            </div>
+          </td>
+          <td style="padding:6px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:800; color:var(--text-1);">${Number(d.runtime_hours || 0).toFixed(1)} <span style="font-size:10px; color:var(--text-3); font-weight:500;">hr</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function openDeviceStateModal(ch) {
+      const dev = currentDeviceRuntimes.find(d => d.ch === ch);
+      if (!dev) return;
+
+      const titleEl = document.getElementById('modal-devstate-title');
+      const subEl = document.getElementById('modal-devstate-subtitle');
+      const rangeEl = document.getElementById('lbl-energy-period-range');
+      if (titleEl) titleEl.textContent = `${dev.name} (${dev.room_name}) - 狀態時數佔比`;
+      if (subEl) subEl.textContent = `統計週期：${rangeEl?.textContent || '所選週期'}`;
+
+      const st = dev.states || {};
+      const stateData = [
+        { label: '製冷中', hours: st.cooling_hours || 0, pct: st.cooling_pct || 0, color: '#1a73e8' },
+        { label: '除霜中', hours: st.defrost_hours || 0, pct: st.defrost_pct || 0, color: '#f59e0b' },
+        { label: '送風中', hours: st.fan_hours || 0, pct: st.fan_pct || 0, color: '#10b981' },
+        { label: '待機停止', hours: st.standby_hours || 0, pct: st.standby_pct || 0, color: '#cbd5e1' },
+        { label: '設備異常', hours: st.fault_hours || 0, pct: st.fault_pct || 0, color: '#ef4444' }
+      ];
+
+      // 圓餅圖繪製
+      const canvas = document.getElementById('deviceStatePieChart');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (deviceStatePieChartInstance) {
+          deviceStatePieChartInstance.destroy();
+        }
+        deviceStatePieChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: stateData.map(s => s.label),
+            datasets: [{
+              data: stateData.map(s => s.hours),
+              backgroundColor: stateData.map(s => s.color),
+              borderWidth: 2,
+              borderColor: '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const item = stateData[ctx.dataIndex];
+                    return ` ${item.label}: ${item.hours} hr (${item.pct}%)`;
+                  }
+                }
+              }
+            },
+            cutout: '55%'
+          }
+        });
+      }
+
+      // 明細列表渲染
+      const detailsEl = document.getElementById('modal-devstate-details');
+      if (detailsEl) {
+        detailsEl.innerHTML = stateData.map(s => `
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:2px 0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="width:10px; height:10px; border-radius:2px; background:${s.color}; display:inline-block;"></span>
+              <span style="font-weight:600; color:var(--text-1);">${s.label}</span>
+            </div>
+            <div style="font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums;">
+              <span>${s.hours} hr</span>
+              <span style="color:var(--text-3); font-weight:600; margin-left:6px;">(${s.pct}%)</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const modal = document.getElementById('modal-device-state');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeDeviceStateModal() {
+      const modal = document.getElementById('modal-device-state');
+      if (modal) modal.style.display = 'none';
     }
 
     function setPowerTrendRange(r) {
