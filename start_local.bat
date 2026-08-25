@@ -1,10 +1,12 @@
 @echo off
 chcp 65001 > nul
 setlocal EnableExtensions
-title 裕珍皇冷鏈監控系統 - 案場地端正式版一鍵啟動
+title 裕珍皇冷鏈監控系統 - 案場地端直連一鍵啟動 (SQLite WAL 版)
 
 echo =====================================================
-echo    裕珍皇 智慧冷鏈監控系統 - 案場地端正式版一鍵啟動
+echo    裕珍皇 智慧冷鏈監控系統 - 案場地端直連啟動
+echo    通訊方式：Modbus RTU over TCP (W610 網關)
+echo    儲存架構：純 Python 內建 SQLite WAL 工業級資料庫
 echo =====================================================
 echo.
 echo [1/3] 正在檢查 Python 執行環境...
@@ -25,7 +27,7 @@ if errorlevel 1 (
 echo [3/3] 正在啟動案場地端監控服務...
 echo.
 
-:: 1. 啟動地端 Web 電視牆伺服器 (Port 88, 內建 SQLite WAL / PostgreSQL 雙模引擎)
+:: 1. 啟動地端 Web 電視牆伺服器 (Port 88, SQLite WAL 引擎)
 start "裕珍皇 - 地端 Web 伺服器 (Port 88)" cmd /k "chcp 65001 > nul & title 裕珍皇 - Web 伺服器 & python -X utf8 local_web/app.py"
 
 :: 稍微等待後端就緒
@@ -35,7 +37,7 @@ timeout /t 2 /nobreak > nul
 start "裕珍皇 - 地端 Modbus 採集器 (W610)" cmd /k "chcp 65001 > nul & title 裕珍皇 - Modbus 採集器 & python -X utf8 collector/modbus_reader.py"
 
 echo =====================================================
-echo   ✅ 案場地端監控所有服務啟動成功！
+echo   ✅ 案場地端監控所有服務啟動成功！ (免開 Docker Desktop)
 echo.
 echo   👉 電視牆主畫面： http://127.0.0.1:88/
 echo   👉 現場網關通訊： 192.168.68.200:2000 (W610)

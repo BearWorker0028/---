@@ -3,6 +3,5 @@ waitress
 openpyxl
 pymodbus
 requests
-psycopg[binary]
 supabase
 python-dotenv
