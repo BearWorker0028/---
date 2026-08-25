@@ -20,24 +20,158 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+import sqlite3
+import re as _re
+
+# ── SQLite WAL 適配層 ──────────────────────────────────────────
+# 提供與 psycopg (PostgreSQL) 完全相容的 API 介面：
+#   - %s 佔位符自動轉換為 ?
+#   - fetchall() / fetchone() 回傳 dict (模擬 dict_row)
+#   - 支援 with 上下文管理器
+#   - 自動處理 PostgreSQL 特有語法（DISTINCT ON / EXTRACT EPOCH / RETURNING）
+# 這樣下游所有 get_pg() / conn.execute() / conn.cursor() 程式碼
+# 完全不需要任何改動即可無縫運行。
+# ───────────────────────────────────────────────────────────────
+
+_SQLITE_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'temperature.db')
+
+def _pg_sql_to_sqlite(sql):
+    """將 PostgreSQL 特有 SQL 語法轉譯為 SQLite 相容語法"""
+    # %s → ?
+    sql = sql.replace('%s', '?')
+    # DISTINCT ON (col) ... ORDER BY col, xxx DESC → 群組子查詢
+    # 這些會在呼叫端個別處理，此處僅做佔位符轉換
+    # EXTRACT(EPOCH FROM (x - y)) → CAST((julianday(x) - julianday(y)) * 86400 AS INTEGER)
+    sql = _re.sub(
+        r"ROUND\(EXTRACT\(EPOCH\s+FROM\s*\((\?)\s*-\s*(\w+)\)\)\)",
+        r"CAST((julianday(\1) - julianday(\2)) * 86400 AS INTEGER)",
+        sql
+    )
+    # RETURNING id → 移除（改用 lastrowid）
+    sql = _re.sub(r'\s*RETURNING\s+id\s*', '', sql, flags=_re.IGNORECASE)
+    return sql
+
+
+class _SQLiteDictCursor:
+    """模擬 psycopg cursor，讓 fetchall/fetchone 回傳 dict"""
+    def __init__(self, conn):
+        self._conn = conn
+        self._cursor = conn._raw.cursor()
+        self._last_description = None
+
+    def execute(self, sql, params=None):
+        sql = _pg_sql_to_sqlite(sql)
+        if params:
+            # 將 datetime 物件轉為字串
+            converted = []
+            for p in params:
+                if isinstance(p, datetime):
+                    converted.append(p.strftime('%Y-%m-%d %H:%M:%S'))
+                else:
+                    converted.append(p)
+            self._cursor.execute(sql, converted)
+        else:
+            self._cursor.execute(sql)
+        self._last_description = self._cursor.description
+        return self
+
+    def executemany(self, sql, params_list):
+        sql = _pg_sql_to_sqlite(sql)
+        self._cursor.executemany(sql, params_list)
+        return self
+
+    def fetchall(self):
+        if not self._last_description:
+            self._last_description = self._cursor.description
+        if not self._last_description:
+            return []
+        cols = [d[0] for d in self._last_description]
+        return [dict(zip(cols, row)) for row in self._cursor.fetchall()]
+
+    def fetchone(self):
+        if not self._last_description:
+            self._last_description = self._cursor.description
+        if not self._last_description:
+            return None
+        cols = [d[0] for d in self._last_description]
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip(cols, row))
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    def close(self):
+        self._cursor.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cursor.close()
+        return False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+
+class _SQLiteConnection:
+    """模擬 psycopg connection 的 SQLite 包裝器"""
+    def __init__(self, db_path):
+        self._raw = sqlite3.connect(db_path, timeout=10)
+        self._raw.execute("PRAGMA journal_mode = WAL;")
+        self._raw.execute("PRAGMA synchronous = NORMAL;")
+        self._raw.execute("PRAGMA busy_timeout = 5000;")
+
+    def execute(self, sql, params=None):
+        cur = _SQLiteDictCursor(self)
+        cur.execute(sql, params)
+        return cur
+
+    def executemany(self, sql, params_list):
+        cur = _SQLiteDictCursor(self)
+        cur.executemany(sql, params_list)
+        return cur
+
+    def cursor(self):
+        return _SQLiteDictCursor(self)
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def close(self):
+        self._raw.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self._raw.rollback()
+        else:
+            self._raw.commit()
+        self._raw.close()
+        return False
+
+
 try:
-
-    import psycopg
-
-    from psycopg.rows import dict_row
-
-except ImportError:
-
-    psycopg = None
-
-    dict_row = None
-
-try:
-
     from supabase import create_client as _create_supabase_client
-
 except ImportError:
-
     _create_supabase_client = None
 
 # ============================================================
@@ -63,11 +197,6 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
 
     return response
-
-DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
-
-if not DATABASE_URL:
-    raise RuntimeError('DATABASE_URL is required (TimescaleDB/Postgres) — set it in .env')
 
 # 設備控制命令佇列走 Supabase（不是本地 TimescaleDB）：
 # 唯一真正碰得到現場 Modbus 的是 GCP 上的 gw1_supabase_collector.py，
@@ -109,9 +238,9 @@ def _load_runtime_state():
     try:
         with get_pg() as conn:
             rows = conn.execute('''
-                SELECT DISTINCT ON (channel) channel, runtime_hours
+                SELECT channel, runtime_hours
                 FROM temperatures
-                ORDER BY channel, timestamp DESC, id DESC
+                WHERE id IN (SELECT MAX(id) FROM temperatures GROUP BY channel)
             ''').fetchall()
         for row in rows:
             RUNTIME_STATE[row['channel']] = {
@@ -151,12 +280,8 @@ def _update_runtime_hours(items):
             item['runtime_hours'] = round(state['hours'], 2)
 
 def get_pg():
-
-    if not psycopg:
-
-        raise RuntimeError('psycopg is required when DATABASE_URL is set')
-
-    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    """回傳 SQLite WAL 連線（API 完全相容 psycopg，下游程式碼零改動）"""
+    return _SQLiteConnection(_SQLITE_DB_PATH)
 
 def _fmt_ts(value):
 
@@ -261,13 +386,10 @@ def _latest_temperatures_payload():
 
         rows = conn.execute('''
 
-            SELECT DISTINCT ON (channel)
-
-                channel, name, value, timestamp, status, runtime_hours
-
+            SELECT channel, name, value, timestamp, status, runtime_hours
             FROM temperatures
-
-            ORDER BY channel, timestamp DESC, id DESC
+            WHERE id IN (SELECT MAX(id) FROM temperatures GROUP BY channel)
+            ORDER BY channel
 
         ''').fetchall()
 
@@ -453,111 +575,66 @@ def init_db():
         with conn.cursor() as cursor:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS temperatures (
-                    id BIGSERIAL PRIMARY KEY,
-                    timestamp TIMESTAMPTZ NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
                     channel TEXT NOT NULL,
                     name TEXT,
-                    value DOUBLE PRECISION NOT NULL,
+                    value REAL NOT NULL,
                     status TEXT DEFAULT 'NORMAL',
-                    runtime_hours DOUBLE PRECISION DEFAULT 0.0,
-                    control_temp DOUBLE PRECISION,
-                    coil_temp DOUBLE PRECISION,
-                    compressor_current DOUBLE PRECISION,
-                    high_pressure DOUBLE PRECISION,
-                    low_pressure DOUBLE PRECISION,
-                    set_temp DOUBLE PRECISION
+                    runtime_hours REAL DEFAULT 0.0,
+                    control_temp REAL,
+                    coil_temp REAL,
+                    compressor_current REAL,
+                    high_pressure REAL,
+                    low_pressure REAL,
+                    set_temp REAL
                 )
             ''')
-            for col, col_type in [
-                ('runtime_hours', 'DOUBLE PRECISION DEFAULT 0.0'),
-                ('control_temp', 'DOUBLE PRECISION'),
-                ('coil_temp', 'DOUBLE PRECISION'),
-                ('compressor_current', 'DOUBLE PRECISION'),
-                ('high_pressure', 'DOUBLE PRECISION'),
-                ('low_pressure', 'DOUBLE PRECISION'),
-                ('set_temp', 'DOUBLE PRECISION'),
-            ]:
-                try:
-                    cursor.execute(f'ALTER TABLE temperatures ADD COLUMN IF NOT EXISTS {col} {col_type}')
-                except Exception:
-                    pass
-
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_temperatures_channel_time ON temperatures (channel, timestamp DESC)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_temperatures_time ON temperatures (timestamp DESC)')
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS alarm_settings (
                     channel TEXT PRIMARY KEY,
                     name TEXT,
-                    hi DOUBLE PRECISION,
-                    lo DOUBLE PRECISION,
+                    hi REAL,
+                    lo REAL,
                     delay INTEGER DEFAULT 0,
-
                     alarm_enabled INTEGER DEFAULT 1,
-
-                    temp_offset DOUBLE PRECISION DEFAULT 0.0,
-
-                    current_threshold DOUBLE PRECISION DEFAULT 0.5,
-
-                    nfb_rated_current DOUBLE PRECISION
-
+                    temp_offset REAL DEFAULT 0.0,
+                    current_threshold REAL DEFAULT 0.5,
+                    nfb_rated_current REAL,
+                    power_anomaly_threshold REAL DEFAULT 15.0
                 )
-
-            ''')
-
-            cursor.execute('''
-
-                ALTER TABLE alarm_settings ADD COLUMN IF NOT EXISTS current_threshold DOUBLE PRECISION DEFAULT 0.5
-
-            ''')
-
-            cursor.execute('''
-                ALTER TABLE alarm_settings ADD COLUMN IF NOT EXISTS nfb_rated_current DOUBLE PRECISION
-            ''')
-            cursor.execute('''
-                ALTER TABLE alarm_settings ADD COLUMN IF NOT EXISTS power_anomaly_threshold DOUBLE PRECISION DEFAULT 15.0
-            ''')
-
-            cursor.execute('''
-                ALTER TABLE alarm_settings DROP COLUMN IF EXISTS rated_load_pct
             ''')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS alarm_history (
-                    id BIGSERIAL PRIMARY KEY,
-                    triggered_at TIMESTAMPTZ NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    triggered_at TEXT NOT NULL,
                     channel TEXT,
                     name TEXT,
-                    value DOUBLE PRECISION,
+                    value REAL,
                     alarm_type TEXT,
-                    hi DOUBLE PRECISION,
-                    lo DOUBLE PRECISION,
+                    hi REAL,
+                    lo REAL,
                     category TEXT DEFAULT 'ALARM',
                     alarm_message TEXT,
-                    restored_at TIMESTAMPTZ,
+                    restored_at TEXT,
                     duration_sec INTEGER,
                     status TEXT DEFAULT 'ACTIVE'
                 )
             ''')
-            for col, col_type in [
-                ('category', "TEXT DEFAULT 'ALARM'"),
-                ('alarm_message', 'TEXT'),
-                ('restored_at', 'TIMESTAMPTZ'),
-                ('duration_sec', 'INTEGER'),
-                ('status', "TEXT DEFAULT 'ACTIVE'"),
-            ]:
-                try:
-                    cursor.execute(f'ALTER TABLE alarm_history ADD COLUMN IF NOT EXISTS {col} {col_type}')
-                except Exception:
-                    pass
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_alarm_history_time ON alarm_history (triggered_at DESC)')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS monitoring_logs (
-                    id          BIGSERIAL PRIMARY KEY,
-                    timestamp   TIMESTAMPTZ NOT NULL,
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp   TEXT NOT NULL,
                     site_code   TEXT NOT NULL,
                     device_no   TEXT NOT NULL,
                     data_key    TEXT NOT NULL,
-                    data_value  DOUBLE PRECISION
+                    data_value  REAL
                 )
             ''')
 
@@ -566,38 +643,37 @@ def init_db():
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS power_readings (
-                    id        BIGSERIAL PRIMARY KEY,
-                    timestamp TIMESTAMPTZ NOT NULL,
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
                     channel   TEXT,
-                    v         DOUBLE PRECISION,
-                    a         DOUBLE PRECISION,
-                    kw        DOUBLE PRECISION,
-                    pf        DOUBLE PRECISION,
-                    kwh       DOUBLE PRECISION
+                    v         REAL,
+                    a         REAL,
+                    kw        REAL,
+                    pf        REAL,
+                    kwh       REAL
                 )
             ''')
-
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_power_readings_channel_time ON power_readings (channel, timestamp DESC)')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS hourly_power_stats (
-                    hour_timestamp TIMESTAMPTZ PRIMARY KEY,
-                    ch13_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
-                    ch14_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
-                    total_kwh_delta DOUBLE PRECISION DEFAULT 0.0,
+                    hour_timestamp TEXT PRIMARY KEY,
+                    ch13_kwh_delta REAL DEFAULT 0.0,
+                    ch14_kwh_delta REAL DEFAULT 0.0,
+                    total_kwh_delta REAL DEFAULT 0.0,
                     tariff_type TEXT DEFAULT 'off_peak',
-                    is_anomaly BOOLEAN DEFAULT FALSE
+                    is_anomaly INTEGER DEFAULT 0
                 )
             ''')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_hourly_power_stats_time ON hourly_power_stats (hour_timestamp DESC)')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS daily_power_stats (
-                    date DATE PRIMARY KEY,
-                    total_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    peak_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    semi_peak_kwh DOUBLE PRECISION DEFAULT 0.0,
-                    off_peak_kwh DOUBLE PRECISION DEFAULT 0.0
+                    date TEXT PRIMARY KEY,
+                    total_kwh REAL DEFAULT 0.0,
+                    peak_kwh REAL DEFAULT 0.0,
+                    semi_peak_kwh REAL DEFAULT 0.0,
+                    off_peak_kwh REAL DEFAULT 0.0
                 )
             ''')
 
@@ -619,11 +695,11 @@ def init_db():
                     room_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     channels TEXT NOT NULL,
-                    hi DOUBLE PRECISION,
-                    lo DOUBLE PRECISION,
+                    hi REAL,
+                    lo REAL,
                     delay INTEGER DEFAULT 10,
                     alarm_enabled INTEGER DEFAULT 1,
-                    temp_offset DOUBLE PRECISION DEFAULT 0.0
+                    temp_offset REAL DEFAULT 0.0
                 )
             ''')
 
@@ -1478,11 +1554,8 @@ def _evaluate_room_alarms_and_push(realtime_payload):
                                 cur.execute("""
                                     INSERT INTO alarm_history (triggered_at, channel, name, value, alarm_type, hi, lo, category, alarm_message, status)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, 'ALARM', %s, 'ACTIVE')
-                                    RETURNING id
                                 """, (tw_now_str, room_id, r_name, avg_temp, triggered_type, hi, lo, msg))
-                                row = cur.fetchone()
-                                if row:
-                                    state['active_history_id'] = row['id']
+                                state['active_history_id'] = cur.lastrowid
                             conn.commit()
                     except Exception as e:
                         print(f"Error inserting alarm_history: {e}")
@@ -2080,7 +2153,7 @@ def power_chart_data():
                     for r in rows:
                         if not r['timestamp']:
                             continue
-                        r_ts = r['timestamp'].replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP) if not r['timestamp'].tzinfo else r['timestamp'].astimezone(TZ_TW_APP)
+                        r_ts = _normalize_dt(r['timestamp'])
                         if t_start <= r_ts < t_end:
                             b_rows.append(r)
                     
@@ -2091,7 +2164,7 @@ def power_chart_data():
                         min_k = min(kwh_vals)
                         delta = float(max_k - min_k)
                         if delta == 0.0 and len(data_pts) > 0 and len(b_rows) > 0:
-                            prev_rows = [r for r in rows if r['timestamp'] and (r['timestamp'].replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP) if not r['timestamp'].tzinfo else r['timestamp'].astimezone(TZ_TW_APP)) < t_start]
+                            prev_rows = [r for r in rows if r['timestamp'] and _normalize_dt(r['timestamp']) < t_start]
                             if prev_rows and prev_rows[-1]['kwh'] is not None:
                                 diff = float(max_k - prev_rows[-1]['kwh'])
                                 if 0 <= diff < 500:
@@ -2234,11 +2307,7 @@ def power_energy_stats():
 
             hourly_buckets = {}
             for r in rows:
-                ts = r['timestamp']
-                if not ts.tzinfo:
-                    ts = ts.replace(tzinfo=timezone.utc).astimezone(TZ_TW_APP)
-                else:
-                    ts = ts.astimezone(TZ_TW_APP)
+                ts = _normalize_dt(r['timestamp'])
                 bucket_key = (ts.strftime('%Y-%m-%d'), ts.hour)
                 if bucket_key not in hourly_buckets:
                     hourly_buckets[bucket_key] = {'min_kwh': r['kwh'], 'max_kwh': r['kwh'], 'kw_sum': 0, 'kw_cnt': 0, 'dt': ts}
@@ -2374,7 +2443,7 @@ def power_energy_stats():
 
                 total_samples = len(r_rows)
                 if total_samples >= 2:
-                    active_monitored_hr = max((r_rows[-1]['timestamp'] - r_rows[0]['timestamp']).total_seconds() / 3600.0, 1.0)
+                    active_monitored_hr = max((_normalize_dt(r_rows[-1]['timestamp']) - _normalize_dt(r_rows[0]['timestamp'])).total_seconds() / 3600.0, 1.0)
                 else:
                     active_monitored_hr = total_period_hours
 

@@ -11,6 +11,8 @@
 *.bak
 *.tmp
 *.inspect.ndjson
+backups/
+data/
 
 # Python
 __pycache__/
