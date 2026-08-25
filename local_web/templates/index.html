@@ -2657,6 +2657,15 @@
     let currentRoomDistribution = [];
     let roomStatePieChartInstance = null;
 
+    let energyOverviewTimer = null;
+    function startEnergyOverviewTimer() {
+      stopEnergyOverviewTimer();
+      energyOverviewTimer = setInterval(loadEnergyOverview, 60000); // 60 秒平穩慢速更新一次
+    }
+    function stopEnergyOverviewTimer() {
+      if (energyOverviewTimer) { clearInterval(energyOverviewTimer); energyOverviewTimer = null; }
+    }
+
     function renderRoomEnergyPieChart(dist, totalHours) {
       currentRoomDistribution = dist || [];
       const lblTotal = document.getElementById('lbl-pie-total-hours');
@@ -2672,49 +2681,60 @@
       const colors = dist.map(d => d.color);
 
       if (roomEnergyPieChartInstance) {
-        roomEnergyPieChartInstance.destroy();
-      }
-
-      roomEnergyPieChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: data,
-            backgroundColor: colors,
-            borderWidth: 2,
-            borderColor: '#ffffff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                title: (tooltipItems) => {
-                  if (!tooltipItems.length) return '';
-                  const item = dist[tooltipItems[0].dataIndex];
-                  return `${item.name}：${item.hours} hr (${item.pct}%)`;
-                },
-                label: (ctx) => {
-                  const item = dist[ctx.dataIndex];
-                  if (!item.devices || item.devices.length === 0) {
-                    return `  總計: ${item.hours} hr (${item.pct}%)`;
-                  }
-                  return item.devices.map(d => `  • ${d.name}：${d.runtime_hours} hr`);
-                }
-              },
-              titleFont: { size: 12, weight: 'bold' },
-              bodyFont: { size: 11 },
-              padding: 10,
-              boxPadding: 4
-            }
-          },
-          cutout: '58%'
+        roomEnergyPieChartInstance.data.labels = labels;
+        if (roomEnergyPieChartInstance.data.datasets && roomEnergyPieChartInstance.data.datasets[0]) {
+          roomEnergyPieChartInstance.data.datasets[0].data = data;
+          roomEnergyPieChartInstance.data.datasets[0].backgroundColor = colors;
         }
-      });
+        roomEnergyPieChartInstance.update('none');
+      } else {
+        roomEnergyPieChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: colors,
+              borderWidth: 2,
+              borderColor: '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            transitions: {
+              active: { animation: { duration: 0 } },
+              resize: { animation: { duration: 0 } }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                animation: false,
+                callbacks: {
+                  title: (tooltipItems) => {
+                    if (!tooltipItems.length) return '';
+                    const item = dist[tooltipItems[0].dataIndex];
+                    return `${item.name}：${item.hours} hr (${item.pct}%)`;
+                  },
+                  label: (ctx) => {
+                    const item = dist[ctx.dataIndex];
+                    if (!item.devices || item.devices.length === 0) {
+                      return `  總計: ${item.hours} hr (${item.pct}%)`;
+                    }
+                    return item.devices.map(d => `  • ${d.name}：${d.runtime_hours} hr`);
+                  }
+                },
+                titleFont: { size: 12, weight: 'bold' },
+                bodyFont: { size: 11 },
+                padding: 10,
+                boxPadding: 4
+              }
+            },
+            cutout: '58%'
+          }
+        });
+      }
 
       // 圖例清單（支援點擊展開該庫設備總狀態時間聚合）
       const legendWrap = document.getElementById('room-energy-legend');
@@ -3324,7 +3344,9 @@
       if (page === 'energy') {
         stopRealtimeChart();
         loadEnergyOverview();
+        startEnergyOverviewTimer();
       } else if (page === 'chart') {
+        stopEnergyOverviewTimer();
         if (!filtersBuilt) buildChannelFilters();
         if (chartSeries.length === 0) {
           chartSeries.push({
@@ -3340,18 +3362,23 @@
         setTimeout(loadChartData, 80);
         if (currentRange !== 'custom') startRealtimeChart();
       } else if (page === 'alarm') {
+        stopEnergyOverviewTimer();
         loadAlarmHistory();
         stopRealtimeChart();
       } else if (page === 'report') {
+        stopEnergyOverviewTimer();
         initReportPage();
         stopRealtimeChart();
       } else {
+        stopEnergyOverviewTimer();
         stopRealtimeChart();
       }
     }
     function startRealtimeChart() {
       stopRealtimeChart();
-      realtimeTimer = setInterval(loadChartData, 5000);
+      if (currentRange === 'custom') return;
+      const intervalMs = (String(currentRange) === '1440') ? 30000 : (String(currentRange) === '360') ? 15000 : 5000;
+      realtimeTimer = setInterval(loadChartData, intervalMs);
     }
     function stopRealtimeChart() {
       if (realtimeTimer) { clearInterval(realtimeTimer); realtimeTimer = null; }
@@ -5303,55 +5330,68 @@
 
       const canvas = document.getElementById('tempChart');
       if (!canvas) return;
-      if (chartInstance) chartInstance.destroy();
 
-      chartInstance = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: { datasets },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          scales: {
-            x: {
-              type: 'time',
-              min: xMin,
-              max: xMax,
-              time: {
-                tooltipFormat: 'yyyy/MM/dd HH:mm:ss',
-                displayFormats: {
-                  second: 'HH:mm:ss',
-                  minute: 'HH:mm',
-                  hour: 'MM/dd HH:mm',
-                  day: 'MM/dd'
-                }
-              },
-              ticks: {
-                maxTicksLimit: 8,
-                maxRotation: 0,
-                autoSkip: true,
-                font: { size: 11 }
-              },
-              grid: { color: '#e2e8f0' }
+      if (chartInstance) {
+        // 就地更新現有圖表資料與時間軸邊界，完全不銷毀 Canvas 且關閉跳動動畫，達成 0 閃爍、平穩向左流動
+        chartInstance.data.datasets = datasets;
+        chartInstance.options.scales.x.min = xMin;
+        chartInstance.options.scales.x.max = xMax;
+        chartInstance.update('none');
+      } else {
+        chartInstance = new Chart(canvas.getContext('2d'), {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            transitions: {
+              active: { animation: { duration: 0 } },
+              resize: { animation: { duration: 0 } }
             },
-            y: {
-              beginAtZero: false,
-              grid: { color: '#e2e8f0' },
-              ticks: { font: { size: 11 } }
-            }
-          },
-          plugins: {
-            legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
-            tooltip: {
-              callbacks: {
-                label: function(ctx) {
-                  return ` ${ctx.dataset.label}: ${ctx.parsed.y}`;
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              x: {
+                type: 'time',
+                min: xMin,
+                max: xMax,
+                time: {
+                  tooltipFormat: 'yyyy/MM/dd HH:mm:ss',
+                  displayFormats: {
+                    second: 'HH:mm:ss',
+                    minute: 'HH:mm',
+                    hour: 'MM/dd HH:mm',
+                    day: 'MM/dd'
+                  }
+                },
+                ticks: {
+                  maxTicksLimit: 8,
+                  maxRotation: 0,
+                  autoSkip: true,
+                  font: { size: 11 }
+                },
+                grid: { color: '#e2e8f0' }
+              },
+              y: {
+                beginAtZero: false,
+                grid: { color: '#e2e8f0' },
+                ticks: { font: { size: 11 } }
+              }
+            },
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+              tooltip: {
+                animation: false,
+                callbacks: {
+                  label: function(ctx) {
+                    return ` ${ctx.dataset.label}: ${ctx.parsed.y}`;
+                  }
                 }
               }
             }
           }
-        }
-      });
+        });
+      }
 
       const statsBody = document.getElementById('stats-body');
       if (statsBody) {
