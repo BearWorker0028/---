@@ -18,7 +18,7 @@ echo.
 (
 echo Set WshShell = CreateObject^("WScript.Shell"^)
 echo WshShell.CurrentDirectory = "%SCRIPT_DIR%"
-echo WshShell.Run "cmd /c start_local.bat", 1, False
+echo WshShell.Run "cmd /c start.bat", 1, False
 ) > "%SHORTCUT_PATH%"
 
 if exist "%SHORTCUT_PATH%" (

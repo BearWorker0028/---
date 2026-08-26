@@ -12,13 +12,13 @@ echo.
 set "SCRIPT_DIR=%~dp0"
 set "DESKTOP_DIR=%USERPROFILE%\Desktop"
 set "SHORTCUT_PATH=%DESKTOP_DIR%\裕珍皇 智慧冷鏈監控系統.lnk"
-set "TARGET_VBS=%SCRIPT_DIR%裕珍皇冷鏈監控系統.vbs"
+set "TARGET_BAT=%SCRIPT_DIR%start.bat"
 set "ICON_PATH=%SCRIPT_DIR%local_web\static\YJH_logo.png"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$WshShell = New-Object -ComObject WScript.Shell; " ^
   "$Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); " ^
-  "$Shortcut.TargetPath = '%TARGET_VBS%'; " ^
+  "$Shortcut.TargetPath = '%TARGET_BAT%'; " ^
   "$Shortcut.WorkingDirectory = '%SCRIPT_DIR%'; " ^
   "$Shortcut.Description = '裕珍皇 智慧冷鏈監控與能源管理系統 (一鍵開啟)'; " ^
   "$Shortcut.Save()"
