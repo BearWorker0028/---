@@ -33,20 +33,12 @@ def get_desktop_path():
 def create_shortcut():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     target_bat = os.path.join(base_dir, "start.bat")
-    icon_ico = os.path.join(base_dir, "local_web", "static", "TL_logo.ico")
-    icon_png = os.path.join(base_dir, "local_web", "static", "TL_logo.png")
-
-    # 若尚未生成 .ico 檔，自動從 TL_logo.png 轉出多解析度 ICO
-    if not os.path.exists(icon_ico) and os.path.exists(icon_png):
-        try:
-            from PIL import Image
-            img = Image.open(icon_png).convert("RGBA")
-            img.save(icon_ico, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-        except Exception as e:
-            print(f"轉檔 ICO 失敗: {e}")
+    icon_ico = os.path.join(base_dir, "local_web", "static", "TL_logo_removed_bg.ico")
+    if not os.path.exists(icon_ico):
+        icon_ico = os.path.join(base_dir, "local_web", "static", "TL_logo.ico")
 
     desktop_dir = get_desktop_path()
-    shortcut_name = "裕珍皇 智慧冷鏈監控系統.lnk"
+    shortcut_name = "添利冷鍊監控系統.lnk"
     shortcut_path = os.path.join(desktop_dir, shortcut_name)
 
     # 透過 VBS / WScript.Shell 建立標準 Windows .lnk 捷徑
@@ -54,7 +46,7 @@ def create_shortcut():
 Set sc = ws.CreateShortcut("{shortcut_path}")
 sc.TargetPath = "{target_bat}"
 sc.WorkingDirectory = "{base_dir}"
-sc.Description = "裕珍皇 智慧冷鏈監控與能源管理系統 (一鍵開啟)"
+sc.Description = "添利冷鍊監控系統 (一鍵開啟)"
 '''
     if os.path.exists(icon_ico):
         vbs_content += f'sc.IconLocation = "{icon_ico},0"\n'

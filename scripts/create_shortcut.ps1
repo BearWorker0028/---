@@ -6,15 +6,18 @@ if (-not $desktop -or -not (Test-Path $desktop)) {
     $desktop = Join-Path $env:USERPROFILE "Desktop"
 }
 
-$shortcutPath = Join-Path $desktop "裕珍皇 智慧冷鏈監控系統.lnk"
+$shortcutPath = Join-Path $desktop "添利冷鍊監控系統.lnk"
 $targetBat = Join-Path $baseDir "start.bat"
-$iconPath = Join-Path $baseDir "local_web\static\TL_logo.ico"
+$iconPath = Join-Path $baseDir "local_web\static\TL_logo_removed_bg.ico"
+if (-not (Test-Path $iconPath)) {
+    $iconPath = Join-Path $baseDir "local_web\static\TL_logo.ico"
+}
 
 $wsh = New-Object -ComObject WScript.Shell
 $sc = $wsh.CreateShortcut($shortcutPath)
 $sc.TargetPath = $targetBat
 $sc.WorkingDirectory = $baseDir
-$sc.Description = "裕珍皇 智慧冷鏈監控與能源管理系統 (一鍵開啟)"
+$sc.Description = "添利冷鍊監控系統 (一鍵開啟)"
 if (Test-Path $iconPath) {
     $sc.IconLocation = "$iconPath,0"
 }

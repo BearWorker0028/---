@@ -18,8 +18,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create_shortcu
 echo.
 echo =====================================================
 echo   [OK] 桌面捷徑建立成功！
-echo   捷徑名稱: 裕珍皇 智慧冷鏈監控系統
-echo   捷徑圖示: 台菱牌 (TL_logo)
+echo   捷徑名稱: 添利冷鍊監控系統
+echo   捷徑圖示: 添利公司 (TL_logo_removed_bg)
 echo =====================================================
 echo.
 echo 請按任意鍵關閉此視窗...
