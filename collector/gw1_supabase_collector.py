@@ -353,7 +353,7 @@ def poll_and_execute_commands(conn):
         error_message = None
 
         if not dev:
-            error_message = f'通道 {ch} 不在 GW1 設備清單中'
+            continue  # 非 GW1 管轄之通道 (例如屬於 GW2)，跳過留給對應的收集器處理
         elif dev['type'] != 'IoT-627':
             error_message = f'通道 {ch} 非 IoT-627 溫控器，不支援此命令'
         elif cmd_type == 'set_temperature':

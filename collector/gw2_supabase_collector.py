@@ -252,6 +252,133 @@ def to_signed(raw):
     """將無號 16-bit 轉成有號整數"""
     return raw - 65536 if raw > 32767 else raw
 
+def send_modbus_write_request(conn, slave_id, register_address, value):
+    """
+    發送 Modbus TCP 寫入單一暫存器請求 (FC=06) 並驗證回應
+    回傳 True(成功) / False(逾時或回應不符/Modbus 例外碼)
+    連線確定失效時拋出 ConnectionDeadError，處理方式與讀取請求一致
+    """
+    tid = next_trans_id()
+    write_value = value & 0xFFFF
+
+    pdu = struct.pack('>BBHH', slave_id, 0x06, register_address, write_value)
+    mbap = struct.pack('>HHH', tid, 0x0000, len(pdu))
+    request = mbap + pdu
+
+    try:
+        conn.sendall(request)
+    except (BrokenPipeError, ConnectionResetError, OSError) as e:
+        raise ConnectionDeadError(f"傳送失敗: {e}")
+
+    try:
+        header = b''
+        while len(header) < 6:
+            chunk = conn.recv(6 - len(header))
+            if not chunk:
+                raise ConnectionDeadError("連線已被對方關閉 (EOF)")
+            header += chunk
+
+        _, _, resp_len = struct.unpack('>HHH', header)
+
+        body = b''
+        while len(body) < resp_len:
+            chunk = conn.recv(resp_len - len(body))
+            if not chunk:
+                raise ConnectionDeadError("連線已被對方關閉 (EOF)")
+            body += chunk
+
+        resp_fc = body[1]
+        if resp_fc >= 0x80:
+            error_code = body[2] if len(body) > 2 else None
+            logging.warning(f"Slave {slave_id} 寫入失敗，Modbus 例外碼: {error_code}")
+            return False
+
+        # FC=06 正常回應會 echo 回 address 與 value，用來驗證寫入確實成功
+        resp_addr, resp_val = struct.unpack('>HH', body[2:6])
+        if resp_addr != register_address or resp_val != write_value:
+            logging.warning(f"Slave {slave_id} 寫入回應不符：期望 addr={register_address},val={write_value}，實際 addr={resp_addr},val={resp_val}")
+            return False
+
+        return True
+
+    except socket.timeout:
+        logging.warning(f"Slave {slave_id} 寫入逾時 (Timeout)")
+        return False
+    except ConnectionDeadError:
+        raise
+    except Exception as e:
+        logging.error(f"寫入接收回應時發生錯誤: {e}")
+        return False
+
+# ── 4.1 遠端控制命令佇列 ──
+CONTROL_TEMPERATURE_SET_OFFSET = 6
+STOP_CONTROL_MODE_OFFSET = 178
+COMMAND_TABLE = "device_commands"
+
+def poll_and_execute_commands(conn):
+    """查詢 Supabase 待執行命令，透過現有 W610 連線寫入 Modbus，並回報結果"""
+    try:
+        resp = supabase.table(COMMAND_TABLE).select('*').eq('status', 'pending').limit(20).execute()
+        commands = resp.data or []
+    except Exception as e:
+        logging.error(f"取得待執行命令失敗: {e}")
+        return
+
+    if not commands:
+        return
+
+    dev_map = {d['ch']: d for d in DEVICES}
+
+    for cmd in commands:
+        cmd_id = cmd['id']
+        ch = cmd.get('channel')
+        cmd_type = cmd.get('command_type')
+        dev = dev_map.get(ch)
+
+        if not dev:
+            continue  # 非 GW2 管轄之通道 (例如屬於 GW1)，跳過留給對應的收集器處理
+
+        success = False
+        error_message = None
+
+        if dev['type'] != 'IoT-627':
+            error_message = f'通道 {ch} 非 IoT-627 溫控器，不支援此命令'
+        elif cmd_type == 'set_temperature':
+            try:
+                raw_value = round(float(cmd['value']) * 10) & 0xFFFF
+                success = send_modbus_write_request(conn, dev['id'], CONTROL_TEMPERATURE_SET_OFFSET, raw_value)
+                if success:
+                    logging.info(f"✅ [GW2 {ch}] 控制溫度設定已寫入: {cmd['value']}°C")
+                else:
+                    error_message = '寫入失敗或逾時'
+            except ConnectionDeadError:
+                raise
+            except Exception as e:
+                error_message = f'寫入發生例外: {e}'
+        elif cmd_type == 'set_power_state':
+            try:
+                raw_value = 1 if float(cmd['value']) == 1 else 0
+                success = send_modbus_write_request(conn, dev['id'], STOP_CONTROL_MODE_OFFSET, raw_value)
+                if success:
+                    logging.info(f"✅ [GW2 {ch}] 停控模式(A801)已寫入: {'開' if raw_value == 1 else '停'}")
+                else:
+                    error_message = '寫入失敗或逾時'
+            except ConnectionDeadError:
+                raise
+            except Exception as e:
+                error_message = f'寫入發生例外: {e}'
+        else:
+            error_message = f'不支援的命令類型: {cmd_type}'
+
+        try:
+            supabase.table(COMMAND_TABLE).update({
+                'status': 'success' if success else 'failed',
+                'error_message': error_message,
+                'executed_at': now_taiwan_str()
+            }).eq('id', cmd_id).execute()
+        except Exception as e:
+            logging.error(f"回報命令結果失敗 (id={cmd_id}): {e}")
+
 # ── 5. 主程式邏輯 ──
 def handle_w610_connection(conn, addr):
     """處理一個 W610 的連線：持續輪詢設備並寫入 Queue"""
@@ -380,6 +507,8 @@ def handle_w610_connection(conn, addr):
                     raise ConnectionDeadError(
                         f"連續 {consecutive_full_cycle_failures} 輪全部逾時，判定連線已失效 (可能是靜默斷線)"
                     )
+
+            poll_and_execute_commands(conn)
 
             time.sleep(POLL_INTERVAL_BATCH)
 
