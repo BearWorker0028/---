@@ -67,6 +67,71 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     logging.error("缺少 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY，請檢查 .env")
     sys.exit(1)
 
+def _setup_smart_network():
+    """
+    智能雙網卡相容：
+    當電腦同時接有 W610 串列網關 (10.10.100.x 無外網) 與 Wi-Fi / 外網時，
+    Windows 預設路由常會被無外網的實體網線佔據，導致 Supabase HTTPS 與 DNS 查詢失敗。
+    本函式自動探測可通往外網之網卡，並將雲端請求精準綁定至外網介面。
+    """
+    import socket
+    s_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s_test.settimeout(1.0)
+    can_reach_internet = (s_test.connect_ex(('8.8.8.8', 53)) == 0)
+    s_test.close()
+
+    if can_reach_internet:
+        return  # 預設網卡已能直通外網
+
+    try:
+        hostname = socket.gethostname()
+        local_ips = socket.gethostbyname_ex(hostname)[2]
+    except Exception:
+        local_ips = []
+
+    working_ip = None
+    for ip in local_ips:
+        if ip.startswith('127.') or ip.startswith('10.10.100.'):
+            continue
+        try:
+            s_try = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s_try.bind((ip, 0))
+            s_try.settimeout(1.5)
+            if s_try.connect_ex(('8.8.8.8', 53)) == 0:
+                working_ip = ip
+                s_try.close()
+                break
+            s_try.close()
+        except Exception:
+            pass
+
+    if not working_ip:
+        return
+
+    logging.info(f"偵測到多網卡環境，已將 Supabase 雲端連線自動路由至外網介面: {working_ip}")
+
+    orig_create_connection = socket.create_connection
+    orig_getaddrinfo = socket.getaddrinfo
+
+    def custom_getaddrinfo(host, port, *args, **kwargs):
+        if 'supabase.co' in str(host):
+            for fallback_ip in ['172.64.149.246', '104.18.38.10']:
+                try:
+                    return orig_getaddrinfo(fallback_ip, port, *args, **kwargs)
+                except Exception:
+                    pass
+        return orig_getaddrinfo(host, port, *args, **kwargs)
+
+    def custom_create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+        if source_address is None and address and address[0] not in ('127.0.0.1', 'localhost'):
+            source_address = (working_ip, 0)
+        return orig_create_connection(address, timeout, source_address)
+
+    socket.getaddrinfo = custom_getaddrinfo
+    socket.create_connection = custom_create_connection
+
+_setup_smart_network()
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # GW2 現場尚未架設（無 W610、無實體 IoT-627/SPM-3 連線），gw2_temp_status /
@@ -206,7 +271,8 @@ def publish_to_backend(readings, persist=False):
     payload = {
         'timestamp': tw_now_str(),
         'readings': readings,
-        'realtime_only': not persist
+        'realtime_only': not persist,
+        '_source': 'supabase'   # 來源標籤：讓 app.py 知道這是 Supabase 補位資料
     }
     try:
         resp = requests.post(f'{API_BASE}/api/temperatures', json=payload, timeout=5)

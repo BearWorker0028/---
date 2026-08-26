@@ -1760,7 +1760,7 @@
       <div class="si"><span class="slabel">監控點：</span><span class="sval" id="cnt-total">--</span></div>
 
       <!-- 網關連線移至右側 -->
-      <div style="margin-left:auto; display:flex; align-items:center; gap:16px;">
+      <div style="margin-left:auto; display:flex; align-items:center; gap:14px;">
         <div class="si"><span class="slabel">網關連線：</span></div>
         <div class="si">
           <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="gw-cnt-ok">--</span>
@@ -5513,13 +5513,15 @@
       document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
       tickClock();
       setInterval(tickClock, 1000);
-      await fetchAlarmSettings();
-      await fetchSystemConfig();
-      applyDisplayResolution(systemConfig.display_resolution);
-      populateChannelDropdowns();
-      await update();
-      startSSE();
+
+      try { await fetchAlarmSettings(); } catch(e) {}
+      try { await fetchSystemConfig(); } catch(e) {}
+      try { applyDisplayResolution(systemConfig.display_resolution); } catch(e) {}
+      try { populateChannelDropdowns(); } catch(e) {}
+      try { await update(); } catch(e) {}
+      try { startSSE(); } catch(e) {}
       setInterval(update, 10000);
+
       window.addEventListener('resize', () => {
         fitFpWrapper();
         applyDisplayResolution();

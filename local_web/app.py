@@ -221,6 +221,36 @@ REALTIME_LOCK = threading.Lock()
 
 REALTIME_PAYLOAD = {}
 
+# ── 雙來源快取（Modbus 優先 / Supabase 補位）──────────────────────
+MODBUS_PAYLOAD   = {}   # modbus_reader 寫入
+MODBUS_LAST_TS   = {}   # {channel: datetime} 最後 Modbus 更新時間
+SUPABASE_PAYLOAD = {}   # supabase_bridge 寫入
+MODBUS_TIMEOUT_SEC = int(os.getenv('MODBUS_TIMEOUT_SEC', '60'))  # 超過則 fallback
+
+def _merge_priority_payload():
+    """Modbus 優先，Supabase 補位，逐 channel 合併後更新 REALTIME_PAYLOAD。
+    - Modbus channel 在 MODBUS_TIMEOUT_SEC 秒內有更新 → 用 Modbus
+    - 超時或 Modbus 沒有該 channel → fallback 用 Supabase
+    """
+    now = datetime.now(TZ_TW_APP)
+    merged = {}
+    all_channels = set(MODBUS_PAYLOAD) | set(SUPABASE_PAYLOAD)
+    for ch in all_channels:
+        last_ts = MODBUS_LAST_TS.get(ch)
+        modbus_fresh = (
+            last_ts is not None
+            and (now - last_ts).total_seconds() < MODBUS_TIMEOUT_SEC
+            and ch in MODBUS_PAYLOAD
+        )
+        if modbus_fresh:
+            merged[ch] = {**MODBUS_PAYLOAD[ch], '_data_source': 'modbus'}
+        elif ch in SUPABASE_PAYLOAD:
+            merged[ch] = {**SUPABASE_PAYLOAD[ch], '_data_source': 'supabase'}
+    with REALTIME_LOCK:
+        REALTIME_PAYLOAD.clear()
+        REALTIME_PAYLOAD.update(merged)
+# ─────────────────────────────────────────────────────────────────────
+
 # ── 主機運轉時數累積（壓縮機電流超過各 channel 自訂閾值 且 製冷中 才計時）──
 RUNTIME_CURRENT_THRESHOLD_DEFAULT = float(os.getenv('RUNTIME_CURRENT_THRESHOLD', '3.0'))
 
@@ -1086,6 +1116,7 @@ def temperatures():
 
 @app.route('/api/temperatures', methods=['POST'])
 def add_temperatures():
+    global MODBUS_PAYLOAD, MODBUS_LAST_TS, SUPABASE_PAYLOAD
     try:
         payload = request.get_json(force=True) or {}
         raw_readings = payload.get('readings', payload)
@@ -1105,9 +1136,26 @@ def add_temperatures():
 
         realtime_payload = _payload_to_realtime(payload)
 
-        with REALTIME_LOCK:
-            REALTIME_PAYLOAD.clear()
-            REALTIME_PAYLOAD.update(realtime_payload)
+        # ── 雙來源分流：根據 payload._source 寫入對應快取 ──────────────
+        data_source = payload.get('_source', '')
+        now_tw = datetime.now(TZ_TW_APP)
+
+        if data_source == 'modbus':
+            # Modbus 直連資料：更新 Modbus 快取與時間戳記
+            MODBUS_PAYLOAD.update(realtime_payload)
+            for ch in realtime_payload:
+                MODBUS_LAST_TS[ch] = now_tw
+            _merge_priority_payload()
+        elif data_source == 'supabase':
+            # Supabase 橋接資料：更新 Supabase 快取
+            SUPABASE_PAYLOAD.update(realtime_payload)
+            _merge_priority_payload()
+        else:
+            # 無來源標籤（舊版相容）：直接寫入 REALTIME_PAYLOAD
+            with REALTIME_LOCK:
+                REALTIME_PAYLOAD.clear()
+                REALTIME_PAYLOAD.update(realtime_payload)
+        # ─────────────────────────────────────────────────────────────
 
         if payload.get('realtime_only'):
             timestamp = payload.get('timestamp') or datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
@@ -1116,7 +1164,8 @@ def add_temperatures():
                 'status': 'ok',
                 'saved': 0,
                 'realtime': len(realtime_payload),
-                'timestamp': payload.get('timestamp')
+                'timestamp': payload.get('timestamp'),
+                'data_source': data_source or 'legacy'
             })
 
         saved, timestamp = _save_temperature_payload(payload)
@@ -1124,7 +1173,7 @@ def add_temperatures():
 
     except (TypeError, ValueError) as exc:
         return jsonify({'error': str(exc)}), 400
-    return jsonify({'status': 'ok', 'saved': saved, 'timestamp': timestamp})
+    return jsonify({'status': 'ok', 'saved': saved, 'timestamp': timestamp, 'data_source': data_source or 'legacy'})
 
 @app.route('/api/temperature_stream')
 def temperature_stream():

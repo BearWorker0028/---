@@ -24,7 +24,10 @@ CHANNEL_CONFIG_EXAMPLE_PATH = os.path.join(BASE_DIR, 'channel_config.example.jso
 
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 if not DATABASE_URL:
-    raise RuntimeError('DATABASE_URL is required (TimescaleDB/Postgres) — set it in .env')
+    logging.warning(
+        'DATABASE_URL 未設定，將僅推送資料至 API，不寫入資料庫。'
+        '若需存儲歷史資料，請在 .env 設定 DATABASE_URL。'
+    )
 
 logging.basicConfig(
     level=logging.INFO,
@@ -604,11 +607,12 @@ def publish_to_backend(data):
         payload = {
             'timestamp': tw_now(),
             'readings': data,
-            'realtime_only': True
+            'realtime_only': True,
+            '_source': 'modbus'   # 來源標籤：讓 app.py 優先使用 Modbus 資料
         }
         resp = requests.post(f'{API_BASE}/api/temperatures', json=payload, timeout=5)
         if resp.status_code == 200:
-            logging.info(f"Published {len(data)} readings to backend")
+            logging.info(f"Published {len(data)} readings to backend [source=modbus]")
         else:
             logging.error(f"Publish failed HTTP {resp.status_code}: {resp.text}")
     except Exception as e:
@@ -631,7 +635,8 @@ if __name__ == '__main__':
             current_minute = now.strftime('%Y-%m-%d %H:%M')
             if current_minute != last_saved_minute:
                 ts = now.strftime('%Y-%m-%d %H:%M:%S')
-                save_to_postgres(data, ts)
+                if DATABASE_URL:
+                    save_to_postgres(data, ts)
                 last_saved_minute = current_minute
         else:
             logging.error("本次讀取無有效資料")
