@@ -2485,16 +2485,21 @@
       const n = Number(v);
       return Number.isFinite(n) ? n : 0.0;
     }
-    // ── 網關連線狀態判讀 ──
-    function checkGatewayStatus(gwChs, data, nowTs) {
-      let allOnline = true;
-      for (let ch of gwChs) {
-        const d = data[ch];
-        if (!d?.timestamp) { allOnline = false; break; }
-        const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
-        if (nowTs - dTs >= 30000) { allOnline = false; break; }
+    // ── 網關連線狀態判讀 (優先使用顯式 gateway_status，若無則以任一通道活躍判讀) ──
+    function checkGatewayStatus(gwId, gwChs, data, nowTs) {
+      if (data && data._gateway_status && data._gateway_status[gwId]) {
+        return Boolean(data._gateway_status[gwId].is_online);
       }
-      return allOnline;
+      // 容錯備援：只要該網關底下有任一通道在 60 秒內有最新資料，即判定網關存活
+      if (data) {
+        for (let ch of gwChs) {
+          const d = data[ch];
+          if (!d?.timestamp) continue;
+          const dTs = new Date(d.timestamp.replace(' ', 'T') + '+08:00').getTime();
+          if (nowTs - dTs < 60000) return true;
+        }
+      }
+      return false;
     }
     let alarmSettings = {};
     let chartInstance = null;
@@ -3882,8 +3887,22 @@
         if (d && (d.in_alarm || d.status === 'TRIGGERED' || d.room_status === 'TRIGGERED')) backendAlarm = true;
       });
 
+      const gwId = cfg.channels.some(ch => GW1_CHS.includes(ch)) ? 'GW1' : 'GW2';
+      const isGwOnline = checkGatewayStatus(gwId, gwId === 'GW1' ? GW1_CHS : GW2_CHS, data, nowTs);
+      let diagInfo = '';
+      let diagShort = '';
+      if (!anyOnline) {
+        if (!isGwOnline) {
+          diagShort = '網關連線中斷';
+          diagInfo = `【${gwId === 'GW1' ? '1F' : '3F'} 網關離線】請檢查 W610 電源與 Wi-Fi 連線`;
+        } else {
+          diagShort = '設備逾時 (網關在線)';
+          diagInfo = `【網關連線正常】但設備逾時未回應，請檢查配電盤或 485 線路`;
+        }
+      }
+
       const status = !anyOnline ? 'OFFLINE' : (isAlarm || backendAlarm) ? 'TRIGGERED' : 'NORMAL';
-      return { online: anyOnline, value: avg, status, dots };
+      return { online: anyOnline, value: avg, status, dots, isGwOnline, diagInfo, diagShort };
     }
     // 溫控卡片：頭部區域名稱(依警報變色) + 左上角設備燈號陣列 + 中央大號聚合溫度
     function tempCardHtml(cardId, agg) {
@@ -3900,11 +3919,12 @@
       }).join('');
       const valueClass = isTriggered ? 't-alarm' : isOffline ? 't-off' : 't-ok';
       const valueHtml = (agg.online && Number.isFinite(agg.value)) ? `${agg.value.toFixed(1)}<span class="tu">°C</span>` : `--<span class="tu">°C</span>`;
+      const diagBadgeHtml = (isOffline && agg.diagShort) ? `<div style="font-size:10px; color:#94a3b8; font-weight:700; margin-top:2px;" title="${agg.diagInfo}">${agg.diagShort}</div>` : '';
       return `
-      <div class="sc${isTriggered ? ' alarm' : ''}${isOffline ? ' offline' : ''}" onclick="openControlModal('${cardId}')">
+      <div class="sc${isTriggered ? ' alarm' : ''}${isOffline ? ' offline' : ''}" onclick="openControlModal('${cardId}')" title="${isOffline ? agg.diagInfo : ''}">
         <div class="sc-header" style="background:${headerBg}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px; min-height:38px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;">${cfg.name}</div>
         <div class="card-mid" style="flex:1; padding:8px 12px 12px; display:flex; flex-direction:column; justify-content:space-between;">
-          <div class="tv ${valueClass}" style="text-align:center;">${valueHtml}</div>
+          <div class="tv ${valueClass}" style="text-align:center;">${valueHtml}${diagBadgeHtml}</div>
           <div class="sc-lights" style="display:flex; gap:4px; margin-top:6px;">${dotsHtml}</div>
         </div>
       </div>`;
@@ -4043,8 +4063,8 @@
       setText('cnt-alarm', al);
       setText('cnt-off', off);
       setText('cnt-total', `${onlineCount} / ${ALL_CHS.length}`);
-      const gw1Online = checkGatewayStatus(GW1_CHS, data, nowTs);
-      const gw2Online = checkGatewayStatus(GW2_CHS, data, nowTs);
+      const gw1Online = checkGatewayStatus('GW1', GW1_CHS, data, nowTs);
+      const gw2Online = checkGatewayStatus('GW2', GW2_CHS, data, nowTs);
       const gwOffCount = [gw1Online, gw2Online].filter(v => !v).length;
       setText('gw-cnt-ok', [gw1Online, gw2Online].filter(Boolean).length);
       setText('gw-cnt-off', gwOffCount);

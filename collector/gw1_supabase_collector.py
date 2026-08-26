@@ -70,6 +70,82 @@ DEVICES = [
     {"ch": "ch13", "id": 8, "type": "SPM-3",   "name": "1F 集合式電錶"},
 ]
 
+# ── 1.1 網關與設備連線診斷設定 ──
+GATEWAY_ID = "GW1"
+GATEWAY_NAME = "1F 網關 (GW1)"
+
+_last_gw_status = {}
+_last_dev_status = {}
+
+def report_gateway_status(is_online, client_ip=None, port=TCP_SERVER_PORT, error_message=None):
+    """回報網關整體連線狀態至 Supabase (gateway_status)，含 30 秒心跳與狀態變更過濾"""
+    now = time.time()
+    last = _last_gw_status.get(GATEWAY_ID)
+    need_update = False
+    if not last:
+        need_update = True
+    elif last['is_online'] != is_online or last.get('error_message') != error_message:
+        need_update = True
+    elif (now - last['time']) >= 30:
+        need_update = True
+
+    if need_update:
+        payload = {
+            "gateway_id": GATEWAY_ID,
+            "gateway_name": GATEWAY_NAME,
+            "is_online": is_online,
+            "client_ip": client_ip or (last['client_ip'] if last else None),
+            "port": port,
+            "last_heartbeat": now_taiwan_str(),
+            "error_message": error_message,
+            "updated_at": now_taiwan_str(),
+            "_table": "gateway_status"
+        }
+        _last_gw_status[GATEWAY_ID] = {
+            'is_online': is_online,
+            'client_ip': payload['client_ip'],
+            'port': port,
+            'error_message': error_message,
+            'time': now
+        }
+        db_queue.put(payload)
+
+def report_device_status(slave_id, channel, name, dev_type, is_online, fault_code=0, error_message=None):
+    """回報單一從機設備狀態至 Supabase (device_status)，含狀態過濾"""
+    now = time.time()
+    key = (GATEWAY_ID, slave_id)
+    last = _last_dev_status.get(key)
+    need_update = False
+    if not last:
+        need_update = True
+    elif last['is_online'] != is_online or last.get('fault_code') != fault_code or last.get('error_message') != error_message:
+        need_update = True
+    elif (now - last['time']) >= 30:
+        need_update = True
+
+    if need_update:
+        payload = {
+            "gateway_id": GATEWAY_ID,
+            "slave_id": slave_id,
+            "channel": channel,
+            "device_name": name,
+            "device_type": dev_type,
+            "is_online": is_online,
+            "fault_code": fault_code,
+            "last_response": now_taiwan_str() if is_online else (last.get('last_response') if last else None),
+            "error_message": error_message,
+            "updated_at": now_taiwan_str(),
+            "_table": "device_status"
+        }
+        _last_dev_status[key] = {
+            'is_online': is_online,
+            'fault_code': fault_code,
+            'error_message': error_message,
+            'last_response': payload['last_response'],
+            'time': now
+        }
+        db_queue.put(payload)
+
 # ── 2. 背景寫入 Supabase Worker ──
 def supabase_worker():
     """背景執行緒：處理資料庫寫入 (Upsert)"""
@@ -81,12 +157,18 @@ def supabase_worker():
                 break
                 
             table_name = payload.pop("_table", None)
+            if not table_name:
+                db_queue.task_done()
+                continue
             try:
                 # 寫入 Supabase (使用 Upsert 更新最新狀態)
                 supabase.table(table_name).upsert(payload).execute()
-                logging.debug(f"✅ 成功更新狀態至 Supabase [{table_name}]: {payload['channel']}")
+                logging.debug(f"✅ 成功更新狀態至 Supabase [{table_name}]: {payload.get('channel') or payload.get('gateway_id')}")
             except Exception as e:
-                logging.error(f"❌ Supabase 狀態更新失敗 [{table_name}]: {e}")
+                if table_name in ('gateway_status', 'device_status'):
+                    logging.debug(f"⚠️ 診斷表寫入暫未生效 [{table_name}]: {e}")
+                else:
+                    logging.error(f"❌ Supabase 狀態更新失敗 [{table_name}]: {e}")
                 
             db_queue.task_done()
         except Exception as e:
@@ -316,6 +398,7 @@ def handle_w610_connection(conn, addr):
     """處理一個 W610 的連線：持續輪詢設備並寫入 Queue"""
     logging.info(f"🔗 W610 已連入！來源: {addr[0]}:{addr[1]}")
     logging.info("開始自動輪詢並轉發數據至 Supabase...")
+    report_gateway_status(is_online=True, client_ip=addr[0], port=TCP_SERVER_PORT, error_message=None)
     
     conn.settimeout(RESPONSE_TIMEOUT)
 
@@ -343,6 +426,7 @@ def handle_w610_connection(conn, addr):
 
                     if all_regs is None:
                         logging.warning(f"⚠️ {ch_id} ({dev_name}) 無回應 (Timeout)。")
+                        report_device_status(slave_id, ch_id, dev_name, dev_type, is_online=False, error_message="Timeout")
                     else:
                         db_payload["raw_data"] = {f"40{i+1:03d}": val for i, val in enumerate(all_regs)}
 
@@ -380,6 +464,7 @@ def handle_w610_connection(conn, addr):
 
                         db_queue.put(db_payload)
                         cycle_had_success = True
+                        report_device_status(slave_id, ch_id, dev_name, dev_type, is_online=True, fault_code=r37)
                         logging.info(f"📡 {ch_id} ({dev_name}) | 溫度: {db_payload.get('control_temp')} °C | 故障碼: {db_payload.get('fault_code')}")
 
                 elif dev_type == "SPM-3":
@@ -389,17 +474,13 @@ def handle_w610_connection(conn, addr):
 
                     if r1 is None or r2 is None:
                         logging.warning(f"⚠️ {ch_id} ({dev_name}) 無回應 (Timeout)。")
+                        report_device_status(slave_id, ch_id, dev_name, dev_type, is_online=False, error_message="Timeout")
                     else:
                         db_payload["raw_data"] = {
                             "1030_1099": list(r1),
                             "1182_1183": list(r2)
                         }
 
-                        # 依現場實測原始暫存器反推驗證過的正確 offset：
-                        # I_a+I_b+I_c 平均 = I_avg（誤差0）、kW_a+kW_b+kW_c = kW_total（誤差0），
-                        # 這樣的「總和=分量相加」完全吻合才確認出正確位置。
-                        # 舊版 offset (22/24/26/30/44/66/68) 其實讀到的是 kW_a/b/c 與 kVA_total 等
-                        # 完全不同的欄位，被誤標成電流/實功率，導致電流與功率公式對不起來。
                         db_payload.update({
                             "voltage_rs":     decode_float32(r1, 2),
                             "voltage_st":     decode_float32(r1, 4),
@@ -419,6 +500,7 @@ def handle_w610_connection(conn, addr):
 
                         db_queue.put(db_payload)
                         cycle_had_success = True
+                        report_device_status(slave_id, ch_id, dev_name, dev_type, is_online=True, fault_code=0)
                         logging.info(f"⚡ {ch_id} ({dev_name}) | 總電壓: {db_payload.get('voltage_avg')} V | 平均電流: {db_payload.get('current_avg')} A | 用電量: {db_payload.get('energy_total')} kWh")
 
                 time.sleep(POLL_INTERVAL_BETWEEN_DEVICES)
@@ -439,9 +521,12 @@ def handle_w610_connection(conn, addr):
 
     except (BrokenPipeError, ConnectionResetError, OSError, ConnectionDeadError) as e:
         logging.warning(f"⚠️ W610 連線中斷: {e}")
+        report_gateway_status(is_online=False, client_ip=addr[0] if 'addr' in locals() else None, port=TCP_SERVER_PORT, error_message=str(e))
         logging.info("等待 W610 重新連線...")
     except KeyboardInterrupt:
         raise
+    finally:
+        report_gateway_status(is_online=False, client_ip=addr[0] if 'addr' in locals() else None, port=TCP_SERVER_PORT, error_message="連線已中斷，等待重新連入")
 
 def main():
     logging.info("=" * 72)

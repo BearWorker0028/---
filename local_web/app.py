@@ -251,6 +251,15 @@ def _merge_priority_payload():
         REALTIME_PAYLOAD.update(merged)
 # ─────────────────────────────────────────────────────────────────────
 
+# ── 顯式網關與設備連線診斷快取 ──────────────────────────────────────
+DIAGNOSTIC_LOCK = threading.Lock()
+GATEWAY_STATUS_CACHE = {
+    'GW1': {'gateway_id': 'GW1', 'gateway_name': '1F 網關 (GW1)', 'is_online': False, 'port': 8801},
+    'GW2': {'gateway_id': 'GW2', 'gateway_name': '3F 網關 (GW2)', 'is_online': False, 'port': 1883}
+}
+DEVICE_STATUS_CACHE = {}
+# ─────────────────────────────────────────────────────────────────────
+
 # ── 主機運轉時數累積（壓縮機電流超過各 channel 自訂閾值 且 製冷中 才計時）──
 RUNTIME_CURRENT_THRESHOLD_DEFAULT = float(os.getenv('RUNTIME_CURRENT_THRESHOLD', '3.0'))
 
@@ -405,66 +414,53 @@ def _alarm_settings_map():
         return {r['channel']: dict(r) for r in rows}
 
 def _latest_temperatures_payload():
-
     with REALTIME_LOCK:
-
         if REALTIME_PAYLOAD:
-
-            return dict(REALTIME_PAYLOAD)
+            res = dict(REALTIME_PAYLOAD)
+            with DIAGNOSTIC_LOCK:
+                if GATEWAY_STATUS_CACHE:
+                    res['_gateway_status'] = dict(GATEWAY_STATUS_CACHE)
+                if DEVICE_STATUS_CACHE:
+                    res['_device_status'] = dict(DEVICE_STATUS_CACHE)
+            return res
 
     with get_pg() as conn:
-
         rows = conn.execute('''
-
             SELECT channel, name, value, timestamp, status, runtime_hours
             FROM temperatures
             WHERE id IN (SELECT MAX(id) FROM temperatures GROUP BY channel)
             ORDER BY channel
-
         ''').fetchall()
 
     alarm_map = _alarm_settings_map()
-
     result = {}
-
     for row in rows:
-
         ch = row['channel']
-
         value = row['value']
-
         ch_setting = alarm_map.get(ch, {})
-
         hi = ch_setting.get('hi')
-
         lo = ch_setting.get('lo')
-
         alarm_enabled = ch_setting.get('alarm_enabled')
         alarm_enabled = True if alarm_enabled is None else bool(alarm_enabled)
-
         status = row.get('status') or 'NORMAL'
 
         result[ch] = {
-
             'channel': ch,
-
             'name': row['name'],
-
             'value': value,
-
             'timestamp': _fmt_ts(row['timestamp']),
-
             'hi': hi,
-
             'lo': lo,
-
             'in_alarm': alarm_enabled and ((hi is not None and value > hi) or (lo is not None and value < lo)),
-
             'status': status,
-
             'runtime_hours': row.get('runtime_hours', 0.0)
-
         }
+
+    with DIAGNOSTIC_LOCK:
+        if GATEWAY_STATUS_CACHE:
+            result['_gateway_status'] = dict(GATEWAY_STATUS_CACHE)
+        if DEVICE_STATUS_CACHE:
+            result['_device_status'] = dict(DEVICE_STATUS_CACHE)
 
     return result
 
@@ -1109,6 +1105,47 @@ def remote():
         abort(403, description=f"拒絕存取：尚未授權此 IP ({client_ip}) 檢視遠端監控畫面。")
         
     return render_template('remote.html')
+
+@app.route('/api/gateway_status', methods=['GET', 'POST'])
+def api_gateway_status():
+    global GATEWAY_STATUS_CACHE
+    if request.method == 'POST':
+        data = request.get_json(force=True) or []
+        if isinstance(data, list):
+            with DIAGNOSTIC_LOCK:
+                for item in data:
+                    gw_id = item.get('gateway_id')
+                    if gw_id:
+                        GATEWAY_STATUS_CACHE[gw_id] = item
+        elif isinstance(data, dict):
+            with DIAGNOSTIC_LOCK:
+                gw_id = data.get('gateway_id')
+                if gw_id:
+                    GATEWAY_STATUS_CACHE[gw_id] = data
+        return jsonify({'status': 'ok', 'count': len(GATEWAY_STATUS_CACHE)})
+    with DIAGNOSTIC_LOCK:
+        return jsonify(dict(GATEWAY_STATUS_CACHE))
+
+@app.route('/api/device_status', methods=['GET', 'POST'])
+def api_device_status():
+    global DEVICE_STATUS_CACHE
+    if request.method == 'POST':
+        data = request.get_json(force=True) or []
+        if isinstance(data, list):
+            with DIAGNOSTIC_LOCK:
+                for item in data:
+                    ch = item.get('channel')
+                    if ch:
+                        DEVICE_STATUS_CACHE[ch] = item
+        elif isinstance(data, dict):
+            with DIAGNOSTIC_LOCK:
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        ch = v.get('channel') or k
+                        DEVICE_STATUS_CACHE[ch] = v
+        return jsonify({'status': 'ok', 'count': len(DEVICE_STATUS_CACHE)})
+    with DIAGNOSTIC_LOCK:
+        return jsonify(dict(DEVICE_STATUS_CACHE))
 
 @app.route('/api/temperatures')
 def temperatures():

@@ -284,6 +284,41 @@ def publish_to_backend(readings, persist=False):
     return False
 
 
+def fetch_diagnostic_status():
+    """從 Supabase 拉取 gateway_status 與 device_status 診斷資訊"""
+    gw_data = []
+    dev_data = []
+    try:
+        r = supabase.table('gateway_status').select('*').execute()
+        if r and r.data:
+            gw_data = r.data
+    except Exception:
+        pass
+
+    try:
+        r = supabase.table('device_status').select('*').execute()
+        if r and r.data:
+            dev_data = r.data
+    except Exception:
+        pass
+
+    return gw_data, dev_data
+
+
+def publish_diagnostics(gw_data, dev_data):
+    """將診斷資料轉發至本機 local_web API 端點"""
+    if gw_data:
+        try:
+            requests.post(f'{API_BASE}/api/gateway_status', json=gw_data, timeout=3)
+        except Exception:
+            pass
+    if dev_data:
+        try:
+            requests.post(f'{API_BASE}/api/device_status', json=dev_data, timeout=3)
+        except Exception:
+            pass
+
+
 def main():
     logging.info("=" * 72)
     logging.info("🌉 臨時資料橋接啟動：Supabase 即時狀態 → 本機 /api/temperatures")
@@ -311,6 +346,11 @@ def main():
                     last_saved_minute = current_minute
             else:
                 logging.warning("本輪未取得任何 Supabase 資料")
+
+            # 同步拉取並轉發網關與設備連線診斷狀態
+            gw_data, dev_data = fetch_diagnostic_status()
+            publish_diagnostics(gw_data, dev_data)
+
         except KeyboardInterrupt:
             raise
         except Exception as e:
