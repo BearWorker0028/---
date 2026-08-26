@@ -134,13 +134,9 @@ _setup_smart_network()
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# GW2 現場尚未架設（無 W610、無實體 IoT-627/SPM-3 連線），gw2_temp_status /
-# gw2_meter_status 兩張表裡的資料是最後一次測試殘留的舊值，不是真實讀數。
-# 先完全不去抓這兩張表，讓 GW2 底下的通道在前端直接顯示斷線，
-# 而不是誤把陳舊資料當成即時資料。等 GW2 現場真的架好、GCP 上
-# gw2_supabase_collector.py 開始收到真實資料後，再把下面兩行加回來。
-TEMP_TABLES = ['gw1_temp_status']
-METER_TABLES = ['gw1_meter_status']
+# GW1 與 GW2 全面上線：同時拉取 gw1 與 gw2 之即時狀態表
+TEMP_TABLES = ['gw1_temp_status', 'gw2_temp_status']
+METER_TABLES = ['gw1_meter_status', 'gw2_meter_status']
 
 
 def tw_now_str():
