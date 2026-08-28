@@ -200,8 +200,11 @@ def fetch_temp_readings():
                     'cooling': bool(_safe(row, 'status_cooling', False)),
                     'defrost': bool(_safe(row, 'status_defrost', False)),
                     'fan': bool(_safe(row, 'status_fan', False)),
-                    'eq_err': bool(_safe(row, 'status_equip_err', False)),
-                    'temp_err': bool(_safe(row, 'status_sensor_err', False)),
+                    'eq_err': bool(_safe(row, 'status_equip_err', False)) or bool(_safe(row, 'status_overload_err', False)) or bool(_safe(row, 'status_phase_err', False)),
+                    'overload_err': bool(_safe(row, 'status_overload_err', False)),
+                    'phase_err': bool(_safe(row, 'status_phase_err', False)),
+                    'sensor_err': bool(_safe(row, 'status_sensor_err', False)),
+                    'temp_err': False,
                 },
                 '_source': 'supabase',
                 '_updated_at': row.get('updated_at'),
@@ -319,6 +322,34 @@ def publish_diagnostics(gw_data, dev_data):
             pass
 
 
+def sync_cloud_configs_to_backend():
+    """從 Supabase 拉取 system_config, room_alarm_settings 與 alarm_settings 並同步至本地端點"""
+    try:
+        r_sys = supabase.table('system_config').select('*').execute()
+        r_rooms = supabase.table('room_alarm_settings').select('*').execute()
+        r_alarms = None
+        try:
+            r_alarms = supabase.table('alarm_settings').select('*').execute()
+        except Exception:
+            pass
+
+        sys_data = r_sys.data if r_sys and r_sys.data else []
+        room_data = r_rooms.data if r_rooms and r_rooms.data else []
+        alarm_data = r_alarms.data if r_alarms and r_alarms.data else []
+
+        if sys_data or room_data or alarm_data:
+            resp = requests.post(f'{API_BASE}/api/sync_cloud_config', json={
+                'system_config': sys_data,
+                'room_alarm_settings': room_data,
+                'alarm_settings': alarm_data
+            }, timeout=5)
+            if resp.status_code == 200:
+                res = resp.json()
+                logging.info(f"⚙️ 雲端設定同步完成 (系統設定: {res.get('updated_system_config', 0)} 筆, 庫房門檻: {res.get('updated_room_settings', 0)} 筆)")
+    except Exception as e:
+        logging.debug(f"雲端設定同步暫未完成: {e}")
+
+
 def main():
     logging.info("=" * 72)
     logging.info("🌉 臨時資料橋接啟動：Supabase 即時狀態 → 本機 /api/temperatures")
@@ -331,6 +362,8 @@ def main():
     logging.info("=" * 72)
 
     last_saved_minute = None
+    CONFIG_SYNC_INTERVAL = 15.0  # 每 15 秒同步一次雲端設定
+    last_config_sync = 0
 
     while True:
         try:
@@ -350,6 +383,12 @@ def main():
             # 同步拉取並轉發網關與設備連線診斷狀態
             gw_data, dev_data = fetch_diagnostic_status()
             publish_diagnostics(gw_data, dev_data)
+
+            # 每 15 秒同步一次雲端設定 (system_config 與 room_alarm_settings)
+            now_ts = time.time()
+            if now_ts - last_config_sync >= CONFIG_SYNC_INTERVAL:
+                sync_cloud_configs_to_backend()
+                last_config_sync = now_ts
 
         except KeyboardInterrupt:
             raise

@@ -413,6 +413,67 @@ def _alarm_settings_map():
 
         return {r['channel']: dict(r) for r in rows}
 
+def _load_room_alarm_settings_dict():
+    try:
+        with get_pg() as conn:
+            rows = conn.execute('SELECT room_id, name, channels, hi, lo, delay, alarm_enabled, temp_offset FROM room_alarm_settings ORDER BY room_id').fetchall()
+            result = {}
+            for r in rows:
+                result[r['room_id']] = {
+                    'room_id': r['room_id'],
+                    'name': r['name'],
+                    'channels': [c.strip() for c in r['channels'].split(',') if c.strip()],
+                    'hi': r['hi'],
+                    'lo': r['lo'],
+                    'delay': r.get('delay') if r.get('delay') is not None else 10,
+                    'alarm_enabled': r.get('alarm_enabled') if r.get('alarm_enabled') is not None else 1,
+                    'temp_offset': r.get('temp_offset') or 0.0
+                }
+            return result
+    except Exception:
+        return {}
+
+def _build_room_alarm_status_dict():
+    res = {}
+    now_ts = time.time()
+    room_settings = _load_room_alarm_settings_dict()
+    for room_id, state in list(_ROOM_ALARM_TRACKER.items()):
+        cfg = room_settings.get(room_id, {})
+        alarm_enabled = bool(cfg.get('alarm_enabled', 1))
+        delay_sec = int(cfg.get('delay', 10)) * 60 if cfg.get('delay') is not None else state.get('delay_sec', 600)
+        p_start = state.get('pending_alarm_start')
+        p_type = state.get('pending_alarm_type')
+        is_active = state.get('is_alarm_active', False)
+
+        if not alarm_enabled:
+            # 停用警報：強制 NORMAL，絕對不計時、不發報
+            state['pending_alarm_start'] = None
+            state['pending_alarm_type'] = None
+            state['is_alarm_active'] = False
+            stage = 'NORMAL'
+            elapsed = 0
+        elif is_active:
+            stage = 'TRIGGERED' # 恆亮：已達延遲時間，已發報
+            elapsed = round(now_ts - p_start) if p_start else 0
+        elif p_start and (now_ts - p_start) < delay_sec:
+            stage = 'PENDING'   # 閃爍：超溫計時中
+            elapsed = round(now_ts - p_start)
+        else:
+            stage = 'NORMAL'
+            elapsed = 0
+
+        res[room_id] = {
+            'room_id': room_id,
+            'stage': stage,
+            'alarm_type': state.get('active_alarm_type') or p_type,
+            'is_active': is_active and alarm_enabled,
+            'alarm_enabled': alarm_enabled,
+            'delay_sec': delay_sec,
+            'elapsed_sec': elapsed,
+            'remaining_sec': max(0, delay_sec - elapsed) if stage == 'PENDING' else 0
+        }
+    return res
+
 def _latest_temperatures_payload():
     with REALTIME_LOCK:
         if REALTIME_PAYLOAD:
@@ -422,6 +483,7 @@ def _latest_temperatures_payload():
                     res['_gateway_status'] = dict(GATEWAY_STATUS_CACHE)
                 if DEVICE_STATUS_CACHE:
                     res['_device_status'] = dict(DEVICE_STATUS_CACHE)
+            res['_room_alarm_status'] = _build_room_alarm_status_dict()
             return res
 
     with get_pg() as conn:
@@ -462,6 +524,7 @@ def _latest_temperatures_payload():
         if DEVICE_STATUS_CACHE:
             result['_device_status'] = dict(DEVICE_STATUS_CACHE)
 
+    result['_room_alarm_status'] = _build_room_alarm_status_dict()
     return result
 
 def _normalize_dt(val):
@@ -1247,24 +1310,44 @@ def get_alarm_settings():
 
 @app.route('/api/alarm_settings', methods=['POST'])
 def save_alarm_settings():
-    data = request.json
+    data = request.json or {}
+    cloud_items = []
     with get_pg() as conn:
         with conn.cursor() as cursor:
             for channel, setting in data.items():
+                hi = setting.get('hi')
+                lo = setting.get('lo')
+                delay = int(setting.get('delay', 0))
+                enabled = int(setting.get('alarm_enabled', 1))
+                offset = float(setting.get('temp_offset', 0))
+                thresh = float(setting.get('current_threshold', 0.5))
+                nfb = (float(setting['nfb_rated_current']) if setting.get('nfb_rated_current') not in (None, '') else None)
                 cursor.execute('''
                     UPDATE alarm_settings
                     SET hi=%s, lo=%s, delay=%s, alarm_enabled=%s, temp_offset=%s, current_threshold=%s, nfb_rated_current=%s
                     WHERE channel=%s
-                ''', (
-                    setting.get('hi'),
-                    setting.get('lo'),
-                    setting.get('delay', 0),
-                    int(setting.get('alarm_enabled', 1)),
-                    float(setting.get('temp_offset', 0)),
-                    float(setting.get('current_threshold', 0.5)),
-                    (float(setting['nfb_rated_current']) if setting.get('nfb_rated_current') not in (None, '') else None),
-                    channel
-                ))
+                ''', (hi, lo, delay, enabled, offset, thresh, nfb, channel))
+                cloud_items.append({
+                    'channel': channel,
+                    'hi': hi,
+                    'lo': lo,
+                    'delay': delay,
+                    'alarm_enabled': enabled,
+                    'temp_offset': offset,
+                    'current_threshold': thresh,
+                    'nfb_rated_current': nfb,
+                    'updated_at': tw_now_str()
+                })
+
+    # 同步至 Supabase 雲端
+    if cloud_items:
+        try:
+            sb = _get_supabase_client()
+            if sb:
+                sb.table('alarm_settings').upsert(cloud_items).execute()
+        except Exception as e:
+            print(f"[Supabase Sync] alarm_settings 雲端同步失敗: {e}")
+
     return jsonify({'status': 'ok'})
 
 @app.route('/api/system_config', methods=['GET'])
@@ -1287,6 +1370,7 @@ def get_system_config():
 def save_system_config():
     data = request.json or {}
     keys = ['line_bot_enabled', 'line_channel_token', 'line_target_id', 'alarm_cooldown_min', 'warning_cooldown_min', 'buzzer_snooze_min', 'display_resolution']
+    cloud_items = []
     with get_pg() as conn:
         with conn.cursor() as cursor:
             for k in keys:
@@ -1296,7 +1380,23 @@ def save_system_config():
                         INSERT INTO system_config (key, value) VALUES (%s, %s)
                         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
                     ''', (k, val_str))
+                    cloud_items.append({
+                        'key': k,
+                        'value': val_str,
+                        'updated_at': datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
+                    })
         conn.commit()
+
+    # ── 非同步雙向同步至 Supabase 雲端（避免外網延遲卡住前端）──
+    if cloud_items:
+        def _async_sync_sys_cfg(items):
+            try:
+                sb = get_supabase()
+                sb.table('system_config').upsert(items).execute()
+            except Exception as e:
+                print(f"[Supabase Sync] system_config 雲端同步失敗: {e}")
+        threading.Thread(target=_async_sync_sys_cfg, args=(cloud_items,), daemon=True).start()
+
     return jsonify({'status': 'ok'})
 
 @app.route('/api/line_test', methods=['POST'])
@@ -1588,7 +1688,10 @@ def _evaluate_room_alarms_and_push(realtime_payload):
             pass
 
         if not vals or not alarm_enabled:
-            # 庫別離線或停用警報 ➔ 若先前有警報則立即自動復歸
+            # 庫別離線或停用警報 ➔ 清空所有未發報的計時狀態與現存警報
+            state['pending_alarm_start'] = None
+            state['pending_alarm_type'] = None
+            state['stage'] = 'NORMAL'
             if state['is_alarm_active'] or db_active:
                 state['is_alarm_active'] = False
                 state['active_history_id'] = None
@@ -1623,17 +1726,21 @@ def _evaluate_room_alarms_and_push(realtime_payload):
                 state['pending_alarm_start'] = now_ts
                 state['pending_alarm_type'] = triggered_type
 
+            state['delay_sec'] = delay_sec
             time_abnormal = now_ts - (state['pending_alarm_start'] or now_ts)
+            state['pending_elapsed_sec'] = round(time_abnormal)
+            state['remaining_sec'] = max(0, delay_sec - round(time_abnormal))
+
             if time_abnormal >= delay_sec:
-                if not state['is_alarm_active'] and not db_active:
-                    # 首次觸發警報
+                # ── 階段二：超溫持續時間達到延遲設定，正式發報 ──
+                if not state['is_alarm_active']:
                     state['is_alarm_active'] = True
                     state['active_alarm_type'] = triggered_type
                     state['active_alarm_val'] = avg_temp
                     state['last_push_time'] = now_ts
 
                     # 寫入 alarm_history
-                    msg = f"{'庫溫過高警報' if triggered_type == 'HIGH' else '庫溫過低警報'} ({avg_temp:.1f}°C, 門檻: {threshold_val:.1f}°C)"
+                    msg = f"{'庫溫過高警報' if triggered_type == 'HIGH' else '庫溫過低警報'} ({avg_temp:.1f}°C, 門檻: {threshold_val:.1f}°C, 超溫持續達 {delay_min} 分鐘)"
                     try:
                         with get_pg() as conn:
                             with conn.cursor() as cur:
@@ -1646,23 +1753,29 @@ def _evaluate_room_alarms_and_push(realtime_payload):
                     except Exception as e:
                         print(f"Error inserting alarm_history: {e}")
 
-                    # 發送 LINE Bot 推播
-                    print(f"🚨 [ALARM TRIGGERED] {r_name} {triggered_type} ({avg_temp}°C > {threshold_val}°C) -> Pushing to LINE...")
+                    # 發送 LINE Bot 推播 (首次達到延遲時間正式發報)
+                    print(f"🚨 [ALARM TRIGGERED] {r_name} {triggered_type} ({avg_temp}°C, 持續滿 {delay_min} 分鐘) -> 正式發送 LINE 推播！")
                     push_temperature_alarm(r_name, triggered_type, avg_temp, threshold_val)
                 else:
-                    # 警報持續中，檢查冷卻時間再次發報
-                    state['is_alarm_active'] = True
+                    # 警報持續中，檢查冷卻時間再次發報 (避免重複發報耗損 LINE 額度費用)
                     if now_ts - state['last_push_time'] >= alarm_cooldown_sec:
                         state['last_push_time'] = now_ts
-                        print(f"🚨 [ALARM COOLDOWN EXPIRED] Re-pushing {r_name} {triggered_type} to LINE...")
+                        print(f"🚨 [ALARM COOLDOWN EXPIRED] 再次發報 {r_name} {triggered_type} 至 LINE...")
                         push_temperature_alarm(r_name, triggered_type, avg_temp, threshold_val)
+            else:
+                # ── 階段一：超溫計時中 (尚未滿延遲時間) ──
+                # 絕對不發送 LINE！不寫入 alarm_history！前端用閃爍提示超溫計時中
+                state['is_alarm_active'] = False
         else:
-            # 庫溫正常 ➔ 若先前處於警報狀態，立即執行復歸！
+            # 庫溫正常
+            was_active = state['is_alarm_active'] or db_active
             state['pending_alarm_start'] = None
             state['pending_alarm_type'] = None
+            state['is_alarm_active'] = False
+            state['pending_elapsed_sec'] = 0
+            state['remaining_sec'] = 0
 
-            if state['is_alarm_active'] or db_active:
-                state['is_alarm_active'] = False
+            if was_active:
                 state['active_history_id'] = None
 
                 try:
@@ -1678,8 +1791,15 @@ def _evaluate_room_alarms_and_push(realtime_payload):
                 except Exception as e:
                     print(f"Error clearing alarm_history: {e}")
 
-                print(f"🟢 [ALARM CLEARED] {r_name} restored to normal ({avg_temp}°C) -> Sending recovery notice to LINE...")
+                print(f"🟢 [ALARM CLEARED] {r_name} 恢復正常 ({avg_temp}°C) -> 發送復歸通知至 LINE...")
                 push_recovery_notice(r_name, f"庫溫已恢復正常範圍 (目前均溫: {avg_temp:.1f}°C)")
+
+        # 同步標註該庫別各通道的警報階段
+        for ch in chs:
+            if ch in realtime_payload and isinstance(realtime_payload[ch], dict):
+                realtime_payload[ch]['in_alarm'] = state['is_alarm_active']  # 只有正式發報才是 in_alarm
+                realtime_payload[ch]['alarm_pending'] = (not state['is_alarm_active'] and state.get('pending_alarm_start') is not None)
+                realtime_payload[ch]['room_stage'] = 'TRIGGERED' if state['is_alarm_active'] else ('PENDING' if state.get('pending_alarm_start') else 'NORMAL')
 
 def _start_alarm_monitor_worker():
     """啟動背景常駐警報評估與推播監控線程"""
@@ -1720,6 +1840,7 @@ def get_room_alarm_settings():
 @app.route('/api/room_alarm_settings', methods=['POST'])
 def save_room_alarm_settings():
     data = request.json or {}
+    cloud_items = []
     with get_pg() as conn:
         with conn.cursor() as cursor:
             for room_id, setting in data.items():
@@ -1737,10 +1858,14 @@ def save_room_alarm_settings():
 
                 # 同步更新該庫別對應之所有通道 alarm_settings
                 channels_list = setting.get('channels', [])
-                if not channels_list:
-                    r_row = conn.execute('SELECT channels FROM room_alarm_settings WHERE room_id=%s', (room_id,)).fetchone()
-                    if r_row and r_row['channels']:
-                        channels_list = [c.strip() for c in r_row['channels'].split(',') if c.strip()]
+                r_name = setting.get('name')
+                if not channels_list or not r_name:
+                    r_row = conn.execute('SELECT name, channels FROM room_alarm_settings WHERE room_id=%s', (room_id,)).fetchone()
+                    if r_row:
+                        if not channels_list and r_row['channels']:
+                            channels_list = [c.strip() for c in r_row['channels'].split(',') if c.strip()]
+                        if not r_name:
+                            r_name = r_row['name']
 
                 for ch in channels_list:
                     cursor.execute('''
@@ -1748,7 +1873,29 @@ def save_room_alarm_settings():
                         SET hi=%s, lo=%s, delay=%s, alarm_enabled=%s, temp_offset=%s
                         WHERE channel=%s
                     ''', (hi, lo, delay, enabled, offset, ch))
+
+                cloud_items.append({
+                    'room_id': room_id,
+                    'name': r_name or room_id,
+                    'channels': ','.join(channels_list) if isinstance(channels_list, list) else str(channels_list),
+                    'hi': hi,
+                    'lo': lo,
+                    'delay': delay,
+                    'alarm_enabled': enabled,
+                    'temp_offset': offset,
+                    'updated_at': datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S')
+                })
         conn.commit()
+
+    # ── 非同步雙向同步至 Supabase 雲端 ──
+    if cloud_items:
+        def _async_sync_room_cfg(items):
+            try:
+                sb = get_supabase()
+                sb.table('room_alarm_settings').upsert(items).execute()
+            except Exception as e:
+                print(f"[Supabase Sync] room_alarm_settings 雲端同步失敗: {e}")
+        threading.Thread(target=_async_sync_room_cfg, args=(cloud_items,), daemon=True).start()
 
     # 儲存後立即重新評估警報狀態（若調高門檻則立即復歸解除！）
     try:
@@ -1760,6 +1907,105 @@ def save_room_alarm_settings():
         print(f"Post-save alarm evaluation error: {e}")
 
     return jsonify({'status': 'ok'})
+
+@app.route('/api/sync_cloud_config', methods=['POST'])
+def sync_cloud_config():
+    """
+    供 supabase_bridge 從雲端拉取最新 system_config 與 room_alarm_settings 後，
+    更新地端本地 SQLite 備援資料庫。
+    """
+    payload = request.json or {}
+    sys_list = payload.get('system_config') or []
+    room_list = payload.get('room_alarm_settings') or []
+    alarm_list = payload.get('alarm_settings') or []
+
+    updated_sys = 0
+    updated_rooms = 0
+    updated_alarms = 0
+
+    with get_pg() as conn:
+        with conn.cursor() as cursor:
+            # 1. 更新 system_config
+            for item in sys_list:
+                k = item.get('key')
+                v = item.get('value')
+                if k and v is not None:
+                    cursor.execute('''
+                        INSERT INTO system_config (key, value) VALUES (%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    ''', (k, str(v).strip()))
+                    updated_sys += 1
+
+            # 2. 更新 room_alarm_settings 與子通道 alarm_settings
+            for r in room_list:
+                r_id = r.get('room_id')
+                if not r_id:
+                    continue
+                r_name = r.get('name')
+                chs = r.get('channels') or ''
+                hi = r.get('hi')
+                lo = r.get('lo')
+                delay = r.get('delay')
+                enabled = r.get('alarm_enabled')
+                offset = r.get('temp_offset')
+
+                cursor.execute('''
+                    INSERT INTO room_alarm_settings (room_id, name, channels, hi, lo, delay, alarm_enabled, temp_offset)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (room_id) DO UPDATE SET
+                        name = COALESCE(EXCLUDED.name, room_alarm_settings.name),
+                        channels = COALESCE(EXCLUDED.channels, room_alarm_settings.channels),
+                        hi = EXCLUDED.hi,
+                        lo = EXCLUDED.lo,
+                        delay = COALESCE(EXCLUDED.delay, room_alarm_settings.delay),
+                        alarm_enabled = COALESCE(EXCLUDED.alarm_enabled, room_alarm_settings.alarm_enabled),
+                        temp_offset = COALESCE(EXCLUDED.temp_offset, room_alarm_settings.temp_offset)
+                ''', (r_id, r_name, chs, hi, lo, delay, enabled, offset))
+                updated_rooms += 1
+
+                # 同步更新子通道 alarm_settings
+                ch_list = [c.strip() for c in chs.split(',') if c.strip()]
+                for ch in ch_list:
+                    cursor.execute('''
+                        UPDATE alarm_settings
+                        SET hi = %s, lo = %s,
+                            delay = COALESCE(%s, delay),
+                            alarm_enabled = COALESCE(%s, alarm_enabled),
+                            temp_offset = COALESCE(%s, temp_offset)
+                        WHERE channel = %s
+                    ''', (hi, lo, delay, enabled, offset, ch))
+
+            # 3. 更新通道獨立運轉電流閥值與 NFB 額定電流
+            for a in alarm_list:
+                ch = a.get('channel')
+                if not ch:
+                    continue
+                curr_th = a.get('current_threshold')
+                nfb = a.get('nfb_rated_current')
+                cursor.execute('''
+                    UPDATE alarm_settings
+                    SET current_threshold = COALESCE(%s, current_threshold),
+                        nfb_rated_current = COALESCE(%s, nfb_rated_current)
+                    WHERE channel = %s
+                ''', (curr_th, nfb, ch))
+                updated_alarms += 1
+
+        conn.commit()
+
+    if updated_rooms > 0:
+        try:
+            with REALTIME_LOCK:
+                current_payload = dict(REALTIME_PAYLOAD)
+            if current_payload:
+                _evaluate_room_alarms_and_push(current_payload)
+        except Exception:
+            pass
+
+    return jsonify({
+        'status': 'ok',
+        'updated_system_config': updated_sys,
+        'updated_room_settings': updated_rooms
+    })
 
 # ============================================================
 
@@ -3209,7 +3455,7 @@ def export_report_excel():
         meta_items = [
             ('監控對象：', summary['target_name'], '統計週期：', f"{label} ({period})"),
             ('採樣頻率：', f"每 {interval_min} 分鐘", '總資料筆數：', f"{summary['total_samples']} 筆"),
-            ('產生時間：', datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S'), '報表系統：', 'YJH-SCADA Pro 2.0')
+            ('產生時間：', datetime.now(TZ_TW_APP).strftime('%Y-%m-%d %H:%M:%S'), '報表系統：', '添利智慧冷鏈監控系統')
         ]
         for row_idx, (k1, v1, k2, v2) in enumerate(meta_items, 3):
             ws.cell(row_idx, 1, k1).font = Font(name='Arial', size=10, bold=True, color='475569')

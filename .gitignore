@@ -11,6 +11,9 @@
 *.bak
 *.tmp
 *.inspect.ndjson
+*.zip
+*.rar
+*.7z
 backups/
 data/
 
@@ -30,6 +33,8 @@ dist/
 # Historical case scratch space kept for reference, not for clean template delivery
 tmp/
 scratch/
+前端定稿/
+前端初稿/
 
 # OS metadata
 desktop.ini

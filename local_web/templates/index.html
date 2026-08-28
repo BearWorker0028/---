@@ -540,6 +540,85 @@
       transform: translateY(-2px);
       border-color: #94a3b8;
     }
+    /* ── 雙階段警報：超溫計時中 (閃爍) vs 正式發報 (恆亮) ── */
+    .sc.alarm-pending {
+      border: 2px solid #ea580c !important;
+      animation: flash-pending-border 1.2s infinite ease-in-out;
+    }
+    @keyframes flash-pending-border {
+      0%, 100% { border-color: #ea580c; box-shadow: 0 0 12px rgba(234, 88, 12, 0.6); }
+      50% { border-color: #ffedd5; box-shadow: none; }
+    }
+    .sc.alarm-pending .sc-header {
+      animation: flash-pending-header 1.2s infinite ease-in-out !important;
+    }
+    @keyframes flash-pending-header {
+      0%, 100% { background-color: #ea580c !important; }
+      50% { background-color: #7c2d12 !important; }
+    }
+
+    .sc.alarm-triggered {
+      border: 2px solid #dc2626 !important;
+      box-shadow: 0 0 14px rgba(220, 38, 38, 0.45);
+    }
+    .sc.alarm-triggered .sc-header {
+      background-color: #dc2626 !important; /* 鮮紅恆亮 */
+    }
+
+    .alarm-stage-badge {
+      font-size: 10.5px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-top: 3px;
+      display: inline-block;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .badge-pending {
+      background: #fff7ed;
+      color: #ea580c;
+      border: 1px solid #ea580c;
+      animation: flash-pending-badge 1.2s infinite ease-in-out;
+    }
+    @keyframes flash-pending-badge {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.65; transform: scale(0.97); }
+    }
+    .badge-triggered {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #dc2626;
+      animation: none;
+    }
+
+    .tv.t-pending {
+      color: #ea580c;
+    }
+
+    /* 平面圖點位閃爍與標籤 */
+    .fp-dot.fp-dot-pending {
+      background: #ea580c !important;
+      animation: pls 0.8s infinite !important;
+      box-shadow: 0 0 8px #ea580c;
+    }
+    .fp-bubble.fp-pending {
+      border: 1.5px solid #ea580c !important;
+      background: rgba(255, 247, 237, 0.96) !important;
+      animation: flash-pending-border 1.2s infinite ease-in-out;
+    }
+    .fp-temp-val.fp-tv-pending {
+      color: #ea580c !important;
+      font-weight: 800;
+    }
+    .fp-line.ln-pending {
+      background: #ea580c !important;
+    }
+    .fp-anchor.anc-pending {
+      background: #ea580c !important;
+      box-shadow: 0 0 6px #ea580c;
+    }
+
     .sc.alarm {
       border-color: var(--alarm);
       animation: flash-alarm-border 1.5s infinite;
@@ -1751,7 +1830,7 @@
         <div class="sdot d-ok"></div><span class="slabel">正常</span><span class="sval" id="cnt-ok">--</span>
       </div>
       <div class="si">
-        <div class="sdot d-alarm"></div><span class="slabel">警報</span><span class="sval" id="cnt-alarm">--</span>
+        <div class="sdot d-alarm"></div><span class="slabel">異常</span><span class="sval" id="cnt-alarm">0</span>
       </div>
       <div class="si">
         <div class="sdot d-off"></div><span class="slabel">離線</span><span class="sval" id="cnt-off">--</span>
@@ -2472,13 +2551,20 @@
     }
     function getRunState(u, ch) {
       if (!u) return 'stop';
-      if (u.flags?.eq_err || u.flags?.temp_err || u.eq_err || u.temp_err) return 'error';
+      // 1. 只有真正的設備硬體跳脫 (過載、逆相、設備保護、非零故障代碼) 才判定為「異常」
+      const isEquipFault = !!(u.flags?.eq_err || u.flags?.overload_err || u.flags?.phase_err || (u.fault_code && Number(u.fault_code) !== 0));
+      if (isEquipFault) return 'error';
+
+      // 2. 運轉電流為絕對依據：電流未達閥值 (現場開關沒開或機組停機)，一律判定為「停止」
       const current = Number(u.compressor_current || 0);
       if (current <= getCurrentThreshold(ch)) return 'stop';
+
+      // 3. 電流已超過閥值 (機組確實有通電運轉中)，再進一步區分運轉模式
       if (u.defrost_status || u.flags?.defrost) return 'defrost';
       if (u.cooling_status || u.flags?.cooling) return 'cooling';
       if (u.fan_status || u.flags?.fan) return 'fan';
-      return 'stop';
+
+      return 'cooling';
     }
     // 壓力單位換算（若廠內感測器輸出已是 psi，此處先原值回傳；如需 MPa→psi 換算，將 factor 改為 145.038 即可）
     function mpaToPsi(v) {
@@ -3118,8 +3204,10 @@
             });
           });
         }
-      } else if (meter === 'all' && metric === 'kw') {
-        // 全廠即時總功率：清爽三線曲線 (全廠合計 + 1F + 3F，無面積陰影)
+      } else if (meter === 'all' && (metric === 'kw' || metric === 'a')) {
+        // 全廠即時總功率/總電流：清爽三線曲線 (全廠合計 + 1F + 3F，無面積陰影)
+        const isKw = (metric === 'kw');
+        const unitStr = isKw ? 'kW' : 'A';
         const tMap = {};
         chKeys.forEach(ch => {
           (series[ch] || []).forEach(pt => {
@@ -3131,7 +3219,7 @@
         const totalPts = sortedTs.map(t => ({ x: t, y: Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)) }));
         
         datasets.push({
-          label: '全廠 即時總功率 (kW)',
+          label: isKw ? '全廠 即時總功率 (kW)' : '全廠 電流合計 (A)',
           data: totalPts,
           borderColor: '#0284c7',
           backgroundColor: 'transparent',
@@ -3142,7 +3230,7 @@
           pointHoverRadius: 5
         });
         datasets.push({
-          label: '1F 集合式電錶 即時功率 (kW)',
+          label: isKw ? '1F 集合式電錶 即時功率 (kW)' : '1F 集合式電錶 平均電流 (A)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch13 })),
           borderColor: '#1a5fa8',
           backgroundColor: 'transparent',
@@ -3153,7 +3241,7 @@
           pointHoverRadius: 4
         });
         datasets.push({
-          label: '3F 集合式電錶 即時功率 (kW)',
+          label: isKw ? '3F 集合式電錶 即時功率 (kW)' : '3F 集合式電錶 平均電流 (A)',
           data: sortedTs.map(t => ({ x: t, y: tMap[t].ch14 })),
           borderColor: '#d97706',
           backgroundColor: 'transparent',
@@ -3257,7 +3345,7 @@
         let statsRows = '';
 
         if (meter === 'all') {
-          // 計算全廠合計統計行
+          // 計算全廠合計/整合統計行
           const tMap = {};
           chKeys.forEach(ch => {
             (series[ch] || []).forEach(pt => {
@@ -3267,7 +3355,30 @@
             });
           });
           const sortedTs = Object.keys(tMap);
-          const totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+          let totalVals = [];
+          let allMetricLabel = '';
+          let sumOrAvg = '';
+
+          if (isBar) {
+            totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+            allMetricLabel = '全廠區間用電量 (kWh)';
+          } else if (metric === 'kw') {
+            totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+            allMetricLabel = '全廠即時總功率 (kW)';
+          } else if (metric === 'a') {
+            totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+            allMetricLabel = '全廠電流合計 (A)';
+          } else if (metric === 'v') {
+            totalVals = sortedTs.map(t => Number(((tMap[t].ch13 + tMap[t].ch14) / 2).toFixed(1)));
+            allMetricLabel = '全廠平均線電壓 (V)';
+          } else if (metric === 'pf') {
+            totalVals = sortedTs.map(t => Number(((tMap[t].ch13 + tMap[t].ch14) / 2).toFixed(2)));
+            allMetricLabel = '全廠平均功率因數';
+          } else {
+            totalVals = sortedTs.map(t => Number((tMap[t].ch13 + tMap[t].ch14).toFixed(1)));
+            allMetricLabel = '全廠合計';
+          }
+
           if (totalVals.length > 0) {
             const maxVal = Math.max(...totalVals);
             const minVal = Math.min(...totalVals);
@@ -3275,15 +3386,28 @@
             const minIdx = totalVals.indexOf(minVal);
             const sumVal = totalVals.reduce((a, b) => a + b, 0);
             const avgVal = sumVal / totalVals.length;
-            const sumOrAvg = isBar ? `區間用電量小計: ${sumVal.toFixed(1)} kWh` : `平均總功率: ${avgVal.toFixed(1)} kW`;
+
+            if (isBar) {
+              sumOrAvg = `區間用電量小計: ${sumVal.toFixed(1)} kWh`;
+            } else if (metric === 'kw') {
+              sumOrAvg = `平均總功率: ${avgVal.toFixed(1)} kW`;
+            } else if (metric === 'a') {
+              sumOrAvg = `平均總電流: ${avgVal.toFixed(1)} A`;
+            } else if (metric === 'v') {
+              sumOrAvg = `全廠均壓: ${avgVal.toFixed(1)} V`;
+            } else if (metric === 'pf') {
+              sumOrAvg = `平均因數: ${avgVal.toFixed(2)}`;
+            } else {
+              sumOrAvg = `平均值: ${avgVal.toFixed(1)} ${metricUnit}`;
+            }
 
             statsRows += `
               <tr style="background:#f0f9ff; font-weight:800;">
-                <td style="color:#0284c7;">全廠合計</td>
-                <td style="color:#0284c7;">${isBar ? '區間用電量 (kWh)' : '即時總功率 (kW)'}</td>
-                <td style="color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
+                <td style="color:#0284c7;">全廠整合</td>
+                <td style="color:#0284c7;">${allMetricLabel}</td>
+                <td style="color:var(--alarm);">${maxVal.toFixed(metric === 'pf' ? 2 : 1)} ${metricUnit}</td>
                 <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[maxIdx] || '--'}</td>
-                <td style="color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
+                <td style="color:var(--ok);">${minVal.toFixed(metric === 'pf' ? 2 : 1)} ${metricUnit}</td>
                 <td style="font-size:11px; color:var(--text-3); font-weight:normal;">${sortedTs[minIdx] || '--'}</td>
                 <td style="color:#0284c7;">${sumOrAvg}</td>
                 <td style="font-weight:normal;">${totalVals.length} 筆</td>
@@ -3302,7 +3426,20 @@
           const minPt = pts.find(p => p.v === minVal);
           const sumVal = vals.reduce((a, b) => a + b, 0);
           const avgVal = sumVal / vals.length;
-          const sumOrAvg = isBar ? `區間用電量: ${sumVal.toFixed(1)} kWh` : `平均功率: ${avgVal.toFixed(1)} ${metricUnit}`;
+          let sumOrAvg = '';
+          if (isBar) {
+            sumOrAvg = `區間用電量: ${sumVal.toFixed(1)} kWh`;
+          } else if (metric === 'kw') {
+            sumOrAvg = `平均功率: ${avgVal.toFixed(1)} kW`;
+          } else if (metric === 'a') {
+            sumOrAvg = `平均電流: ${avgVal.toFixed(1)} A`;
+          } else if (metric === 'v') {
+            sumOrAvg = `平均電壓: ${avgVal.toFixed(1)} V`;
+          } else if (metric === 'pf') {
+            sumOrAvg = `平均功率因數: ${avgVal.toFixed(2)}`;
+          } else {
+            sumOrAvg = `平均值: ${avgVal.toFixed(1)} ${metricUnit}`;
+          }
           const mLabel = metric === 'kw' ? '即時功率 (kW)' : (metric === 'daily_kwh' ? '區間用電量 (kWh)' : (document.getElementById('sel-ptrend-metric')?.selectedOptions[0]?.text || metric));
           const maxT = Array.isArray(maxPt?.t) ? maxPt.t.join(' ') : (maxPt?.t || '--');
           const minT = Array.isArray(minPt?.t) ? minPt.t.join(' ') : (minPt?.t || '--');
@@ -3311,9 +3448,9 @@
             <tr>
               <td style="font-weight:700;">${chNames[ch] || ch}</td>
               <td>${mLabel}</td>
-              <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(1)} ${metricUnit}</td>
+              <td style="font-weight:700; color:var(--alarm);">${maxVal.toFixed(metric === 'pf' ? 2 : 1)} ${metricUnit}</td>
               <td style="font-size:11px; color:var(--text-3);">${maxT}</td>
-              <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(1)} ${metricUnit}</td>
+              <td style="font-weight:700; color:var(--ok);">${minVal.toFixed(metric === 'pf' ? 2 : 1)} ${metricUnit}</td>
               <td style="font-size:11px; color:var(--text-3);">${minT}</td>
               <td style="font-weight:800; color:var(--accent);">${sumOrAvg}</td>
               <td>${vals.length} 筆</td>
@@ -3852,6 +3989,15 @@
       const inAlarm = online && !!(d && d.in_alarm);
       return { d, online, value, inAlarm };
     }
+    let _frontendAlarmTimers = {};
+
+    function formatTimeRemaining(sec) {
+      if (!sec || sec <= 0) return '0秒';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+    }
+
     // 聚合一張溫控卡片（依庫別計算在線設備之平均庫溫，以庫別平均庫溫判定警報）
     function aggregateTempCard(cardId, data, nowTs) {
       const cfg = CARD_CONFIG[cardId];
@@ -3873,19 +4019,52 @@
       });
       const avg = cnt > 0 ? (sum / cnt) : null;
 
-      // 警報判定完全依據庫別平均庫溫
-      let isAlarm = false;
+      // ── 雙階段警報狀態判定：超溫計時中 (PENDING: 閃爍) vs 正式發報 (TRIGGERED: 恆亮) ──
+      let stage = 'NORMAL';
+      let remainingSec = 0;
+      let delaySec = Number(s.delay !== undefined && s.delay !== null ? s.delay : 10) * 60;
+      let isAbnormal = false;
+
       if (anyOnline && Number.isFinite(avg) && s.alarm_enabled) {
         if ((s.hi !== null && s.hi !== undefined && avg > s.hi) ||
             (s.lo !== null && s.lo !== undefined && avg < s.lo)) {
-          isAlarm = true;
+          isAbnormal = true;
         }
       }
-      let backendAlarm = false;
-      cfg.channels.forEach(ch => {
-        const d = data[ch];
-        if (d && (d.in_alarm || d.status === 'TRIGGERED' || d.room_status === 'TRIGGERED')) backendAlarm = true;
-      });
+
+      // 若未啟用警報 (alarm_enabled 為 false / 0)，強制 NORMAL，絕對不觸發任何延遲計時或警報
+      if (!s.alarm_enabled) {
+        _frontendAlarmTimers[roomId] = null;
+        stage = 'NORMAL';
+        remainingSec = 0;
+      } else if (data && data._room_alarm_status && data._room_alarm_status[roomId]) {
+        const rInfo = data._room_alarm_status[roomId];
+        if (rInfo.alarm_enabled === false) {
+          stage = 'NORMAL';
+          remainingSec = 0;
+        } else {
+          stage = rInfo.stage || (rInfo.is_active ? 'TRIGGERED' : 'NORMAL');
+          remainingSec = rInfo.remaining_sec || 0;
+          delaySec = rInfo.delay_sec || delaySec;
+        }
+      } else {
+        // 前端本地備援防抖計時
+        if (isAbnormal) {
+          if (!_frontendAlarmTimers[roomId]) {
+            _frontendAlarmTimers[roomId] = nowTs;
+          }
+          const elapsed = Math.round((nowTs - _frontendAlarmTimers[roomId]) / 1000);
+          if (elapsed < delaySec) {
+            stage = 'PENDING';
+            remainingSec = Math.max(0, delaySec - elapsed);
+          } else {
+            stage = 'TRIGGERED';
+          }
+        } else {
+          _frontendAlarmTimers[roomId] = null;
+          stage = 'NORMAL';
+        }
+      }
 
       const gwId = cfg.channels.some(ch => GW1_CHS.includes(ch)) ? 'GW1' : 'GW2';
       const isGwOnline = checkGatewayStatus(gwId, gwId === 'GW1' ? GW1_CHS : GW2_CHS, data, nowTs);
@@ -3901,27 +4080,44 @@
         }
       }
 
-      const status = !anyOnline ? 'OFFLINE' : (isAlarm || backendAlarm) ? 'TRIGGERED' : 'NORMAL';
-      return { online: anyOnline, value: avg, status, dots, isGwOnline, diagInfo, diagShort };
+      const status = !anyOnline ? 'OFFLINE' : stage;
+      return { online: anyOnline, value: avg, status, stage, remainingSec, delaySec, dots, isGwOnline, diagInfo, diagShort };
     }
-    // 溫控卡片：頭部區域名稱(依警報變色) + 左上角設備燈號陣列 + 中央大號聚合溫度
+
+    // 溫控卡片：頭部區域名稱(超溫計時中閃爍 / 正式發報恆亮) + 左上角設備燈號陣列 + 中央大號聚合溫度
     function tempCardHtml(cardId, agg) {
       const cfg = CARD_CONFIG[cardId];
-      const isTriggered = agg.status === 'TRIGGERED';
+      const isTriggered = agg.status === 'TRIGGERED'; // 恆亮：已正式發報
+      const isPending = agg.status === 'PENDING';     // 閃爍：超溫計時中
       const isOffline = agg.status === 'OFFLINE';
+
       let headerBg = 'var(--accent-secondary)';
-      if (isTriggered) headerBg = 'var(--alarm)';
-      else if (isOffline) headerBg = 'var(--text-3)';
+      let cardClass = 'sc';
+      let stageBadgeHtml = '';
+
+      if (isTriggered) {
+        headerBg = '#dc2626'; // 恆亮紅色
+        cardClass += ' alarm-triggered';
+      } else if (isPending) {
+        headerBg = '#ea580c'; // 呼吸閃爍橘紅
+        cardClass += ' alarm-pending';
+      } else if (isOffline) {
+        headerBg = 'var(--text-3)';
+        cardClass += ' offline';
+      }
+
       const dotsHtml = agg.dots.map(dot => {
         const bg = dot.online ? RUNSTATE_COLORS[dot.state] : '#fff';
         const border = dot.online ? 'none' : '1.5px solid #cbd5e1';
         return `<span title="${CHANNEL_NAMES[dot.ch] || dot.ch}" style="width:9px;height:9px;border-radius:50%;background:${bg};border:${border};display:inline-block;"></span>`;
       }).join('');
-      const valueClass = isTriggered ? 't-alarm' : isOffline ? 't-off' : 't-ok';
+
+      const valueClass = isTriggered ? 't-alarm' : isPending ? 't-pending' : isOffline ? 't-off' : 't-ok';
       const valueHtml = (agg.online && Number.isFinite(agg.value)) ? `${agg.value.toFixed(1)}<span class="tu">°C</span>` : `--<span class="tu">°C</span>`;
       const diagBadgeHtml = (isOffline && agg.diagShort) ? `<div style="font-size:10px; color:#94a3b8; font-weight:700; margin-top:2px;" title="${agg.diagInfo}">${agg.diagShort}</div>` : '';
+
       return `
-      <div class="sc${isTriggered ? ' alarm' : ''}${isOffline ? ' offline' : ''}" onclick="openControlModal('${cardId}')" title="${isOffline ? agg.diagInfo : ''}">
+      <div class="${cardClass}" onclick="openControlModal('${cardId}')" title="${isOffline ? agg.diagInfo : (isPending ? '超溫緩衝計時中' : '')}">
         <div class="sc-header" style="background:${headerBg}; text-align:center; padding:8px 12px; color:#ffffff; font-size:14px; font-weight:800; letter-spacing:1px; min-height:38px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;">${cfg.name}</div>
         <div class="card-mid" style="flex:1; padding:8px 12px 12px; display:flex; flex-direction:column; justify-content:space-between;">
           <div class="tv ${valueClass}" style="text-align:center;">${valueHtml}${diagBadgeHtml}</div>
@@ -4022,14 +4218,16 @@
         if (!dot || !tempEl || !bubble || !anc || !ln) return;
         const agg = aggregateTempCard(cardId, data, nowTs);
         const isAlarm = agg.status === 'TRIGGERED';
+        const isPending = agg.status === 'PENDING';
         const isOffline = !agg.online;
-        const key = isOffline ? 'off' : isAlarm ? 'alarm' : 'ok';
+        const key = isOffline ? 'off' : isAlarm ? 'alarm' : isPending ? 'pending' : 'ok';
         dot.className = `fp-dot fp-dot-${key}`;
         tempEl.className = `fp-temp-val fp-tv-${key}`;
         anc.className = `fp-anchor anc-${key}`;
         ln.className = `fp-line ln-${key}`;
         tempEl.textContent = (agg.online && Number.isFinite(agg.value)) ? agg.value.toFixed(1) + '°C' : '--°C';
         bubble.classList.toggle('fp-alarm', isAlarm);
+        bubble.classList.toggle('fp-pending', isPending);
       });
     }
     async function update(data) {
@@ -4039,18 +4237,22 @@
       if (!lastEnergyStats || Date.now() - lastEnergyFetchTs > 30000) {
         fetchEnergyStats();
       }
-      let ok = 0, al = 0, off = 0, gridHtml = '';
+      let ok = 0, eqErr = 0, off = 0, gridHtml = '';
       ALL_CHS.forEach(ch => {
-        const st = getChannelState(data, ch, nowTs);
-        if (!st.online) {
+        const d = data[ch];
+        const online = isRoomOnline(d, nowTs);
+        if (!online) {
           off++;
-        } else if (st.inAlarm) {
-          al++;
         } else {
-          ok++;
+          const runState = getRunState(d, ch);
+          if (runState === 'error') {
+            eqErr++;
+          } else {
+            ok++;
+          }
         }
       });
-      const onlineCount = ok + al;
+      const onlineCount = ok + eqErr;
 
       ALL_CARDS.forEach(cardId => {
         const cfg = CARD_CONFIG[cardId];
@@ -4060,19 +4262,29 @@
       if (mainGrid) mainGrid.innerHTML = gridHtml;
       const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       setText('cnt-ok', ok);
-      setText('cnt-alarm', al);
+      setText('cnt-alarm', eqErr);
       setText('cnt-off', off);
       setText('cnt-total', `${onlineCount} / ${ALL_CHS.length}`);
+
       const gw1Online = checkGatewayStatus('GW1', GW1_CHS, data, nowTs);
       const gw2Online = checkGatewayStatus('GW2', GW2_CHS, data, nowTs);
       const gwOffCount = [gw1Online, gw2Online].filter(v => !v).length;
       setText('gw-cnt-ok', [gw1Online, gw2Online].filter(Boolean).length);
       setText('gw-cnt-off', gwOffCount);
-      // 網關離線純粹靜態顯示（GW2 目前現場尚未架設，本來就會是離線狀態），
-      // 不當作警報處理，不閃爍、不觸發警報音效——避免已知狀態一直吵人。
+
+      // 檢查卡片是否有任何庫別處於超溫預警 (PENDING) 或正式發報 (TRIGGERED)
+      let anyRoomWarningOrAlarm = false;
+      if (data._room_alarm_status) {
+        Object.values(data._room_alarm_status).forEach(r => {
+          if (r.stage === 'PENDING' || r.stage === 'TRIGGERED' || r.is_active) {
+            anyRoomWarningOrAlarm = true;
+          }
+        });
+      }
+      const hasWarningOrAlarm = anyRoomWarningOrAlarm || eqErr > 0;
       const silenceBtn = document.getElementById('btn-silence');
-      if (silenceBtn) silenceBtn.style.display = al > 0 ? 'inline-block' : 'none';
-      updateAlarmSound(al > 0);
+      if (silenceBtn) silenceBtn.style.display = hasWarningOrAlarm ? 'inline-block' : 'none';
+      updateAlarmSound(hasWarningOrAlarm);
       // Update floorplan power summary card for CP-1 & CP-3 (參照卡片視圖 4 欄數值設計)
       const fpPowerCard = document.getElementById('fp-power-card');
       if (fpPowerCard) {
@@ -4778,7 +4990,10 @@
       const msgEl = document.getElementById('line-test-msg');
 
       if (!token || !targetId) {
-        alert('請先填寫 Channel Access Token 與 Target ID');
+        if (msgEl) {
+          msgEl.style.color = 'var(--alarm)';
+          msgEl.textContent = '❌ 請先填寫 Channel Access Token 與 Target ID';
+        }
         return;
       }
 
@@ -4797,22 +5012,19 @@
         if (resp.ok && res.status === 'ok') {
           if (msgEl) {
             msgEl.style.color = 'var(--ok)';
-            msgEl.textContent = '推播成功！請確認手機 LINE 訊息';
+            msgEl.textContent = '✅ ' + (res.message || '測試訊息已成功推播至 LINE！請檢查手機 LINE 訊息。');
           }
-          alert(res.message);
         } else {
           if (msgEl) {
             msgEl.style.color = 'var(--alarm)';
-            msgEl.textContent = '發送失敗：' + (res.message || '未知錯誤');
+            msgEl.textContent = '❌ 發送失敗：' + (res.message || '請確認 Token 與 Target ID 正確');
           }
-          alert('發送失敗：' + (res.message || '請確認 Token 與 Target ID 正確'));
         }
       } catch (e) {
         if (msgEl) {
           msgEl.style.color = 'var(--alarm)';
-          msgEl.textContent = '連線錯誤，請確認後端伺服器運作';
+          msgEl.textContent = '❌ 連線錯誤：' + e.message;
         }
-        alert('連線失敗：' + e.message);
       }
     }
 
@@ -5434,7 +5646,7 @@
       const sw = document.getElementById('stats-wrap');
       if (sw) sw.style.display = 'block';
     }
-    // ── 警報音效引擎（880Hz 方波，簡易版）────────────────────────────
+    // ── 警報音效引擎（原版 880Hz 方波蜂鳴聲，支援預警響鈴與一鍵暫時關閉）────────────────────────────
     let audioCtx = null;
     let alarmBeepInterval = null;
     let alarmSilenced = false;
@@ -5448,17 +5660,22 @@
         if (banner) banner.style.display = 'none';
       } catch (e) { }
     }
+
     function beep() {
       if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = 880;
-      gain.gain.value = 0.05;
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.value = 0.05;
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      } catch (e) { }
     }
+
     function updateAlarmSound(hasAlarm) {
       const btn = document.getElementById('btn-silence');
       const snoozeMin = Number(systemConfig.buzzer_snooze_min) || 10;
@@ -5509,10 +5726,16 @@
         if (btn) btn.style.display = 'none';
       }
     }
+
     function silenceAlarm() {
-      alarmSilenced = true;
-      buzzerSilenceTime = Date.now();
-      if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
+      if (alarmSilenced) {
+        alarmSilenced = false;
+        buzzerSilenceTime = 0;
+      } else {
+        alarmSilenced = true;
+        buzzerSilenceTime = Date.now();
+        if (alarmBeepInterval) { clearInterval(alarmBeepInterval); alarmBeepInterval = null; }
+      }
       updateAlarmSound(true);
     }
     // ── 初始化：時鐘、側邊欄導覽、資料輪詢 ──────────────────────────────
