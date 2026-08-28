@@ -2792,7 +2792,7 @@ def power_energy_stats():
                     coil = float(r['coil_temp'] or 0.0) if r['coil_temp'] is not None else 0.0
                     st = r.get('status') or 'NORMAL'
 
-                    if curr > ch_threshold and total_samples >= 500 and v < 999.0:
+                    if curr > ch_threshold and v < 999.0:
                         active_curr_cnt += 1
                         if st in ('TRIGGERED', 'ALARM', 'FAULT'):
                             fault_cnt += 1

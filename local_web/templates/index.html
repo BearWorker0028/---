@@ -2087,10 +2087,11 @@
                       <table style="width:100%; border-collapse:collapse; font-size:11px; table-layout:fixed;">
                         <thead>
                           <tr style="background:#f1f5f9; color:var(--text-2); position:sticky; top:0;">
-                            <th style="padding:4px 6px; text-align:left; width:36%;">設備名稱</th>
+                            <th style="padding:4px 6px; text-align:left; width:28%;">設備名稱</th>
                             <th style="padding:4px 4px; text-align:center; width:18%;">即時狀態</th>
-                            <th style="padding:4px 4px; text-align:right; width:23%;">製冷時數</th>
-                            <th style="padding:4px 6px; text-align:right; width:23%;">除霜時數</th>
+                            <th style="padding:4px 4px; text-align:right; width:18%;">製冷時數</th>
+                            <th style="padding:4px 4px; text-align:right; width:18%;">送風時數</th>
+                            <th style="padding:4px 6px; text-align:right; width:18%;">除霜時數</th>
                           </tr>
                         </thead>
                         <tbody id="modal-roomstate-tbody">
@@ -2946,6 +2947,7 @@
             <td style="padding:4px 6px; font-weight:700; color:var(--text-1);">${d.name}</td>
             <td style="padding:4px 4px; text-align:center;">${statusBadge(d.status)}</td>
             <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--text-1);">${Number(d.states?.cooling_hours || 0).toFixed(1)} hr</td>
+            <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:#16a34a;">${Number(d.states?.fan_hours || 0).toFixed(1)} hr</td>
             <td style="padding:4px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-2);">${Number(d.states?.defrost_hours || 0).toFixed(1)} hr</td>
           </tr>
         `).join('');
