@@ -2947,7 +2947,7 @@
             <td style="padding:4px 6px; font-weight:700; color:var(--text-1);">${d.name}</td>
             <td style="padding:4px 4px; text-align:center;">${statusBadge(d.status)}</td>
             <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--text-1);">${Number(d.states?.cooling_hours || 0).toFixed(1)} hr</td>
-            <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:#16a34a;">${Number(d.states?.fan_hours || 0).toFixed(1)} hr</td>
+            <td style="padding:4px 4px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-2);">${Number(d.states?.fan_hours || 0).toFixed(1)} hr</td>
             <td style="padding:4px 6px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:var(--text-2);">${Number(d.states?.defrost_hours || 0).toFixed(1)} hr</td>
           </tr>
         `).join('');
